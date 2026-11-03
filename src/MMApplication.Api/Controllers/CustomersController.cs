@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MMApplication.Application.DTOs;
@@ -10,6 +11,7 @@ namespace MMApplication.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize(Roles = StaffRoles.Management)]
 public class CustomersController : ControllerBase
 {
     private readonly AppDbContext _context;

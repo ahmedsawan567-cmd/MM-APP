@@ -191,4 +191,46 @@ public class MobileHomeController : ControllerBase
             _ => ("MAX_TIER", 0, 100m)
         };
     }
+
+    /// <summary>
+    /// دليل المتاجر النشطة لتطبيق الجوال (عام، بدون بيانات حساسة مثل المبيعات أو أرقام الموظفين).
+    /// </summary>
+    [HttpGet("stores")]
+    [ProducesResponseType(typeof(IEnumerable<MobileStoreDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStores([FromQuery] string? search, [FromQuery] string? category)
+    {
+        var query = _context.Tenants
+            .Include(t => t.LoyaltyRule)
+            .AsNoTracking()
+            .Where(t => t.IsActive);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(t => t.NameAr.Contains(s) || t.NameEn.Contains(s) || t.Category.Contains(s));
+        }
+
+        if (!string.IsNullOrWhiteSpace(category) && category != "ALL")
+        {
+            query = query.Where(t => t.Category == category);
+        }
+
+        var stores = await query
+            .OrderBy(t => t.NameAr)
+            .Select(t => new MobileStoreDto
+            {
+                TenantId = t.TenantId,
+                NameAr = t.NameAr,
+                NameEn = t.NameEn,
+                UnitNumber = t.UnitNumber,
+                Category = t.Category,
+                LogoUrl = t.LogoUrl,
+                FloorLabel = t.UnitNumber.StartsWith("G") ? "الطابق الأرضي" : "الطابق الأول",
+                RewardType = t.LoyaltyRule != null ? t.LoyaltyRule.RewardType : "POINTS",
+                ConversionRate = t.LoyaltyRule != null ? t.LoyaltyRule.ConversionRate : 0.1m
+            })
+            .ToListAsync();
+
+        return Ok(stores);
+    }
 }

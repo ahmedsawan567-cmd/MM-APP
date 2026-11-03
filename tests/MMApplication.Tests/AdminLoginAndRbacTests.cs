@@ -61,6 +61,10 @@ public class AdminLoginAndRbacTests : IClassFixture<WebApplicationFactory<Progra
         _output.WriteLine($"Dashboard Index for '{username}': {(int)indexResp.StatusCode}");
         Assert.Equal(HttpStatusCode.OK, indexResp.StatusCode);
 
+        // 3b. صفحات اللوحة تستدعي /api/SuperAdmin بالكوكي، فيجب أن تعمل بعد تسجيل الدخول
+        var apiResp = await client.GetAsync("/api/SuperAdmin/stores");
+        Assert.Equal(HttpStatusCode.OK, apiResp.StatusCode);
+
         // 4. Test Access to Staff Management (RBAC & Tenant Isolation Check)
         var staffResp = await client.GetAsync("/AdminDashboard/Staff");
         _output.WriteLine($"Staff page check for '{username}': {(int)staffResp.StatusCode}");

@@ -117,10 +117,8 @@ builder.Services.AddAuthentication(options =>
         {
             return JwtBearerDefaults.AuthenticationScheme;
         }
-        if (context.Request.Path.StartsWithSegments("/api"))
-        {
-            return JwtBearerDefaults.AuthenticationScheme;
-        }
+        // بدون توكن Bearer: نستخدم كوكي لوحة التحكم (حتى لطلبات /api القادمة من صفحات اللوحة).
+        // طلبات /api غير المصرّح بها تُرجع 401/403 بدل التحويل لصفحة الدخول (انظر أحداث الكوكي أعلاه).
         return CookieAuthenticationDefaults.AuthenticationScheme;
     };
 });

@@ -482,3 +482,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Uploaded receipts (runtime data)
+src/MMApplication.Api/wwwroot/uploads/

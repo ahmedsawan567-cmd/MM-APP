@@ -81,3 +81,16 @@ public class ServerDrivenUiMetaDto
         "FEATURED_STORES"
     };
 }
+
+public class MobileStoreDto
+{
+    public string TenantId { get; set; } = string.Empty;
+    public string NameAr { get; set; } = string.Empty;
+    public string NameEn { get; set; } = string.Empty;
+    public string UnitNumber { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string? LogoUrl { get; set; }
+    public string FloorLabel { get; set; } = string.Empty;
+    public string RewardType { get; set; } = "POINTS";
+    public decimal ConversionRate { get; set; }
+}

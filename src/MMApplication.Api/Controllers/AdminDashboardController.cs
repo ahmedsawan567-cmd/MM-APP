@@ -18,6 +18,7 @@ namespace MMApplication.Api.Controllers;
 /// وحدة تحكم لوحة الإدارة العامة المركزية والتحكم بالصلاحيات الدقيقة عبر ASP.NET Core MVC (.NET 9)
 /// متصلة بقاعدة البيانات السحابية Supabase ومفصولة الصلاحيات بدقة (مطور، مدير عام، مدقق احتيال، مدير متجر).
 /// </summary>
+[Authorize(Roles = StaffRoles.All)]
 public class AdminDashboardController : Controller
 {
     private readonly AppDbContext _context;
@@ -36,8 +37,9 @@ public class AdminDashboardController : Controller
     private string? CurrentTenantId => User?.FindFirst("TenantId")?.Value;
     private string? CurrentSystemRole => User?.FindFirst("SystemRole")?.Value ?? User?.FindFirst(ClaimTypes.Role)?.Value;
     
+    // ملاحظة أمنية: المستخدم غير المسجّل لا يُعامل أبداً كمدير عام.
+    // (User == null يحدث فقط في اختبارات الوحدة التي تنشئ الـ Controller مباشرة بدون HttpContext)
     private bool IsDeveloperOrSuperAdmin => User == null || 
-                                           User.Identity?.IsAuthenticated != true || 
                                            User.IsInRole("superadmin") || 
                                            CurrentSystemRole == "SUPER_ADMIN" || 
                                            CurrentUserId == "programer" || 
