@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@(ViewData["Title"] ?? "لوحة التحكم") - منظومة المرأة مول</title>
+    
+    <!-- 1. Google Fonts: Cairo (Arabic) & Plus Jakarta Sans (Numbers / English) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- 2. Tailwind CSS CDN with Custom SaaS Config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Cairo"', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['"Plus Jakarta Sans"', 'monospace']
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- 3. Professional Frontend Libraries -->
+    <!-- Lucide Vector Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- ApexCharts for modern silky graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- SweetAlert2 for modern modals and toast alerts -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+    <!-- Custom Rebuilt Design System -->
+    <link rel="stylesheet" href="~/styles.css" asp-append-version="true">
+</head>
+<body class="min-h-screen flex bg-[#f8fafc] text-slate-900 text-sm font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
+
+    @{
+        var currentRole = User.FindFirst("SystemRole")?.Value ?? (User.IsInRole("superadmin") ? "SUPER_ADMIN" : (User.IsInRole("auditor") ? "FRAUD_AUDITOR" : (User.IsInRole("storemanager") ? "STORE_MANAGER" : "SUPER_ADMIN")));
+        var isDevOrSuperAdmin = User.IsInRole("superadmin") || currentRole == "SUPER_ADMIN" || User.Identity?.Name?.Contains("programer") == true;
+        var isAuditor = User.IsInRole("auditor") || currentRole == "FRAUD_AUDITOR";
+        var isStoreManager = User.IsInRole("storemanager") || currentRole == "STORE_MANAGER";
+        var tenantName = User.FindFirst("TenantName")?.Value;
+        var tenantId = User.FindFirst("TenantId")?.Value;
+        var currentUserName = (User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(User.Identity.Name))
+            ? User.Identity.Name
+            : "المسؤول العام";
+        var userInitial = currentUserName.Trim().Length > 0 ? currentUserName.Trim().Substring(0, 1) : "M";
+
+        string roleDisplayName;
+        string roleBadgeColor;
+        if (isDevOrSuperAdmin)
+        {
+            roleDisplayName = currentUserName.Contains("programer") ? "المطور التقني (Developer)" : "المدير العام (Super Admin)";
+            roleBadgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+        }
+        else if (isAuditor)
+        {
+            roleDisplayName = "مدقق الفواتير والاحتيال";
+            roleBadgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+        }
+        else if (isStoreManager)
+        {
+            roleDisplayName = !string.IsNullOrEmpty(tenantName) ? $"مدير: {tenantName}" : "مدير متجر (Store Manager)";
+            roleBadgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        }
+        else
+        {
+            roleDisplayName = "مسؤول النظام";
+            roleBadgeColor = "bg-slate-500/10 text-slate-400 border-slate-500/20";
+        }
+
+        var activeTab = ViewData["ActiveTab"]?.ToString() ?? "overview";
+    }
+
+    <!-- ======================================================== -->
+    <!-- 1. DESKTOP SIDEBAR -->
+    <!-- ======================================================== -->
+    <aside class="hidden lg:flex w-64 bg-[#0f172a] border-l border-slate-800 flex-col justify-between shrink-0 min-h-screen sticky top-0 z-30 shadow-xl">
+        <div class="p-4 space-y-5">
+            
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-3 px-2 py-2 border-b border-slate-800/80">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-500/20">
+                    <i data-lucide="store" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold text-white tracking-tight">المرأة مول</h1>
+                    <p class="text-[11px] text-slate-400 font-medium font-mono">M M Suite 2.0</p>
+                </div>
+            </div>
+
+            <!-- Active User Role Card -->
+            <div class="px-3 py-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                        @userInitial
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-xs font-bold text-white truncate">@currentUserName</div>
+                        <div class="text-[10px] text-slate-400 truncate">@roleDisplayName</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="space-y-4">
+                
+                <!-- Category 1: Overview -->
+                <div class="space-y-1">
+                    <div class="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">الرئيسية والمؤشرات</div>
+                    <a asp-controller="AdminDashboard" asp-action="Index" class="sidebar-link @(activeTab == "overview" ? "active" : "")">
+                        <i data-lucide="layout-grid"></i>
+                        <span>الرئيسية</span>
+                    </a>
+                </div>
+
+                <!-- Category 2: Operations & AI Recognition -->
+                <div class="space-y-1">
+                    <div class="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">المتاجر والفواتير والـ AI</div>
+                    
+                    @if (isDevOrSuperAdmin || isStoreManager)
+                    {
+                        <a asp-controller="AdminDashboard" asp-action="Stores" class="sidebar-link @(activeTab == "stores" ? "active" : "")">
+                            <i data-lucide="building-2"></i>
+                            <span>@(isStoreManager ? "بيانات متجري" : "المتاجر")</span>
+                        </a>
+
+                        <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" class="sidebar-link @(activeTab == "invoice_templates" ? "active" : "")">
+                            <i data-lucide="scan-line"></i>
+                            <span>نماذج الفواتير والـ AI</span>
+                        </a>
+                    }
+
+                    <a asp-controller="AdminDashboard" asp-action="Invoices" class="sidebar-link @(activeTab == "invoices" ? "active" : "")">
+                        <i data-lucide="receipt"></i>
+                        <span>سجل الفواتير</span>
+                    </a>
+
+                    @if (isDevOrSuperAdmin || isAuditor)
+                    {
+                        <a asp-controller="AdminDashboard" asp-action="Fraud" class="sidebar-link @(activeTab == "fraud" ? "active" : "") flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <i data-lucide="shield-alert"></i>
+                                <span>تدقيق الاحتيال</span>
+                            </div>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 font-mono">2</span>
+                        </a>
+                    }
+
+                    <a asp-controller="AdminDashboard" asp-action="Settlements" class="sidebar-link @(activeTab == "settlements" ? "active" : "")">
+                        <i data-lucide="wallet-cards"></i>
+                        <span>@(isStoreManager ? "مستحقات متجري" : "التسويات المالية")</span>
+                    </a>
+                </div>
+
+                <!-- Category 3: Loyalty & Shoppers -->
+                @if (isDevOrSuperAdmin || isStoreManager)
+                {
+                    <div class="space-y-1">
+                        <div class="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">الولاء والمتسوقين</div>
+                        
+                        <a asp-controller="AdminDashboard" asp-action="Loyalty" class="sidebar-link @(activeTab == "loyalty" ? "active" : "")">
+                            <i data-lucide="award"></i>
+                            <span>برامج الولاء والمكافآت</span>
+                        </a>
+
+                        @if (isDevOrSuperAdmin)
+                        {
+                            <a asp-controller="AdminDashboard" asp-action="Ads" class="sidebar-link @(activeTab == "ads" ? "active" : "")">
+                                <i data-lucide="megaphone"></i>
+                                <span>العروض والإعلانات</span>
+                            </a>
+                        }
+
+                        @if (isDevOrSuperAdmin || isAuditor)
+                        {
+                            <a asp-controller="AdminDashboard" asp-action="Customers" class="sidebar-link @(activeTab == "customers" ? "active" : "")">
+                                <i data-lucide="users"></i>
+                                <span>سجل المتسوقين</span>
+                            </a>
+                        }
+                    </div>
+                }
+
+                <!-- Category 4: Administration (Super Admin / Developer) -->
+                @if (isDevOrSuperAdmin)
+                {
+                    <div class="space-y-1">
+                        <div class="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">الإدارة والنظام</div>
+                        
+                        <a asp-controller="AdminDashboard" asp-action="Staff" class="sidebar-link @(activeTab == "staff" ? "active" : "")">
+                            <i data-lucide="user-cog"></i>
+                            <span>طاقم العمل والصلاحيات</span>
+                        </a>
+
+                        <a asp-controller="AdminDashboard" asp-action="Settings" class="sidebar-link @(activeTab == "settings" ? "active" : "")">
+                            <i data-lucide="settings"></i>
+                            <span>الإعدادات وسجل العمليات</span>
+                        </a>
+                    </div>
+                }
+
+            </nav>
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="p-3 border-t border-slate-800 space-y-1">
+            <a href="javascript:void(0)" onclick="showHelpModal()" class="sidebar-link">
+                <i data-lucide="help-circle"></i>
+                <span>الدعم والتوثيق</span>
+            </a>
+            <a asp-controller="AdminDashboard" asp-action="Logout" class="sidebar-link text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
+                <i data-lucide="log-out"></i>
+                <span>تسجيل الخروج</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- ======================================================== -->
+    <!-- 2. MOBILE DRAWER OVERLAY -->
+    <!-- ======================================================== -->
+    <div id="mobile-sidebar" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden transition-opacity lg:hidden">
+        <div class="fixed inset-y-0 right-0 max-w-xs w-full bg-[#0f172a] shadow-2xl flex flex-col justify-between p-4 overflow-y-auto">
+            <div class="space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold">
+                            <i data-lucide="store" class="w-4 h-4"></i>
+                        </div>
+                        <div class="text-sm font-bold text-white">المرأة مول</div>
+                    </div>
+                    <button onclick="toggleMobileNav(false)" class="p-1 rounded-lg text-slate-400 hover:text-white">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <nav class="space-y-1">
+                    <a asp-controller="AdminDashboard" asp-action="Index" class="sidebar-link @(activeTab == "overview" ? "active" : "")">
+                        <i data-lucide="layout-grid"></i>
+                        <span>الرئيسية</span>
+                    </a>
+                    <a asp-controller="AdminDashboard" asp-action="Stores" class="sidebar-link @(activeTab == "stores" ? "active" : "")">
+                        <i data-lucide="building-2"></i>
+                        <span>المتاجر</span>
+                    </a>
+                    <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" class="sidebar-link @(activeTab == "invoice_templates" ? "active" : "")">
+                        <i data-lucide="scan-line"></i>
+                        <span>نماذج الفواتير والـ AI</span>
+                    </a>
+                    <a asp-controller="AdminDashboard" asp-action="Invoices" class="sidebar-link @(activeTab == "invoices" ? "active" : "")">
+                        <i data-lucide="receipt"></i>
+                        <span>سجل الفواتير</span>
+                    </a>
+                    <a asp-controller="AdminDashboard" asp-action="Fraud" class="sidebar-link @(activeTab == "fraud" ? "active" : "")">
+                        <i data-lucide="shield-alert"></i>
+                        <span>تدقيق الاحتيال</span>
+                    </a>
+                    <a asp-controller="AdminDashboard" asp-action="Settlements" class="sidebar-link @(activeTab == "settlements" ? "active" : "")">
+                        <i data-lucide="wallet-cards"></i>
+                        <span>التسويات المالية</span>
+                    </a>
+                    <a asp-controller="AdminDashboard" asp-action="Loyalty" class="sidebar-link @(activeTab == "loyalty" ? "active" : "")">
+                        <i data-lucide="award"></i>
+                        <span>برامج الولاء</span>
+                    </a>
+                    @if (isDevOrSuperAdmin)
+                    {
+                        <a asp-controller="AdminDashboard" asp-action="Staff" class="sidebar-link @(activeTab == "staff" ? "active" : "")">
+                            <i data-lucide="user-cog"></i>
+                            <span>طاقم العمل</span>
+                        </a>
+                        <a asp-controller="AdminDashboard" asp-action="Settings" class="sidebar-link @(activeTab == "settings" ? "active" : "")">
+                            <i data-lucide="settings"></i>
+                            <span>الإعدادات</span>
+                        </a>
+                    }
+                </nav>
+            </div>
+
+            <div class="pt-4 border-t border-slate-800">
+                <a asp-controller="AdminDashboard" asp-action="Logout" class="sidebar-link text-rose-400">
+                    <i data-lucide="log-out"></i>
+                    <span>تسجيل الخروج</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- 3. MAIN CONTENT VIEWPORT -->
+    <!-- ======================================================== -->
+    <div class="flex-1 flex flex-col min-w-0">
+        
+        <!-- TOPBAR -->
+        <header class="h-14 px-4 sm:px-6 bg-white border-b border-slate-200 sticky top-0 z-20 flex items-center justify-between gap-4">
+            
+            <div class="flex items-center gap-3">
+                <button onclick="toggleMobileNav(true)" class="lg:hidden p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+                    <i data-lucide="menu" class="w-4 h-4"></i>
+                </button>
+
+                <!-- Search Input -->
+                <div class="relative w-48 sm:w-64 md:w-80">
+                    <input type="text" id="global-search" placeholder="بحث سريع في المنظومة (فواتير، متاجر، عملاء)..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5"></i>
+                </div>
+            </div>
+
+            <!-- Right Controls: Status & User -->
+            <div class="flex items-center gap-3">
+                <!-- Supabase Cloud Badge -->
+                <div class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>قاعدة بيانات Supabase سحابية</span>
+                </div>
+
+                <!-- User Profile Dropdown Pill -->
+                <div class="flex items-center gap-2 pl-2">
+                    <div class="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
+                        @userInitial
+                    </div>
+                    <div class="hidden md:block text-right">
+                        <div class="text-xs font-bold text-slate-800">@currentUserName</div>
+                        <div class="text-[10px] text-slate-500">@roleDisplayName</div>
+                    </div>
+                    <a asp-controller="AdminDashboard" asp-action="Logout" title="تسجيل الخروج" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition">
+                        <i data-lucide="power" class="w-4 h-4"></i>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN BODY VIEW -->
+        <main class="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+            @RenderBody()
+        </main>
+        
+        <!-- FOOTER -->
+        <footer class="py-4 px-6 border-t border-slate-200 text-center text-xs text-slate-400 bg-white">
+            <span>منظومة المرأة مول &copy; @DateTime.UtcNow.Year — نظام إدارة الولاء والفواتير بالذكاء الاصطناعي</span>
+        </footer>
+
+    </div>
+
+    <!-- Global Scripts -->
+    <script>
+        function toggleMobileNav(show) {
+            const el = document.getElementById('mobile-sidebar');
+            if (show) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        }
+
+        function showHelpModal() {
+            Swal.fire({
+                title: 'دليل الاستخدام والدعم الفني',
+                html: `
+                    <div class="text-right text-xs space-y-2 text-slate-700 font-sans leading-relaxed">
+                        <p><strong>منظومة المرأة مول (M M Application)</strong> تدعم العمليات التالية:</p>
+                        <ul class="list-disc list-inside space-y-1 text-slate-600">
+                            <li><strong>نماذج الفواتير والـ AI:</strong> تخصيص ترويسات كل متجر ليتم التعرف على فواتيره تلقائياً.</li>
+                            <li><strong>سجل الفواتير:</strong> مراجعة واعتماد وتدقيق الفواتير الممسوحة عبر التطبيق.</li>
+                            <li><strong>تدقيق الاحتيال:</strong> منع تكرار صور الفواتير أو الحسابات المتعددة على جهاز واحد.</li>
+                            <li><strong>التسويات المالية:</strong> كشف حساب ومستحقات كل متجر مع نسبة عمولة المول.</li>
+                        </ul>
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonText: 'حسناً',
+                confirmButtonColor: '#2563eb'
+            });
+        }
+
+        // Global Toast Notification Helper
+        window.showToast = function(message, type = 'success') {
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true
+            });
+            Toast.fire({
+                icon: type,
+                title: message
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        });
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

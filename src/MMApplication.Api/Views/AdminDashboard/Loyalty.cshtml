@@ -1,0 +1,1355 @@
+@model MMApplication.Api.ViewModels.LoyaltyPageViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "برنامج ولاء المول وقواعد النقاط";
+    ViewData["ActiveTab"] = "loyalty";
+}
+
+<div class="space-y-6">
+
+    <!-- 1. Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                    <i data-lucide="award" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900">محرك قواعد الولاء والنقاط الذكي</h1>
+                    <p class="text-xs text-slate-500">إدارة أنماط احتساب النقاط، محفزات الأصناف (SKU)، حملات المضاعفة، ومستويات عضوية الزوار</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <button onclick="openModal('modal-add-earning-rule')" class="btn-secondary">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 text-purple-600"></i>
+                <span>قاعدة احتساب جديدة</span>
+            </button>
+            <button onclick="openModal('modal-add-campaign')" class="btn-primary">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span>إطلاق حملة مضاعفة</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. KPI Metrics -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">الحملات الترويجية</span>
+                <i data-lucide="sparkles" class="w-4 h-4 text-purple-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@Model.Campaigns.Count</div>
+            <div class="text-[11px] text-emerald-700 mt-1 flex items-center gap-1 font-medium">
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>@Model.Campaigns.Count(c => c.IsActive) حملات نشطة حالياً</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">معدل الاكتساب الأساسي</span>
+                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@Model.Rules.DinarsPerPoint <span class="text-xs font-sans font-normal text-slate-500">د.ل / نقطة</span></div>
+            <div class="text-[11px] text-slate-400 mt-1">1 نقطة لكل @Model.Rules.DinarsPerPoint د.ل مشتريات</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">قيمة استبدال النقطة</span>
+                <i data-lucide="banknote" class="w-4 h-4 text-emerald-500"></i>
+            </div>
+            <div class="text-xl font-bold text-emerald-600 num">@Model.Rules.PointRedemptionValueDinars <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-[11px] text-slate-400 mt-1">100 نقطة = @(Model.Rules.PointRedemptionValueDinars * 100) د.ل</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">مضاعف الفئة البلاتينية</span>
+                <i data-lucide="crown" class="w-4 h-4 text-purple-600"></i>
+            </div>
+            <div class="text-xl font-bold text-purple-600 num">@(Model.Rules.PlatinumMultiplier)x</div>
+            <div class="text-[11px] text-purple-700 mt-1 font-medium">أعضاء النخبة VIP</div>
+        </div>
+    </div>
+
+    <!-- 3. Segmented Navigation Tabs -->
+    <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center gap-1.5" id="loyaltyTabs">
+        <button class="segmented-tab active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-slate-900 text-white shadow-xs" onclick="switchLoyaltyTab('earning-rules', this)">
+            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+            <span>قواعد احتساب النقاط</span>
+            <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-200">@(Model.EarningRules?.Count ?? 0)</span>
+        </button>
+        <button class="segmented-tab px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100" onclick="switchLoyaltyTab('sku-boosters', this)">
+            <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i>
+            <span>محفزات الأصناف والـ SKU</span>
+            <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600">@(Model.Boosters?.Count ?? 0)</span>
+        </button>
+        <button class="segmented-tab px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100" onclick="switchLoyaltyTab('campaigns', this)">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-purple-500"></i>
+            <span>حملات المضاعفة</span>
+            <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600">@Model.Campaigns.Count</span>
+        </button>
+        <button class="segmented-tab px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100" onclick="switchLoyaltyTab('general-rules', this)">
+            <i data-lucide="settings-2" class="w-3.5 h-3.5 text-slate-500"></i>
+            <span>القواعد العامة ومستويات العضوية</span>
+        </button>
+    </div>
+
+    <!-- TAB 1: EARNING RULES -->
+    <div id="tab-content-earning-rules" class="loyalty-tab-content space-y-4">
+        <div class="card overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">محرك احتساب النقاط المرن (Flexible Earning Engine)</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">أنماط احتساب النقاط: نقطة ثابتة لكل فاتورة، نسبة الإنفاق، بونص الأصناف، أو النظام الهجين</p>
+                </div>
+                <button onclick="openModal('modal-add-earning-rule')" class="btn-primary">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>إضافة مخصص لمتجر</span>
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>اسم القاعدة والمتجر</th>
+                            <th>نمط الاحتساب</th>
+                            <th>المعايير المحددة</th>
+                            <th>الحد الأدنى للفاتورة</th>
+                            <th>سقف النقاط (Cap)</th>
+                            <th>الحالة</th>
+                            <th class="text-left">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.EarningRules == null || Model.EarningRules.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-12 text-slate-400">
+                                    <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                                        <i data-lucide="sliders" class="w-6 h-6"></i>
+                                    </div>
+                                    <div class="font-bold text-slate-700">لا توجد قواعد مخصصة مسجلة حالياً</div>
+                                    <p class="text-xs text-slate-400 mt-1">يتم تطبيق النمط الافتراضي تلقائياً (0.10 نقطة لكل دينار = 1 نقطة لكل 10 د.ل)</p>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var r in Model.EarningRules)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="font-bold text-slate-900">@r.RuleName</div>
+                                        <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                                            <i data-lucide="store" class="w-3 h-3 text-slate-400"></i>
+                                            <span>@(string.IsNullOrEmpty(r.StoreName) ? "كافة متاجر المول (عام / افتراضي)" : r.StoreName)</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @switch (r.CalculationType)
+                                        {
+                                            case "FIXED_PER_INVOICE":
+                                                <span class="badge badge-blue">
+                                                    <i data-lucide="map-pin" class="w-3 h-3"></i> ثابت لكل فاتورة
+                                                </span>
+                                                break;
+                                            case "SPEND_RATIO":
+                                                <span class="badge badge-emerald">
+                                                    <i data-lucide="percent" class="w-3 h-3"></i> نسبة الإنفاق
+                                                </span>
+                                                break;
+                                            case "ITEM_BOOSTER":
+                                                <span class="badge badge-purple">
+                                                    <i data-lucide="zap" class="w-3 h-3"></i> بونص الأصناف (SKU)
+                                                </span>
+                                                break;
+                                            case "HYBRID":
+                                                <span class="badge badge-amber">
+                                                    <i data-lucide="layers" class="w-3 h-3"></i> نظام هجين مدمج
+                                                </span>
+                                                break;
+                                            default:
+                                                <span class="badge badge-slate">@r.CalculationType</span>
+                                                break;
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (r.CalculationType == "FIXED_PER_INVOICE")
+                                        {
+                                            <span class="font-bold text-slate-800 num">@r.FixedPointsPerInvoice نقطة / فاتورة</span>
+                                        }
+                                        else if (r.CalculationType == "SPEND_RATIO")
+                                        {
+                                            <span class="font-bold text-slate-800 num">@(r.SpendRatioRate * 10) نقاط لكل 10 د.ل</span>
+                                            <span class="text-xs text-slate-400 mr-1">(@r.SpendRatioRate)</span>
+                                        }
+                                        else if (r.CalculationType == "ITEM_BOOSTER")
+                                        {
+                                            <span class="text-slate-600 text-xs font-medium">بونص الأصناف المطابقة فقط</span>
+                                        }
+                                        else if (r.CalculationType == "HYBRID")
+                                        {
+                                            <div class="text-xs space-y-0.5">
+                                                <div class="font-bold text-slate-800 num">+@r.FixedPointsPerInvoice زيارة + @(r.SpendRatioRate * 10) نقطة/10د.ل</div>
+                                                <div class="text-slate-500">+ بونص أصناف السلة</div>
+                                            </div>
+                                        }
+                                    </td>
+                                    <td class="font-semibold text-slate-800 num">
+                                        @(r.MinInvoiceAmount > 0 ? $"{r.MinInvoiceAmount:N0} د.ل" : "بدون حد أدنى")
+                                    </td>
+                                    <td class="text-slate-700 num">
+                                        @(r.MaxPointsCap.HasValue ? $"{r.MaxPointsCap.Value} نقطة" : "غير محدود")
+                                    </td>
+                                    <td>
+                                        @if (r.IsActive)
+                                        {
+                                            <span class="badge badge-emerald">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> نشطة
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-slate">معطلة</span>
+                                        }
+                                    </td>
+                                    <td class="text-left">
+                                        <div class="flex items-center gap-1 justify-end">
+                                            <button onclick="toggleEarningRule(@r.RuleId)" title="تبديل التفعيل" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                                <i data-lucide="@(r.IsActive ? "pause" : "play")" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="openEditEarningRuleModal(@r.RuleId, '@r.RuleName', '@r.StoreTenantId', '@r.CalculationType', @r.FixedPointsPerInvoice, @r.SpendRatioRate, @r.MinInvoiceAmount, @(r.MaxPointsCap.HasValue ? r.MaxPointsCap.Value.ToString() : "null"), @(r.IsActive ? "true" : "false"))" title="تعديل القاعدة" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="deleteEarningRule(@r.RuleId, '@r.RuleName')" title="حذف القاعدة" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: SKU BOOSTERS -->
+    <div id="tab-content-sku-boosters" class="loyalty-tab-content hidden space-y-4">
+        <div class="card overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">محفزات الأصناف والماركات التجارية (SKU & Brand Boosters)</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">مكافآت نقاط إضافية وتلقائية عند شراء ماركة معينة أو أصناف محددة مستخرجة بالـ OCR</p>
+                </div>
+                <button onclick="openModal('modal-add-booster')" class="btn-primary">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>إضافة محفز صنف جديد</span>
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>اسم القاعدة والهدف</th>
+                            <th>نوع الاستهداف</th>
+                            <th>المضاعف / البونص</th>
+                            <th>شروط التفعيل</th>
+                            <th>فترة السريان</th>
+                            <th>الحالة</th>
+                            <th class="text-left">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Boosters == null || Model.Boosters.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-12 text-slate-400">
+                                    <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                                        <i data-lucide="zap-off" class="w-6 h-6"></i>
+                                    </div>
+                                    <div class="font-bold text-slate-700">لا توجد قواعد تحفيز أصناف مسجلة حالياً</div>
+                                    <p class="text-xs text-slate-400 mt-1">أضف محفزات للعلامات التجارية لتحفيز سلال المشتريات المحددة</p>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var b in Model.Boosters)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="font-bold text-slate-900">@b.RuleName</div>
+                                        <div class="text-xs text-slate-500 font-mono mt-0.5">الهدف: @b.TargetValue</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-slate">@b.TargetType</span>
+                                    </td>
+                                    <td>
+                                        <div class="flex items-center gap-1.5">
+                                            @if (b.PointsMultiplier > 1.0m)
+                                            {
+                                                <span class="badge badge-amber font-bold num">@(b.PointsMultiplier)x</span>
+                                            }
+                                            @if (b.BonusPoints > 0)
+                                            {
+                                                <span class="badge badge-emerald font-bold num">+@b.BonusPoints نقطة</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="text-slate-700 text-xs font-medium num">
+                                        @(b.MinQuantity > 1 ? $"{b.MinQuantity} قطع" : "") 
+                                        @(b.MinSpendAmount > 0 ? $" / {b.MinSpendAmount:N0} د.ل" : "")
+                                        @(b.MinQuantity <= 1 && b.MinSpendAmount <= 0 ? "بدون شروط" : "")
+                                    </td>
+                                    <td class="text-xs text-slate-500 num">
+                                        @b.StartDate.ToString("yyyy/MM/dd") - @b.EndDate.ToString("yyyy/MM/dd")
+                                    </td>
+                                    <td>
+                                        @if (b.IsActive)
+                                        {
+                                            <span class="badge badge-emerald">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> نشط
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-slate">متوقف</span>
+                                        }
+                                    </td>
+                                    <td class="text-left">
+                                        <div class="flex items-center gap-1 justify-end">
+                                            <button onclick="openEditBoosterModal('@b.Id', '@b.RuleName', '@b.TargetType', '@b.TargetValue', @b.PointsMultiplier, @b.BonusPoints, @b.MinQuantity, @(b.MinSpendAmount ?? 0), '@b.StartDate.ToString("yyyy-MM-dd")', '@b.EndDate.ToString("yyyy-MM-dd")', @(b.IsActive ? "true" : "false"))" title="تعديل المحفز" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="deleteBooster('@b.Id', '@b.RuleName')" title="حذف المحفز" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: CAMPAIGNS -->
+    <div id="tab-content-campaigns" class="loyalty-tab-content hidden space-y-4">
+        <div class="card overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">حملات مضاعفة النقاط الترويجية (Loyalty Campaigns)</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">إدارة حملات مضاعفة النقاط المؤقتة للمول والفعاليات التسويقية ومواسم التخفيضات</p>
+                </div>
+                <button onclick="openModal('modal-add-campaign')" class="btn-primary">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>إطلاق حملة جديدة</span>
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>اسم الحملة والوصف</th>
+                            <th>مضاعف النقاط</th>
+                            <th>الحد الأدنى للإنفاق</th>
+                            <th>فترة الحملة</th>
+                            <th>الحالة</th>
+                            <th class="text-left">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Campaigns.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-12 text-slate-400">
+                                    <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                                        <i data-lucide="calendar" class="w-6 h-6"></i>
+                                    </div>
+                                    <div class="font-bold text-slate-700">لا توجد حملات مضاعفة مسجلة حالياً</div>
+                                    <p class="text-xs text-slate-400 mt-1">أنشئ حملة مضاعفة بمناسبة الأعياد أو الفعاليات الخاصة</p>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var c in Model.Campaigns)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="font-bold text-slate-900">@c.Name</div>
+                                        <div class="text-xs text-slate-500 max-w-md truncate mt-0.5">@c.Description</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-amber font-bold num">
+                                            @(c.PointsMultiplier)x
+                                        </span>
+                                    </td>
+                                    <td class="font-semibold text-slate-800 num">
+                                        @(c.MinSpendAmount > 0 ? $"{c.MinSpendAmount:N0} د.ل" : "بدون حد أدنى")
+                                    </td>
+                                    <td class="text-xs text-slate-500 num">
+                                        @c.StartDate.ToString("yyyy/MM/dd") - @c.EndDate.ToString("yyyy/MM/dd")
+                                    </td>
+                                    <td>
+                                        @if (c.IsActive)
+                                        {
+                                            <span class="badge badge-emerald">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> سارية
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-slate">متوقفة</span>
+                                        }
+                                    </td>
+                                    <td class="text-left">
+                                        <div class="flex items-center gap-1 justify-end">
+                                            <button onclick="openEditCampaignModal('@c.Id', '@c.Name', '@c.Description', @c.PointsMultiplier, @c.MinSpendAmount, '@c.StartDate.ToString("yyyy-MM-dd")', '@c.EndDate.ToString("yyyy-MM-dd")', @(c.IsActive ? "true" : "false"))" title="تعديل الحملة" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="deleteCampaign('@c.Id', '@c.Name')" title="حذف الحملة" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: GENERAL RULES & TIERS -->
+    <div id="tab-content-general-rules" class="loyalty-tab-content hidden space-y-4">
+        <div class="card p-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100 mb-6">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">إعدادات ومستويات برنامج الولاء العام للمول</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">حدد معدل تحويل الدينار إلى نقاط، وقيمة الاستبدال المالي ومضاعفات مستويات العضوية (Tier Multipliers)</p>
+                </div>
+                <button onclick="saveLoyaltyRules()" class="btn-primary">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    <span>حفظ التعديلات</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <label class="form-label font-bold text-slate-800">دينار لكل 1 نقطة:</label>
+                    <input type="number" step="0.5" id="rule-dinars-per-point" value="@Model.Rules.DinarsPerPoint" class="form-input font-bold num">
+                    <p class="text-[11px] text-slate-500">مثال: 10 د.ل مشتريات = 1 نقطة</p>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <label class="form-label font-bold text-slate-800">قيمة النقطة عند الاستبدال (د.ل):</label>
+                    <input type="number" step="0.05" id="rule-redemption-val" value="@Model.Rules.PointRedemptionValueDinars" class="form-input font-bold text-emerald-600 num">
+                    <p class="text-[11px] text-slate-500">مثال: 0.50 د.ل لكل نقطة في المحفظة</p>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <label class="form-label font-bold text-slate-800">مضاعف الفئة الفضية (Silver):</label>
+                    <input type="number" step="0.05" id="rule-silver-mult" value="@Model.Rules.SilverMultiplier" class="form-input font-bold text-slate-700 num">
+                    <p class="text-[11px] text-slate-500">مكافأة تلقائية لأعضاء الفئة الفضية</p>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <label class="form-label font-bold text-slate-800">مضاعف الفئة الذهبية (Gold):</label>
+                    <input type="number" step="0.05" id="rule-gold-mult" value="@Model.Rules.GoldMultiplier" class="form-input font-bold text-amber-600 num">
+                    <p class="text-[11px] text-slate-500">مكافأة تلقائية لأعضاء الفئة الذهبية</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ======================================================== -->
+<!-- MODALS -->
+<!-- ======================================================== -->
+
+<!-- Modal: Add Flexible Earning Rule -->
+<div id="modal-add-earning-rule" class="hidden modal-overlay">
+    <div class="modal-box max-w-lg">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 text-purple-600"></i>
+                <span>إضافة قاعدة احتساب نقاط جديدة</span>
+            </h3>
+            <button onclick="closeModal('modal-add-earning-rule')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="modal-body space-y-3.5">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">اسم القاعدة:</label>
+                    <input type="text" id="earning-name" placeholder="مثال: نقاط مشتريات زارا" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">المتجر المستهدف:</label>
+                    <select id="earning-store-id" class="form-select">
+                        <option value="">كافة متاجر المول (عام / افتراضي)</option>
+                        @foreach (var s in Model.Stores)
+                        {
+                            <option value="@s.Id">@s.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label">نمط احتساب النقاط:</label>
+                <select id="earning-calc-type" onchange="onEarningModeChange('earning')" class="form-select">
+                    <option value="SPEND_RATIO">النمط الثاني: النقاط حسب إجمالي المبلغ (Spend-Based)</option>
+                    <option value="FIXED_PER_INVOICE">النمط الأول: نقطة ثابتة لكل فاتورة / زيارة (Flat Visit Reward)</option>
+                    <option value="ITEM_BOOSTER">النمط الثالث: بونص الأصناف المحددة (Item / SKU Booster)</option>
+                    <option value="HYBRID">النمط الرابع: النظام الهجين المدمج (Hybrid: زيارة + إنفاق + أصناف)</option>
+                </select>
+            </div>
+
+            <div id="earning-box-fixed" class="hidden p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <label class="form-label text-slate-800">النقاط الثابتة لكل فاتورة / زيارة:</label>
+                <input type="number" id="earning-fixed-pts" value="5" class="form-input font-bold num">
+                <p class="text-[11px] text-slate-500">يحصل العميل على هذا الرصيد الثابت فور اعتماد الفاتورة بغض النظر عن قيمتها.</p>
+            </div>
+
+            <div id="earning-box-spend" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <label class="form-label text-slate-800">معدل الاكتساب (نقطة لكل دينار):</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="number" step="0.01" id="earning-spend-ratio" value="0.10" class="form-input font-bold num">
+                    <div class="flex items-center text-xs font-semibold text-slate-600">
+                        = 1 نقطة لكل 10 د.ل
+                    </div>
+                </div>
+            </div>
+
+            <div id="earning-box-item" class="hidden p-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-800 text-xs font-medium">
+                <div class="flex items-center gap-1.5">
+                    <i data-lucide="info" class="w-4 h-4 text-purple-600"></i>
+                    <span>يتم فحص سلة المشتريات ومطابقة الأصناف/الماركات مع محفزات الـ SKU النشطة لإضافة بونص فوري لكل صنف مطابق.</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">الحد الأدنى لقيمة الفاتورة (د.ل):</label>
+                    <input type="number" id="earning-min-spend" value="0" class="form-input num">
+                </div>
+                <div>
+                    <label class="form-label">سقف النقاط الأقصى للفاتورة (Cap):</label>
+                    <input type="number" id="earning-max-cap" placeholder="غير محدود" class="form-input num">
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-add-earning-rule')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitCreateEarningRule()" class="btn-primary">حفظ وتفعيل القاعدة</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Flexible Earning Rule -->
+<div id="modal-edit-earning-rule" class="hidden modal-overlay">
+    <div class="modal-box max-w-lg">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-4 h-4 text-purple-600"></i>
+                <span>تعديل قاعدة احتساب النقاط</span>
+            </h3>
+            <button onclick="closeModal('modal-edit-earning-rule')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <input type="hidden" id="edit-earning-id">
+
+        <div class="modal-body space-y-3.5">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">اسم القاعدة:</label>
+                    <input type="text" id="edit-earning-name" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">المتجر المستهدف:</label>
+                    <select id="edit-earning-store-id" class="form-select">
+                        <option value="">كافة متاجر المول (عام / افتراضي)</option>
+                        @foreach (var s in Model.Stores)
+                        {
+                            <option value="@s.Id">@s.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label">نمط احتساب النقاط:</label>
+                <select id="edit-earning-calc-type" onchange="onEarningModeChange('edit-earning')" class="form-select">
+                    <option value="SPEND_RATIO">النمط الثاني: النقاط حسب إجمالي المبلغ (Spend-Based)</option>
+                    <option value="FIXED_PER_INVOICE">النمط الأول: نقطة ثابتة لكل فاتورة / زيارة (Flat Visit Reward)</option>
+                    <option value="ITEM_BOOSTER">النمط الثالث: بونص الأصناف المحددة (Item / SKU Booster)</option>
+                    <option value="HYBRID">النمط الرابع: النظام الهجين المدمج (Hybrid: زيارة + إنفاق + أصناف)</option>
+                </select>
+            </div>
+
+            <div id="edit-earning-box-fixed" class="hidden p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <label class="form-label text-slate-800">النقاط الثابتة لكل فاتورة / زيارة:</label>
+                <input type="number" id="edit-earning-fixed-pts" class="form-input font-bold num">
+            </div>
+
+            <div id="edit-earning-box-spend" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <label class="form-label text-slate-800">معدل الاكتساب (نقطة لكل دينار):</label>
+                <input type="number" step="0.01" id="edit-earning-spend-ratio" class="form-input font-bold num">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">الحد الأدنى لقيمة الفاتورة (د.ل):</label>
+                    <input type="number" id="edit-earning-min-spend" class="form-input num">
+                </div>
+                <div>
+                    <label class="form-label">سقف النقاط الأقصى للفاتورة (Cap):</label>
+                    <input type="number" id="edit-earning-max-cap" class="form-input num">
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label">حالة القاعدة:</label>
+                <select id="edit-earning-active" class="form-select">
+                    <option value="true">نشطة وسارية</option>
+                    <option value="false">معطلة مؤقتاً</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-edit-earning-rule')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitEditEarningRule()" class="btn-primary">تحديث القاعدة</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add Campaign -->
+<div id="modal-add-campaign" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4 text-purple-600"></i>
+                <span>إطلاق حملة مضاعفة نقاط جديدة</span>
+            </h3>
+            <button onclick="closeModal('modal-add-campaign')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">اسم الحملة:</label>
+                <input type="text" id="camp-name" placeholder="مثال: مهرجان التسوق الربيعي - نقاط 2x" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">وصف الحملة وشروطها:</label>
+                <textarea id="camp-desc" rows="2" placeholder="احصل على ضعف النقاط عند التسوق بقيمة تزيد عن 100 د.ل" class="form-input"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">مضاعف النقاط:</label>
+                    <input type="number" step="0.5" id="camp-multiplier" value="2.0" class="form-input font-bold text-amber-600 num">
+                </div>
+                <div>
+                    <label class="form-label">الحد الأدنى للإنفاق (د.ل):</label>
+                    <input type="number" id="camp-min-spend" value="50" class="form-input num">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">تاريخ البدء:</label>
+                    <input type="date" id="camp-start-date" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">تاريخ الانتهاء:</label>
+                    <input type="date" id="camp-end-date" class="form-input">
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-add-campaign')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitCreateCampaign()" class="btn-primary">حفظ وإطلاق الحملة</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Campaign -->
+<div id="modal-edit-campaign" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-4 h-4 text-purple-600"></i>
+                <span>تعديل بيانات الحملة</span>
+            </h3>
+            <button onclick="closeModal('modal-edit-campaign')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <input type="hidden" id="edit-camp-id">
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">اسم الحملة:</label>
+                <input type="text" id="edit-camp-name" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">الوصف والشروط:</label>
+                <textarea id="edit-camp-desc" rows="2" class="form-input"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">المضاعف:</label>
+                    <input type="number" step="0.5" id="edit-camp-multiplier" class="form-input font-bold text-amber-600 num">
+                </div>
+                <div>
+                    <label class="form-label">الحد الأدنى (د.ل):</label>
+                    <input type="number" id="edit-camp-min-spend" class="form-input num">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">تاريخ البدء:</label>
+                    <input type="date" id="edit-camp-start-date" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">تاريخ الانتهاء:</label>
+                    <input type="date" id="edit-camp-end-date" class="form-input">
+                </div>
+            </div>
+            <div>
+                <label class="form-label">حالة الحملة:</label>
+                <select id="edit-camp-active" class="form-select">
+                    <option value="true">سارية ونشطة</option>
+                    <option value="false">متوقفة مؤقتاً</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-edit-campaign')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitEditCampaign()" class="btn-primary">تحديث الحملة</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add Product Booster Rule -->
+<div id="modal-add-booster" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
+                <span>إضافة محفز نقاط لصنف / ماركة تجارية</span>
+            </h3>
+            <button onclick="closeModal('modal-add-booster')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">اسم القاعدة الترويجية:</label>
+                <input type="text" id="booster-name" placeholder="مثال: نقاط إضافية على عطور Dior" class="form-input">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">نوع الاستهداف:</label>
+                    <select id="booster-type" class="form-select">
+                        <option value="Brand">ماركة تجارية (Brand)</option>
+                        <option value="SKU">باركود الصنف (SKU)</option>
+                        <option value="ItemName">اسم الصنف بالـ OCR</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">الكلمة أو الباركود المستهدف:</label>
+                    <input type="text" id="booster-value" placeholder="مثال: Dior أو 619123456" class="form-input font-mono">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">مضاعف النقاط:</label>
+                    <input type="number" step="0.5" id="booster-multiplier" value="1.5" class="form-input font-bold text-amber-600 num">
+                </div>
+                <div>
+                    <label class="form-label">نقاط إضافية مباشرة (+):</label>
+                    <input type="number" id="booster-bonus" value="10" class="form-input font-bold text-emerald-600 num">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">الحد الأدنى للكمية:</label>
+                    <input type="number" id="booster-min-qty" value="1" class="form-input num">
+                </div>
+                <div>
+                    <label class="form-label">الحد الأدنى للقيمة (د.ل):</label>
+                    <input type="number" id="booster-min-spend" value="0" class="form-input num">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">تاريخ البدء:</label>
+                    <input type="date" id="booster-start-date" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">تاريخ الانتهاء:</label>
+                    <input type="date" id="booster-end-date" class="form-input">
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-add-booster')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitCreateBooster()" class="btn-primary">حفظ وتفعيل المحفز</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Product Booster Rule -->
+<div id="modal-edit-booster" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-4 h-4 text-purple-600"></i>
+                <span>تعديل محفز النقاط</span>
+            </h3>
+            <button onclick="closeModal('modal-edit-booster')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <input type="hidden" id="edit-booster-id">
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">اسم القاعدة الترويجية:</label>
+                <input type="text" id="edit-booster-name" class="form-input">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">نوع الاستهداف:</label>
+                    <select id="edit-booster-type" class="form-select">
+                        <option value="Brand">ماركة تجارية (Brand)</option>
+                        <option value="SKU">باركود الصنف (SKU)</option>
+                        <option value="ItemName">اسم الصنف بالـ OCR</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">الكلمة أو الباركود المستهدف:</label>
+                    <input type="text" id="edit-booster-value" class="form-input font-mono">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">المضاعف:</label>
+                    <input type="number" step="0.5" id="edit-booster-multiplier" class="form-input font-bold text-amber-600 num">
+                </div>
+                <div>
+                    <label class="form-label">نقاط إضافية (+):</label>
+                    <input type="number" id="edit-booster-bonus" class="form-input font-bold text-emerald-600 num">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">الحد الأدنى للكمية:</label>
+                    <input type="number" id="edit-booster-min-qty" class="form-input num">
+                </div>
+                <div>
+                    <label class="form-label">الحد الأدنى للقيمة (د.ل):</label>
+                    <input type="number" id="edit-booster-min-spend" class="form-input num">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">تاريخ البدء:</label>
+                    <input type="date" id="edit-booster-start-date" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">تاريخ الانتهاء:</label>
+                    <input type="date" id="edit-booster-end-date" class="form-input">
+                </div>
+            </div>
+            <div>
+                <label class="form-label">حالة المحفز:</label>
+                <select id="edit-booster-active" class="form-select">
+                    <option value="true">نشط وساري</option>
+                    <option value="false">معطل مؤقتاً</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-edit-booster')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitEditBooster()" class="btn-primary">تحديث المحفز</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function switchLoyaltyTab(tabId, el) {
+        document.querySelectorAll('.loyalty-tab-content').forEach(c => c.classList.add('hidden'));
+        const target = document.getElementById(`tab-content-${tabId}`);
+        if (target) target.classList.remove('hidden');
+
+        document.querySelectorAll('#loyaltyTabs .segmented-tab').forEach(t => {
+            t.classList.remove('active', 'bg-slate-900', 'text-white', 'shadow-xs');
+            t.classList.add('text-slate-600', 'hover:text-slate-900', 'hover:bg-slate-100');
+        });
+        if (el) {
+            el.classList.add('active', 'bg-slate-900', 'text-white', 'shadow-xs');
+            el.classList.remove('text-slate-600', 'hover:text-slate-900', 'hover:bg-slate-100');
+        }
+    }
+
+    function onEarningModeChange(prefix) {
+        const mode = document.getElementById(`${prefix}-calc-type`).value;
+        const fixedBox = document.getElementById(`${prefix}-box-fixed`);
+        const spendBox = document.getElementById(`${prefix}-box-spend`);
+        const itemBox = document.getElementById(`${prefix}-box-item`);
+
+        if (fixedBox) fixedBox.classList.toggle('hidden', mode !== 'FIXED_PER_INVOICE' && mode !== 'HYBRID');
+        if (spendBox) spendBox.classList.toggle('hidden', mode !== 'SPEND_RATIO' && mode !== 'HYBRID');
+        if (itemBox) itemBox.classList.toggle('hidden', mode !== 'ITEM_BOOSTER' && mode !== 'HYBRID');
+    }
+
+    async function submitCreateEarningRule() {
+        const ruleName = document.getElementById('earning-name').value.trim();
+        const storeTenantId = document.getElementById('earning-store-id').value || null;
+        const calculationType = document.getElementById('earning-calc-type').value;
+        const fixedPointsPerInvoice = parseInt(document.getElementById('earning-fixed-pts').value, 10) || 0;
+        const spendRatioRate = parseFloat(document.getElementById('earning-spend-ratio').value) || 0.10;
+        const minInvoiceAmount = parseFloat(document.getElementById('earning-min-spend').value) || 0;
+        const maxCapVal = document.getElementById('earning-max-cap').value.trim();
+        const maxPointsCap = maxCapVal ? parseInt(maxCapVal, 10) : null;
+
+        if (!ruleName) {
+            showToast('يرجى إدخال اسم قاعدة احتساب النقاط.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/SuperAdmin/loyalty/earning-rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ruleName,
+                    storeTenantId,
+                    calculationType,
+                    fixedPointsPerInvoice,
+                    spendRatioRate,
+                    minInvoiceAmount,
+                    maxPointsCap
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'فشل حفظ قاعدة النقاط');
+            }
+
+            closeModal('modal-add-earning-rule');
+            showToast('تم حفظ وتفعيل قاعدة احتساب النقاط بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    function openEditEarningRuleModal(id, name, storeId, calcType, fixedPts, spendRatio, minSpend, maxCap, isActive) {
+        document.getElementById('edit-earning-id').value = id;
+        document.getElementById('edit-earning-name').value = name;
+        document.getElementById('edit-earning-store-id').value = storeId || '';
+        document.getElementById('edit-earning-calc-type').value = calcType;
+        document.getElementById('edit-earning-fixed-pts').value = fixedPts;
+        document.getElementById('edit-earning-spend-ratio').value = spendRatio;
+        document.getElementById('edit-earning-min-spend').value = minSpend;
+        document.getElementById('edit-earning-max-cap').value = (maxCap !== null && maxCap !== 'null') ? maxCap : '';
+        document.getElementById('edit-earning-active').value = isActive ? 'true' : 'false';
+        
+        onEarningModeChange('edit-earning');
+        openModal('modal-edit-earning-rule');
+    }
+
+    async function submitEditEarningRule() {
+        const id = document.getElementById('edit-earning-id').value;
+        const ruleName = document.getElementById('edit-earning-name').value.trim();
+        const storeTenantId = document.getElementById('edit-earning-store-id').value || null;
+        const calculationType = document.getElementById('edit-earning-calc-type').value;
+        const fixedPointsPerInvoice = parseInt(document.getElementById('edit-earning-fixed-pts').value, 10) || 0;
+        const spendRatioRate = parseFloat(document.getElementById('edit-earning-spend-ratio').value) || 0.10;
+        const minInvoiceAmount = parseFloat(document.getElementById('edit-earning-min-spend').value) || 0;
+        const maxCapVal = document.getElementById('edit-earning-max-cap').value.trim();
+        const maxPointsCap = maxCapVal ? parseInt(maxCapVal, 10) : null;
+        const isActive = document.getElementById('edit-earning-active').value === 'true';
+
+        if (!ruleName) {
+            showToast('يرجى إدخال اسم قاعدة احتساب النقاط.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/loyalty/earning-rules/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ruleName,
+                    storeTenantId,
+                    calculationType,
+                    fixedPointsPerInvoice,
+                    spendRatioRate,
+                    minInvoiceAmount,
+                    maxPointsCap,
+                    isActive
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'فشل تحديث قاعدة النقاط');
+            }
+
+            closeModal('modal-edit-earning-rule');
+            showToast('تم تحديث قاعدة احتساب النقاط بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function deleteEarningRule(id, name) {
+        const result = await Swal.fire({
+            title: 'هل أنت متأكد؟',
+            text: `سيتم حذف قاعدة النقاط "${name}" نهائياً.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/loyalty/earning-rules/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!res.ok) throw new Error('فشل حذف قاعدة النقاط');
+            showToast('تم حذف قاعدة النقاط بنجاح.', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function toggleEarningRule(id) {
+        try {
+            const res = await fetch(`/api/SuperAdmin/loyalty/earning-rules/${id}/toggle`, {
+                method: 'POST'
+            });
+
+            if (!res.ok) throw new Error('فشل تبديل حالة قاعدة النقاط');
+            const data = await res.json();
+            showToast(data.message || 'تم تحديث حالة القاعدة بنجاح.', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function saveLoyaltyRules() {
+        const dinarsPerPoint = parseFloat(document.getElementById('rule-dinars-per-point').value);
+        const pointRedemptionValueDinars = parseFloat(document.getElementById('rule-redemption-val').value);
+        const silverMultiplier = parseFloat(document.getElementById('rule-silver-mult').value);
+        const goldMultiplier = parseFloat(document.getElementById('rule-gold-mult').value);
+
+        try {
+            const res = await fetch('/api/SuperAdmin/loyalty/rules', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    dinarsPerPoint,
+                    pointRedemptionValueDinars,
+                    silverMultiplier,
+                    goldMultiplier,
+                    platinumMultiplier: 2.0
+                })
+            });
+
+            if (!res.ok) throw new Error('فشل حفظ قواعد الولاء');
+
+            showToast('تم حفظ قواعد برنامج الولاء بنجاح!', 'success');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function submitCreateCampaign() {
+        const name = document.getElementById('camp-name').value.trim();
+        const description = document.getElementById('camp-desc').value.trim();
+        const pointsMultiplier = parseFloat(document.getElementById('camp-multiplier').value) || 2.0;
+        const minSpendAmount = parseFloat(document.getElementById('camp-min-spend').value) || null;
+        const startDateVal = document.getElementById('camp-start-date').value;
+        const endDateVal = document.getElementById('camp-end-date').value;
+
+        if (!name) {
+            showToast('يرجى إدخال اسم الحملة.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/SuperAdmin/loyalty/campaigns', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    description,
+                    pointsMultiplier,
+                    minSpendAmount,
+                    startDate: startDateVal ? new Date(startDateVal).toISOString() : null,
+                    endDate: endDateVal ? new Date(endDateVal).toISOString() : null
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'فشل إنشاء الحملة');
+            }
+
+            closeModal('modal-add-campaign');
+            showToast('تم إطلاق حملة مضاعفة النقاط بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    function openEditCampaignModal(id, name, desc, multiplier, minSpend, startDate, endDate, isActive) {
+        document.getElementById('edit-camp-id').value = id;
+        document.getElementById('edit-camp-name').value = name;
+        document.getElementById('edit-camp-desc').value = desc || '';
+        document.getElementById('edit-camp-multiplier').value = multiplier;
+        document.getElementById('edit-camp-min-spend').value = minSpend || '';
+        document.getElementById('edit-camp-start-date').value = startDate || '';
+        document.getElementById('edit-camp-end-date').value = endDate || '';
+        document.getElementById('edit-camp-active').value = isActive ? 'true' : 'false';
+        openModal('modal-edit-campaign');
+    }
+
+    async function submitEditCampaign() {
+        const id = document.getElementById('edit-camp-id').value;
+        const name = document.getElementById('edit-camp-name').value.trim();
+        const description = document.getElementById('edit-camp-desc').value.trim();
+        const pointsMultiplier = parseFloat(document.getElementById('edit-camp-multiplier').value) || 1.0;
+        const minSpendAmount = parseFloat(document.getElementById('edit-camp-min-spend').value) || null;
+        const startDateVal = document.getElementById('edit-camp-start-date').value;
+        const endDateVal = document.getElementById('edit-camp-end-date').value;
+        const isActive = document.getElementById('edit-camp-active').value === 'true';
+
+        if (!name) {
+            showToast('يرجى إدخال اسم الحملة.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/loyalty/campaigns/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    description,
+                    pointsMultiplier,
+                    minSpendAmount,
+                    startDate: startDateVal ? new Date(startDateVal).toISOString() : null,
+                    endDate: endDateVal ? new Date(endDateVal).toISOString() : null,
+                    isActive
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'فشل تحديث الحملة');
+            }
+
+            closeModal('modal-edit-campaign');
+            showToast('تم تحديث بيانات الحملة بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function deleteCampaign(id, name) {
+        const result = await Swal.fire({
+            title: 'حذف الحملة',
+            text: `هل أنت متأكد من رغبتك في حذف الحملة "${name}" نهائياً؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/loyalty/campaigns/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!res.ok) throw new Error('فشل حذف الحملة');
+
+            showToast('تم حذف الحملة بنجاح.', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function submitCreateBooster() {
+        const ruleName = document.getElementById('booster-name').value.trim();
+        const targetType = document.getElementById('booster-type').value;
+        const targetValue = document.getElementById('booster-value').value.trim();
+        const pointsMultiplier = parseFloat(document.getElementById('booster-multiplier').value) || 1.0;
+        const bonusPoints = parseInt(document.getElementById('booster-bonus').value, 10) || 0;
+        const minQuantity = parseInt(document.getElementById('booster-min-qty').value, 10) || 1;
+        const minSpendAmount = parseFloat(document.getElementById('booster-min-spend').value) || null;
+        const startDateVal = document.getElementById('booster-start-date').value;
+        const endDateVal = document.getElementById('booster-end-date').value;
+
+        if (!ruleName || !targetValue) {
+            showToast('يرجى إدخال اسم القاعدة والقيمة أو الماركة المستهدفة.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/SuperAdmin/loyalty/boosters', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ruleName,
+                    targetType,
+                    targetValue,
+                    pointsMultiplier,
+                    bonusPoints,
+                    minQuantity,
+                    minSpendAmount,
+                    startDate: startDateVal ? new Date(startDateVal).toISOString() : null,
+                    endDate: endDateVal ? new Date(endDateVal).toISOString() : null
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'فشل حفظ محفز النقاط');
+            }
+
+            closeModal('modal-add-booster');
+            showToast('تم حفظ محفز النقاط بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    function openEditBoosterModal(id, name, type, value, multiplier, bonus, minQty, minSpend, startDate, endDate, isActive) {
+        document.getElementById('edit-booster-id').value = id;
+        document.getElementById('edit-booster-name').value = name;
+        document.getElementById('edit-booster-type').value = type;
+        document.getElementById('edit-booster-value').value = value;
+        document.getElementById('edit-booster-multiplier').value = multiplier;
+        document.getElementById('edit-booster-bonus').value = bonus;
+        document.getElementById('edit-booster-min-qty').value = minQty;
+        document.getElementById('edit-booster-min-spend').value = minSpend || '';
+        document.getElementById('edit-booster-start-date').value = startDate || '';
+        document.getElementById('edit-booster-end-date').value = endDate || '';
+        document.getElementById('edit-booster-active').value = isActive ? 'true' : 'false';
+        openModal('modal-edit-booster');
+    }
+
+    async function submitEditBooster() {
+        const id = document.getElementById('edit-booster-id').value;
+        const ruleName = document.getElementById('edit-booster-name').value.trim();
+        const targetType = document.getElementById('edit-booster-type').value;
+        const targetValue = document.getElementById('edit-booster-value').value.trim();
+        const pointsMultiplier = parseFloat(document.getElementById('edit-booster-multiplier').value) || 1.0;
+        const bonusPoints = parseInt(document.getElementById('edit-booster-bonus').value, 10) || 0;
+        const minQuantity = parseInt(document.getElementById('edit-booster-min-qty').value, 10) || 1;
+        const minSpendAmount = parseFloat(document.getElementById('edit-booster-min-spend').value) || null;
+        const startDateVal = document.getElementById('edit-booster-start-date').value;
+        const endDateVal = document.getElementById('edit-booster-end-date').value;
+        const isActive = document.getElementById('edit-booster-active').value === 'true';
+
+        if (!ruleName || !targetValue) {
+            showToast('يرجى إدخال اسم القاعدة والقيمة المستهدفة.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/loyalty/boosters/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ruleName,
+                    targetType,
+                    targetValue,
+                    pointsMultiplier,
+                    bonusPoints,
+                    minQuantity,
+                    minSpendAmount,
+                    startDate: startDateVal ? new Date(startDateVal).toISOString() : null,
+                    endDate: endDateVal ? new Date(endDateVal).toISOString() : null,
+                    isActive
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'فشل تحديث محفز النقاط');
+            }
+
+            closeModal('modal-edit-booster');
+            showToast('تم تحديث محفز النقاط بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function deleteBooster(id, name) {
+        const result = await Swal.fire({
+            title: 'حذف المحفز',
+            text: `هل أنت متأكد من حذف محفز النقاط "${name}"؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/loyalty/boosters/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!res.ok) throw new Error('فشل حذف محفز النقاط');
+            showToast('تم حذف محفز النقاط بنجاح.', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+</script>
+}

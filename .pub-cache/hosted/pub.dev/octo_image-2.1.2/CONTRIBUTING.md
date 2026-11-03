@@ -1,0 +1,45 @@
+# Contributing to OctoImage
+
+## What you will need
+
+- A Linux, Mac OS X, or Windows machine (to run and compile iOS-specific parts you'll need access to a Mac OS X machine);
+- git (used for source version control, installation instructions can be found [here](https://git-scm.com/));
+- The Flutter SDK (installation instructions can be found [here](https://flutter.io/get-started/install/));
+- A personal GitHub account (if you don't have one, you can sign up for free [here](https://github.com/))
+
+## Setting up your development environment
+
+- Fork `https://github.com/Baseflow/octo_image` into your own GitHub account. If you already have a fork and are moving to a new computer, make sure you update your fork.
+- If you haven't configured your machine with an SSH key that's known to GitHub, follow [GitHub's directions](https://help.github.com/articles/generating-ssh-keys/) to generate an SSH key.
+- Clone your forked repo on your local development machine: `git clone git@github.com:<your_name_here>/octo_image.git`
+- Change into the `octo_image` directory: `cd octo_image`
+- Add an upstream to the original repo, so you fetch from the main repository and not your clone: `git remote add upstream git@github.com:Baseflow/octo_image.git`
+
+## Running the example project
+
+- Change into the example directory: `cd example`
+- Run the app: `flutter run`
+
+## Contribute
+
+We really appreciate contributions via GitHub pull requests. To contribute, take the following steps:
+
+- Make sure you are up to date with the latest code on `main`:
+  - `git fetch upstream`
+  - `git checkout upstream/main -b <name_of_your_branch>`
+- Apply your changes
+- Bump the `version:` in `pubspec.yaml` (following semver) and add a matching
+  `## [x.y.z] - YYYY-MM-DD` entry to `CHANGELOG.md` describing what changed.
+  Docs-only and CI-only changes don't bump.
+- Verify your changes and fix potential warnings/errors:
+  - Check formatting: `dart format .`
+  - Run static analysis: `flutter analyze`
+  - Run unit tests: `flutter test`
+- Commit your changes: `git commit -am "<your informative commit message>"`
+- Push changes to your fork: `git push origin <name_of_your_branch>`
+
+Send us your pull request:
+
+- Go to `https://github.com/Baseflow/octo_image` and click the "Compare & pull request" button, targeting `main`.
+
+Please make sure you solved all warnings and errors reported by the static code analysis and that you fill in the full pull request template. Failing to do so will result in us asking you to fix it.

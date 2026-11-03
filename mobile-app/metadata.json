@@ -1,0 +1,6 @@
+{
+  "name": "المرأة مول | Almaraa Mall",
+  "description": "تطبيق محفظة وبطاقات ولاء المرأة مول (Almaraa Mall) مع ميزة التدقيق وقراءة الفواتير بالذكاء الاصطناعي وإدارة المتاجر وحملات الجملة والتجزئة",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

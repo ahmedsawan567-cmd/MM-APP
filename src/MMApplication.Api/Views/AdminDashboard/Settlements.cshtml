@@ -1,0 +1,300 @@
+@model List<MMApplication.Application.DTOs.StoreSettlementDto>
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "التسويات المالية للمتاجر";
+    ViewData["ActiveTab"] = "settlements";
+    var totalAmount = Model.Sum(s => s.TotalRedemptionsValue);
+    var pendingAmount = Model.Where(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Pending).Sum(s => s.NetPayableAmount);
+    var settledAmount = Model.Where(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Settled).Sum(s => s.NetPayableAmount);
+    var commissionTotal = Model.Sum(s => s.MallCommissionAmount);
+}
+
+<div class="space-y-6">
+
+    <!-- 1. Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <i data-lucide="wallet-cards" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900">التسويات والمستحقات المالية للمتاجر</h1>
+                    <p class="text-xs text-slate-500">إدارة ومراقبة التحويلات المالية للمتاجر، وعمليات المقاصة الدورية لبرامج الولاء والقسائم المستردة</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <button onclick="openModal('modal-generate-settlement')" class="btn-primary">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>بدء دورة تسوية جديدة</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. KPI Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">إجمالي الكشوفات المسجلة</span>
+                <i data-lucide="receipt" class="w-4 h-4 text-slate-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@totalAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-[11px] text-slate-400 mt-1 font-mono">@Model.Count كشف تسوية مسجل</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">مستحقات بانتظار الصرف</span>
+                <i data-lucide="clock" class="w-4 h-4 text-amber-500"></i>
+            </div>
+            <div class="text-xl font-bold text-amber-600 num">@pendingAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-[11px] text-amber-700 mt-1 font-mono">@Model.Count(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Pending) عملية قيد المراجعة</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">تم صرفها وتسويتها</span>
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
+            </div>
+            <div class="text-xl font-bold text-emerald-600 num">@settledAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-[11px] text-emerald-700 mt-1 font-mono">@Model.Count(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Settled) دورة مكتملة</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">عمولة إدارة المول</span>
+                <i data-lucide="percent" class="w-4 h-4 text-blue-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@commissionTotal.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-[11px] text-slate-400 mt-1">رسوم تشغيل المنظومة</div>
+        </div>
+    </div>
+
+    <!-- 3. Settlements Table Card -->
+    <div class="card p-5 space-y-4">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+                <h2 class="text-xs font-bold text-slate-900">سجل كشوفات التسويات والمقاصة المالية</h2>
+                <p class="text-[11px] text-slate-400">عرض وتتبع واعتماد حركات التسوية المالية للمتاجر داخل المركز التجاري</p>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>رقم الكشف</th>
+                        <th>المتجر</th>
+                        <th>الفترة المالية</th>
+                        <th>القيمة الإجمالية</th>
+                        <th>عمولة المول</th>
+                        <th>صافي المستحق للمتجر</th>
+                        <th>الحالة</th>
+                        <th class="text-center">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="8" class="p-8 text-center text-slate-400">
+                                <i data-lucide="receipt" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+                                <span>لا توجد كشوفات تسوية مسجلة حالياً. اضغط "بدء دورة تسوية جديدة" لتوليد الكشوفات.</span>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var s in Model)
+                    {
+                        <tr>
+                            <td>
+                                <span class="badge badge-slate num font-mono font-bold">SET-@s.Id.ToString()[..8].ToUpper()</span>
+                            </td>
+                            <td>
+                                <div class="font-bold text-slate-900 text-xs">@s.StoreName</div>
+                                <div class="text-[10px] text-slate-400 font-mono">@s.StoreTenantId</div>
+                            </td>
+                            <td>
+                                <span class="num text-slate-600 text-xs">@s.PeriodLabel</span>
+                            </td>
+                            <td>
+                                <span class="num font-bold text-slate-900 text-xs">@s.TotalRedemptionsValue.ToString("N2") د.ل</span>
+                            </td>
+                            <td>
+                                <span class="num text-slate-600 text-xs">@s.MallCommissionAmount.ToString("N2") د.ل</span>
+                            </td>
+                            <td>
+                                <span class="num font-bold text-emerald-600 text-xs">@s.NetPayableAmount.ToString("N2") د.ل</span>
+                            </td>
+                            <td>
+                                @if (s.Status == MMApplication.Domain.Enums.SettlementStatus.Settled)
+                                {
+                                    <span class="badge badge-emerald">مصروفة ومسواة</span>
+                                }
+                                else if (s.Status == MMApplication.Domain.Enums.SettlementStatus.Canceled)
+                                {
+                                    <span class="badge badge-slate">ملغاة</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-amber">قيد المراجعة</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                @if (s.Status != MMApplication.Domain.Enums.SettlementStatus.Settled && s.Status != MMApplication.Domain.Enums.SettlementStatus.Canceled)
+                                {
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <button onclick="settleStoreBatch('@s.Id', '@s.StoreName', '@s.NetPayableAmount.ToString("N2")')" class="btn-primary py-1 px-2.5 text-xs">
+                                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                            <span>اعتماد وصرف</span>
+                                        </button>
+                                        <button onclick="cancelSettlement('@s.Id', '@s.StoreName')" title="إلغاء الكشف" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
+                                            <i data-lucide="ban" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Modal: Generate Settlement Batch -->
+<div id="modal-generate-settlement" class="fixed inset-0 z-50 modal-overlay hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h3 class="text-sm font-bold text-slate-900">توليد واعتماد دورة مقاصة جديدة</h3>
+            <button onclick="closeModal('modal-generate-settlement')" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ بداية الدورة:</label>
+                    <input type="date" id="settle-start-date" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ نهاية الدورة:</label>
+                    <input type="date" id="settle-end-date" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">نسبة عمولة إدارة المول الافتراضية (%):</label>
+                <input type="number" step="0.5" id="settle-comm" value="5.0" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-mono font-bold">
+            </div>
+            <p class="text-[11px] text-slate-500 leading-relaxed">
+                سيتم احتساب إجمالي القسائم المستبدلة لكل متجر وخصم عمولة المول وحساب صافي المستحق تلقائياً.
+            </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button onclick="closeModal('modal-generate-settlement')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitGenerateSettlement()" class="btn-primary">بدء الحساب وتوليد الكشوفات</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openModal(id) {
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    async function submitGenerateSettlement() {
+        const startDate = document.getElementById('settle-start-date').value;
+        const endDate = document.getElementById('settle-end-date').value;
+        const commissionRate = parseFloat(document.getElementById('settle-comm').value) || 5.0;
+
+        try {
+            const res = await fetch('/api/superadmin/settlements/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ startDate: startDate || null, endDate: endDate || null, defaultCommissionRate: commissionRate })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                closeModal('modal-generate-settlement');
+                Swal.fire({ icon: 'success', title: 'تم التوليد', text: data.message || 'تم توليد دورة التسوية بنجاح!' })
+                    .then(() => location.reload());
+            } else {
+                Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل التوليد.' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: e.message });
+        }
+    }
+
+    async function settleStoreBatch(id, storeName, amount) {
+        const result = await Swal.fire({
+            title: `تأكيد صرف مستحقات ${storeName}`,
+            text: `المبلغ المطلوب صرفه: ${amount} د.ل. هل تريد اعتماد الحوالة وإغلاق الكشف؟`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، اعتماد الصرف',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#059669'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch(`/api/superadmin/settlements/${id}/settle`, { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                Swal.fire({ icon: 'success', title: 'تم الصرف', text: 'تم اعتماد وصرف المستحقات بنجاح!' })
+                    .then(() => location.reload());
+            } else {
+                Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل الاعتماد.' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: e.message });
+        }
+    }
+
+    async function cancelSettlement(id, storeName) {
+        const result = await Swal.fire({
+            title: `إلغاء كشف تسوية ${storeName}`,
+            text: 'هل أنت متأكد من رغبتك في إلغاء هذا الكشف؟',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'تأكيد الإلغاء',
+            cancelButtonText: 'تراجع',
+            confirmButtonColor: '#dc2626'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch(`/api/superadmin/settlements/${id}/cancel`, { method: 'POST' });
+            if (res.ok) {
+                Swal.fire({ icon: 'success', title: 'تم الإلغاء', text: 'تم إلغاء الكشف بنجاح.' })
+                    .then(() => location.reload());
+            } else {
+                Swal.fire({ icon: 'error', title: 'خطأ', text: 'فشل إلغاء الكشف.' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: e.message });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+        document.getElementById('settle-start-date').value = firstDay;
+        document.getElementById('settle-end-date').value = lastDay;
+    });
+</script>

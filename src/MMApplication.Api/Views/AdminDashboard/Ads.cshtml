@@ -1,0 +1,669 @@
+@model List<MMApplication.Application.DTOs.PromotionBannerDto>
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "مركز العروض والبنرات الترويجية";
+    ViewData["ActiveTab"] = "ads";
+}
+
+<div class="space-y-6">
+
+    <!-- 1. Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                    <i data-lucide="megaphone" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900">مركز الحملات والبنرات الترويجية</h1>
+                    <p class="text-xs text-slate-500">إدارة بنرات التطبيق، استهداف الشرائح المحددة، وبث الإشعارات الفورية للمتسوقين</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <button onclick="openModal('modal-send-notification')" class="btn-secondary">
+                <i data-lucide="bell" class="w-4 h-4 text-purple-600"></i>
+                <span>إرسال إشعار ترويجي</span>
+            </button>
+            <button onclick="openModal('modal-add-banner')" class="btn-primary">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>إنشاء بنر إعلاني جديد</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. KPI Metrics -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">إجمالي الوصول التقديري</span>
+                <i data-lucide="eye" class="w-4 h-4 text-slate-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">284,500</div>
+            <div class="text-[11px] text-emerald-700 mt-1 font-medium num">+14.2% نمو المشاهدات</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">نسبة النقر (CTR)</span>
+                <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-blue-500"></i>
+            </div>
+            <div class="text-xl font-bold text-blue-600 num">8.45%</div>
+            <div class="text-[11px] text-slate-400 mt-1">تفاعل متسوقي التطبيق</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">البنرات المسجلة</span>
+                <i data-lucide="image" class="w-4 h-4 text-purple-600"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@Model.Count</div>
+            <div class="text-[11px] text-emerald-700 mt-1 font-medium num">@Model.Count(b => b.IsActive) بنر نشط حالياً</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">معدل العائد (ROI)</span>
+                <i data-lucide="trending-up" class="w-4 h-4 text-emerald-500"></i>
+            </div>
+            <div class="text-xl font-bold text-emerald-600 num">4.2x</div>
+            <div class="text-[11px] text-slate-400 mt-1">استهداف دقيق للفئات</div>
+        </div>
+    </div>
+
+    <!-- 3. Charts Row: Channel Donut + Daily Performance Area -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Donut Channel Distribution -->
+        <div class="lg:col-span-4 card p-5 space-y-4">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">توزيع قنوات الوصول</h3>
+                <p class="text-xs text-slate-500">نسبة التفاعل عبر وسائط العرض المختلفة</p>
+            </div>
+
+            <div id="channelDonutChart" class="w-full h-44 flex items-center justify-center"></div>
+
+            <div class="space-y-2 pt-2 border-t border-slate-100 text-xs">
+                <div class="flex items-center justify-between">
+                    <span class="flex items-center gap-2 text-slate-700 font-medium"><span class="w-2.5 h-2.5 rounded-full bg-slate-900"></span> شاشات المول</span>
+                    <span class="font-bold text-slate-900 num">45%</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="flex items-center gap-2 text-slate-700 font-medium"><span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> تطبيق الهاتف</span>
+                    <span class="font-bold text-slate-900 num">30%</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="flex items-center gap-2 text-slate-700 font-medium"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> الرسائل القصيرة</span>
+                    <span class="font-bold text-slate-900 num">15%</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="flex items-center gap-2 text-slate-700 font-medium"><span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> البريد الإلكتروني</span>
+                    <span class="font-bold text-slate-900 num">10%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Area Chart: Unified Performance -->
+        <div class="lg:col-span-8 card p-5 space-y-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">أداء الحملات الموحد</h3>
+                    <p class="text-xs text-slate-500">متابعة يومية لعدد المشاهدات والنقرات عبر جميع القنوات</p>
+                </div>
+                <div class="flex items-center gap-3 text-xs font-semibold">
+                    <span class="flex items-center gap-1.5 text-slate-800"><span class="w-2 h-2 rounded-full bg-slate-900"></span> المشاهدات</span>
+                    <span class="flex items-center gap-1.5 text-purple-600"><span class="w-2 h-2 rounded-full bg-purple-600"></span> النقرات</span>
+                </div>
+            </div>
+
+            <div id="adsPerformanceChart" class="w-full h-56"></div>
+        </div>
+    </div>
+
+    <!-- 4. Campaigns & Banners Table -->
+    <div class="card overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">دليل البنرات والعروض الترويجية</h3>
+                <p class="text-xs text-slate-500 mt-0.5">قائمة بجميع البنرات الحالية وتوزيعها حسب الشرائح المستهدفة</p>
+            </div>
+
+            <button onclick="openModal('modal-add-banner')" class="btn-primary">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>إضافة بنر</span>
+            </button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>عنوان الإعلان / الصورة</th>
+                        <th>نوع الإجراء (Action Type)</th>
+                        <th>الحالة</th>
+                        <th>الشريحة المستهدفة</th>
+                        <th>ترتيب العرض</th>
+                        <th>تاريخ الإنشاء</th>
+                        <th class="text-left">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-12 text-slate-400">
+                                <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                                    <i data-lucide="image-off" class="w-6 h-6"></i>
+                                </div>
+                                <div class="font-bold text-slate-700">لا توجد إعلانات مسجلة حالياً</div>
+                                <p class="text-xs text-slate-400 mt-1">اضغط "إنشاء بنر إعلاني جديد" لإضافة أول إعلان للمول</p>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var b in Model)
+                    {
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    @if (!string.IsNullOrEmpty(b.ImageUrl))
+                                    {
+                                        <img src="@b.ImageUrl" class="w-11 h-11 rounded-xl object-cover border border-slate-200" onerror="this.src='/images/receipt-placeholder.png'" />
+                                    }
+                                    else
+                                    {
+                                        <div class="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+                                            <i data-lucide="image" class="w-5 h-5"></i>
+                                        </div>
+                                    }
+                                    <div>
+                                        <div class="font-bold text-slate-900">@b.Title</div>
+                                        <div class="text-xs text-slate-500 mt-0.5 max-w-xs truncate">@(b.Subtitle ?? "إعلان ترويجي")</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                @switch (b.ActionType)
+                                {
+                                    case "OPEN_STORE":
+                                        <span class="badge badge-purple">
+                                            <i data-lucide="store" class="w-3 h-3"></i> متجر
+                                        </span>
+                                        break;
+                                    case "OPEN_CAMERA_BOOSTER":
+                                        <span class="badge badge-amber">
+                                            <i data-lucide="camera" class="w-3 h-3"></i> كاميرا بونص
+                                        </span>
+                                        break;
+                                    case "OPEN_COUPON":
+                                        <span class="badge badge-blue">
+                                            <i data-lucide="ticket" class="w-3 h-3"></i> كوبون
+                                        </span>
+                                        break;
+                                    case "OPEN_CATEGORY":
+                                        <span class="badge badge-emerald">
+                                            <i data-lucide="layout-grid" class="w-3 h-3"></i> تصنيف
+                                        </span>
+                                        break;
+                                    default:
+                                        <span class="badge badge-slate">
+                                            <i data-lucide="external-link" class="w-3 h-3"></i> رابط خارجي
+                                        </span>
+                                        break;
+                                }
+                            </td>
+                            <td>
+                                @if (b.IsActive)
+                                {
+                                    <span class="badge badge-emerald">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> نشط
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-slate">متوقف</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge badge-slate">@b.TargetAudience</span>
+                            </td>
+                            <td class="font-bold text-slate-800 num">#@b.DisplayOrder</td>
+                            <td class="num text-slate-500 text-xs">@b.CreatedAt.ToString("yyyy/MM/dd")</td>
+                            <td class="text-left">
+                                <div class="flex items-center gap-1 justify-end">
+                                    <button onclick="openEditBannerModal('@b.Id', '@b.Title', '@(b.Subtitle ?? "")', '@b.ImageUrl', '@(b.TargetUrl ?? "")', '@(b.ActionType ?? "EXTERNAL_URL")', '@(b.ActionPayloadJson ?? "")', '@b.TargetAudience', @b.DisplayOrder, @(b.IsActive ? "true" : "false"))" title="تعديل الإعلان" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="deleteBanner('@b.Id', '@b.Title')" title="حذف الإعلان" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODALS -->
+<!-- ======================================================== -->
+
+<!-- Modal: Add Banner -->
+<div id="modal-add-banner" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="megaphone" class="w-4 h-4 text-purple-600"></i>
+                <span>إنشاء ونشر بنر إعلاني جديد</span>
+            </h3>
+            <button onclick="closeModal('modal-add-banner')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">عنوان الإعلان الرئيسي:</label>
+                <input type="text" id="banner-title" placeholder="مثال: مهرجان التسوق السنوي" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">العنوان الفرعي / الوصف:</label>
+                <input type="text" id="banner-subtitle" placeholder="خصومات تصل إلى 50% على جميع الأزياء" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">رابط صورة البنر (Image URL):</label>
+                <input type="text" id="banner-image-url" placeholder="https://images.unsplash.com/..." class="form-input font-mono text-xs">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">نوع الإجراء:</label>
+                    <select id="banner-action-type" class="form-select font-semibold">
+                        <option value="EXTERNAL_URL">رابط خارجي (EXTERNAL_URL)</option>
+                        <option value="OPEN_STORE">صفحة متجر (OPEN_STORE)</option>
+                        <option value="OPEN_CAMERA_BOOSTER">كاميرا بونص (OPEN_CAMERA_BOOSTER)</option>
+                        <option value="OPEN_COUPON">قسيمة كوبون (OPEN_COUPON)</option>
+                        <option value="OPEN_CATEGORY">تصنيف المتاجر (OPEN_CATEGORY)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">رابط التوجيه (اختياري):</label>
+                    <input type="text" id="banner-target-url" placeholder="https://..." class="form-input font-mono text-xs">
+                </div>
+            </div>
+            <div>
+                <label class="form-label">بيانات الإجراء (Action Payload JSON):</label>
+                <input type="text" id="banner-action-payload" placeholder='مثال: {"tenantId":"TEN-ZARA"} أو {"categoryId":"FASHION"}' class="form-input font-mono text-xs">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">الشريحة المستهدفة:</label>
+                    <select id="banner-audience" class="form-select">
+                        <option value="ALL">جميع المتسوقين (ALL)</option>
+                        <option value="VIP_GOLD">أعضاء VIP والذهبي</option>
+                        <option value="GOLD_ONLY">الفئة الذهبية فقط</option>
+                        <option value="PLATINUM_ONLY">الفئة البلاتينية فقط</option>
+                        <option value="SILVER">أعضاء الفئة الفضية</option>
+                        <option value="BRONZE">الفئة البرونزية</option>
+                        <option value="NEW_USERS">المستخدمون الجدد</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">ترتيب العرض:</label>
+                    <input type="number" id="banner-order" value="1" min="1" class="form-input num">
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-add-banner')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitCreateBanner()" class="btn-primary">حفظ ونشر الإعلان</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Banner -->
+<div id="modal-edit-banner" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-4 h-4 text-purple-600"></i>
+                <span>تعديل بيانات البنر الإعلاني</span>
+            </h3>
+            <button onclick="closeModal('modal-edit-banner')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <input type="hidden" id="edit-banner-id">
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">عنوان الإعلان:</label>
+                <input type="text" id="edit-banner-title" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">العنوان الفرعي:</label>
+                <input type="text" id="edit-banner-subtitle" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">رابط الصورة:</label>
+                <input type="text" id="edit-banner-image-url" class="form-input font-mono text-xs">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">نوع الإجراء:</label>
+                    <select id="edit-banner-action-type" class="form-select font-semibold">
+                        <option value="EXTERNAL_URL">رابط خارجي (EXTERNAL_URL)</option>
+                        <option value="OPEN_STORE">صفحة متجر (OPEN_STORE)</option>
+                        <option value="OPEN_CAMERA_BOOSTER">كاميرا بونص (OPEN_CAMERA_BOOSTER)</option>
+                        <option value="OPEN_COUPON">قسيمة كوبون (OPEN_COUPON)</option>
+                        <option value="OPEN_CATEGORY">تصنيف المتاجر (OPEN_CATEGORY)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">رابط التوجيه:</label>
+                    <input type="text" id="edit-banner-target-url" class="form-input font-mono text-xs">
+                </div>
+            </div>
+            <div>
+                <label class="form-label">بيانات الإجراء (Action Payload JSON):</label>
+                <input type="text" id="edit-banner-action-payload" placeholder='{"tenantId":"TEN-ZARA"}' class="form-input font-mono text-xs">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">الشريحة:</label>
+                    <select id="edit-banner-audience" class="form-select">
+                        <option value="ALL">الجميع (ALL)</option>
+                        <option value="VIP_GOLD">أعضاء VIP</option>
+                        <option value="GOLD_ONLY">الذهبي فقط</option>
+                        <option value="PLATINUM_ONLY">البلاتيني فقط</option>
+                        <option value="SILVER">الفضية</option>
+                        <option value="BRONZE">البرونزية</option>
+                        <option value="NEW_USERS">المستخدمون الجدد</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">ترتيب العرض:</label>
+                    <input type="number" id="edit-banner-order" class="form-input num">
+                </div>
+            </div>
+            <div>
+                <label class="form-label">حالة البنر:</label>
+                <select id="edit-banner-active" class="form-select">
+                    <option value="true">نشط ويظهر في التطبيق</option>
+                    <option value="false">متوقف مؤقتاً</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-edit-banner')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitEditBanner()" class="btn-primary">تحديث الإعلان</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Send Push Notification -->
+<div id="modal-send-notification" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="bell" class="w-4 h-4 text-purple-600"></i>
+                <span>بث إشعار ترويجي فوري للعملاء</span>
+            </h3>
+            <button onclick="closeModal('modal-send-notification')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">عنوان الإشعار:</label>
+                <input type="text" id="notif-title" placeholder="مثال: خصومات نهاية الأسبوع بدأت الآن!" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">نص الرسالة:</label>
+                <textarea id="notif-body" rows="3" placeholder="احصل على نقاط مضاعفة عند التسوق في متاجر المول اليوم..." class="form-input"></textarea>
+            </div>
+            <div>
+                <label class="form-label">الشريحة المستهدفة:</label>
+                <select id="notif-audience" class="form-select">
+                    <option value="ALL">جميع مستخدمي التطبيق</option>
+                    <option value="VIP_GOLD">أعضاء الفئة الذهبية و VIP فقط</option>
+                    <option value="SILVER">أعضاء الفئة الفضية فقط</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-send-notification')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitSendNotification()" class="btn-primary">إرسال وبث الإشعار الآن</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // 1. Donut Channel Chart
+        const channelEl = document.getElementById('channelDonutChart');
+        if (channelEl && window.ApexCharts) {
+            const donutChart = new ApexCharts(channelEl, {
+                series: [45, 30, 15, 10],
+                labels: ['شاشات المول', 'تطبيق الهاتف', 'الرسائل القصيرة', 'البريد'],
+                chart: {
+                    type: 'donut',
+                    height: 170,
+                    fontFamily: 'Cairo, sans-serif'
+                },
+                colors: ['#0f172a', '#9333ea', '#10b981', '#94a3b8'],
+                legend: { show: false },
+                dataLabels: { enabled: false },
+                stroke: { width: 2, colors: ['#ffffff'] },
+                tooltip: {
+                    y: { formatter: val => val + '%' }
+                }
+            });
+            donutChart.render();
+        }
+
+        // 2. Area Chart Unified Performance
+        const perfEl = document.getElementById('adsPerformanceChart');
+        if (perfEl && window.ApexCharts) {
+            const perfChart = new ApexCharts(perfEl, {
+                series: [
+                    { name: 'المشاهدات', data: [14000, 10500, 7000, 5000, 6200, 6800, 5500] },
+                    { name: 'النقرات', data: [3500, 3200, 3100, 2800, 2900, 3000, 2900] }
+                ],
+                chart: {
+                    type: 'area',
+                    height: 220,
+                    fontFamily: 'Cairo, sans-serif',
+                    toolbar: { show: false }
+                },
+                colors: ['#0f172a', '#9333ea'],
+                stroke: { curve: 'smooth', width: 2 },
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.25,
+                        opacityTo: 0.02,
+                        stops: [0, 95, 100]
+                    }
+                },
+                xaxis: {
+                    categories: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
+                    labels: { style: { colors: '#64748b', fontSize: '11px' } },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false }
+                },
+                yaxis: {
+                    labels: {
+                        style: { colors: '#64748b', fontSize: '11px' },
+                        formatter: val => (val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val)
+                    }
+                },
+                grid: { borderColor: '#f1f5f9', strokeDashArray: 4 },
+                legend: { show: false }
+            });
+            perfChart.render();
+        }
+    });
+
+    async function submitCreateBanner() {
+        const title = document.getElementById('banner-title').value.trim();
+        const subtitle = document.getElementById('banner-subtitle').value.trim();
+        const imageUrl = document.getElementById('banner-image-url').value.trim();
+        const targetUrl = document.getElementById('banner-target-url').value.trim();
+        const actionType = document.getElementById('banner-action-type').value;
+        const actionPayloadJson = document.getElementById('banner-action-payload').value.trim() || null;
+        const targetAudience = document.getElementById('banner-audience').value;
+        const displayOrder = parseInt(document.getElementById('banner-order').value, 10) || 1;
+
+        if (!title || !imageUrl) {
+            showToast('يرجى كتابة عنوان الإعلان ورابط الصورة.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/SuperAdmin/banners', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title,
+                    subtitle,
+                    imageUrl,
+                    targetUrl,
+                    actionType,
+                    actionPayloadJson,
+                    targetAudience,
+                    displayOrder
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'فشل إضافة الإعلان');
+            }
+
+            closeModal('modal-add-banner');
+            showToast('تم إنشاء ونشر البنر الإعلاني بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    function openEditBannerModal(id, title, subtitle, imageUrl, targetUrl, actionType, actionPayload, audience, order, isActive) {
+        document.getElementById('edit-banner-id').value = id;
+        document.getElementById('edit-banner-title').value = title;
+        document.getElementById('edit-banner-subtitle').value = subtitle || '';
+        document.getElementById('edit-banner-image-url').value = imageUrl || '';
+        document.getElementById('edit-banner-target-url').value = targetUrl || '';
+        document.getElementById('edit-banner-action-type').value = actionType || 'EXTERNAL_URL';
+        document.getElementById('edit-banner-action-payload').value = actionPayload || '';
+        document.getElementById('edit-banner-audience').value = audience || 'ALL';
+        document.getElementById('edit-banner-order').value = order || 1;
+        document.getElementById('edit-banner-active').value = isActive ? 'true' : 'false';
+        openModal('modal-edit-banner');
+    }
+
+    async function submitEditBanner() {
+        const id = document.getElementById('edit-banner-id').value;
+        const title = document.getElementById('edit-banner-title').value.trim();
+        const subtitle = document.getElementById('edit-banner-subtitle').value.trim();
+        const imageUrl = document.getElementById('edit-banner-image-url').value.trim();
+        const targetUrl = document.getElementById('edit-banner-target-url').value.trim();
+        const actionType = document.getElementById('edit-banner-action-type').value;
+        const actionPayloadJson = document.getElementById('edit-banner-action-payload').value.trim() || null;
+        const targetAudience = document.getElementById('edit-banner-audience').value;
+        const displayOrder = parseInt(document.getElementById('edit-banner-order').value, 10) || 1;
+        const isActive = document.getElementById('edit-banner-active').value === 'true';
+
+        if (!title || !imageUrl) {
+            showToast('يرجى تعبئة الحقول المطلوبة.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/banners/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title,
+                    subtitle,
+                    imageUrl,
+                    targetUrl,
+                    actionType,
+                    actionPayloadJson,
+                    targetAudience,
+                    displayOrder,
+                    isActive
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'فشل تحديث الإعلان');
+            }
+
+            closeModal('modal-edit-banner');
+            showToast('تم تحديث بيانات البنر الإعلاني بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function deleteBanner(id, title) {
+        const result = await Swal.fire({
+            title: 'حذف الإعلان',
+            text: `هل أنت متأكد من رغبتك في حذف الإعلان "${title}" نهائياً؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/banners/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!res.ok) throw new Error('فشل حذف الإعلان.');
+
+            showToast('تم حذف البنر الإعلاني بنجاح.', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function submitSendNotification() {
+        const title = document.getElementById('notif-title').value.trim();
+        const body = document.getElementById('notif-body').value.trim();
+        const targetAudience = document.getElementById('notif-audience').value;
+
+        if (!title || !body) {
+            showToast('يرجى ملء عنوان ونص الإشعار.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/SuperAdmin/notifications/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, body, targetAudience })
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || 'فشل إرسال الإشعار');
+
+            closeModal('modal-send-notification');
+            showToast(data.message || 'تم إرسال الإشعار بنجاح!', 'success');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+</script>
+}

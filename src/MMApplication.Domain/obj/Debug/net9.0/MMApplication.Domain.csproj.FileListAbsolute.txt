@@ -1,0 +1,11 @@
+C:\MMApp\src\MMApplication.Domain\bin\Debug\net9.0\MMApplication.Domain.deps.json
+C:\MMApp\src\MMApplication.Domain\bin\Debug\net9.0\MMApplication.Domain.dll
+C:\MMApp\src\MMApplication.Domain\bin\Debug\net9.0\MMApplication.Domain.pdb
+C:\MMApp\src\MMApplication.Domain\obj\Debug\net9.0\MMApplication.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\MMApp\src\MMApplication.Domain\obj\Debug\net9.0\MMApplication.Domain.AssemblyInfoInputs.cache
+C:\MMApp\src\MMApplication.Domain\obj\Debug\net9.0\MMApplication.Domain.AssemblyInfo.cs
+C:\MMApp\src\MMApplication.Domain\obj\Debug\net9.0\MMApplication.Domain.csproj.CoreCompileInputs.cache
+C:\MMApp\src\MMApplication.Domain\obj\Debug\net9.0\MMApplication.Domain.dll
+C:\MMApp\src\MMApplication.Domain\obj\Debug\net9.0\refint\MMApplication.Domain.dll
+C:\MMApp\src\MMApplication.Domain\obj\Debug\net9.0\MMApplication.Domain.pdb
+C:\MMApp\src\MMApplication.Domain\obj\Debug\net9.0\ref\MMApplication.Domain.dll

@@ -1,0 +1,627 @@
+@model MMApplication.Api.ViewModels.InvoiceTemplatesPageViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "نماذج الفواتير والتعرف الذكي (AI OCR)";
+    ViewData["ActiveTab"] = "invoice_templates";
+}
+
+<div class="space-y-6">
+
+    <!-- 1. Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <i data-lucide="scan-line" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900">نماذج فواتير المتاجر والتعرف الذكي (AI OCR)</h1>
+                    <p class="text-xs text-slate-500">ضبط شكل ونمط فواتير كل متجر وترويساته ليتعرف عليها الذكاء الاصطناعي بدقة وتلقائية</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <button onclick="scrollToSandbox()" class="btn-secondary">
+                <i data-lucide="sparkles" class="w-4 h-4 text-blue-600"></i>
+                <span>مختبر فحص الـ AI</span>
+            </button>
+            <button onclick="openTemplateModal()" class="btn-primary">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>إضافة / تعديل نموذج</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. KPI Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">إجمالي نماذج المتاجر</span>
+                <i data-lucide="store" class="w-4 h-4 text-blue-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@Model.TotalTemplatesCount</div>
+            <div class="text-[11px] text-slate-400 mt-1">متجر مسجل بالمنظومة</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">النماذج المفعلة</span>
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
+            </div>
+            <div class="text-xl font-bold text-emerald-600 num">@Model.ActiveTemplatesCount</div>
+            <div class="text-[11px] text-emerald-700 mt-1">مطابقة فورية نشطة</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">متوسط دقة التعرف (AI)</span>
+                <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@Model.AverageOcrAccuracy%</div>
+            <div class="text-[11px] text-slate-400 mt-1">بناءً على الترويسات والحقول</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">إجمالي الفواتير المعالجة</span>
+                <i data-lucide="receipt" class="w-4 h-4 text-indigo-500"></i>
+            </div>
+            <div class="text-xl font-bold text-indigo-600 num">@Model.Templates.Sum(t => t.TotalRecognizedInvoices)</div>
+            <div class="text-[11px] text-slate-400 mt-1">فاتورة ممسوحة ومطابقة</div>
+        </div>
+    </div>
+
+    <!-- 3. Store Templates Grid -->
+    <div class="card p-5 space-y-4">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+                <h2 class="text-xs font-bold text-slate-900">قوالب الفواتير والترويسات المعتمدة للمتاجر</h2>
+                <p class="text-[11px] text-slate-400">الكلمات المفتاحية والترويسات التي يستند عليها الذكاء الاصطناعي لمطابقة المتجر واحتساب النقاط</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <select id="storeFilter" onchange="filterTemplates(this.value)" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-blue-600">
+                    <option value="ALL">كافة المتاجر (@Model.TotalTemplatesCount)</option>
+                    @foreach (var s in Model.Stores)
+                    {
+                        <!option value="@s.Id" @(Model.SelectedStoreId == s.Id ? "selected" : "")>@s.Name</!option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="templatesContainer">
+            @foreach (var template in Model.Templates)
+            {
+                <div class="store-template-card card p-4 flex flex-col justify-between hover:border-blue-300 transition"
+                     data-store-id="@template.StoreId"
+                     data-store-name="@template.StoreName"
+                     data-category="@template.Category"
+                     data-template-type="@template.TemplateType"
+                     data-aliases="@string.Join(", ", template.HeaderAliases)"
+                     data-total-keyword="@template.TotalAmountKeyword"
+                     data-prefix="@template.InvoiceNumberPrefix"
+                     data-tax="@template.TaxNumber"
+                     data-active="@(template.IsActive ? "true" : "false")">
+                    
+                    <div class="space-y-3">
+                        <!-- Top Row -->
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-xs font-bold text-slate-900">@template.StoreName</h3>
+                                    <span class="badge badge-slate num">@template.UnitNumber</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-0.5">@template.Category</p>
+                            </div>
+                            <span class="badge @(template.IsActive ? "badge-emerald" : "badge-slate")">
+                                @(template.IsActive ? "معتمد" : "معطل")
+                            </span>
+                        </div>
+
+                        <!-- Template Format -->
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-100">
+                            <i data-lucide="file-check-2" class="w-3.5 h-3.5 text-blue-600"></i>
+                            <span>@template.TemplateType</span>
+                        </div>
+
+                        <!-- Header Aliases (Keywords) -->
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">الترويسات والأسماء المكتوبة على الفاتورة:</span>
+                            <div class="flex flex-wrap gap-1">
+                                @foreach (var alias in template.HeaderAliases)
+                                {
+                                    <span class="px-2 py-0.5 rounded text-[10px] bg-slate-50 border border-slate-200 text-slate-700 font-medium">@alias</span>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Recognition Keys Details -->
+                        <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                            <div>
+                                <span class="text-slate-400 block text-[10px]">كلمة المجموع:</span>
+                                <span class="font-semibold text-slate-800 font-mono">@template.TotalAmountKeyword</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 block text-[10px]">بادئة الفاتورة:</span>
+                                <span class="font-semibold text-slate-800 font-mono">@template.InvoiceNumberPrefix</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 block text-[10px]">الرقم الضريبي:</span>
+                                <span class="font-mono text-slate-700 text-[10px]">@template.TaxNumber</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 block text-[10px]">دقة المطابقة:</span>
+                                <span class="font-bold text-emerald-600 font-mono">@template.RecognitionAccuracy%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions Bottom -->
+                    <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span class="text-[10px] text-slate-400">
+                            فواتير معتمدة: <strong class="text-slate-800 num">@template.TotalRecognizedInvoices</strong>
+                        </span>
+
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="testWithStore('@template.StoreId', '@template.StoreName')" class="px-2.5 py-1 rounded text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition">
+                                فحص تجريبي
+                            </button>
+                            <button onclick="editTemplate('@template.StoreId')" class="px-2.5 py-1 rounded text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition">
+                                تعديل
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            }
+        </div>
+
+    </div>
+
+    <!-- 4. Interactive Live AI OCR Sandbox -->
+    <div id="ai-sandbox-section" class="card p-5 space-y-4">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <i data-lucide="scan" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h2 class="text-xs font-bold text-slate-900">مختبر الفحص والتعرف الذكي المباشر (AI OCR Sandbox)</h2>
+                    <p class="text-[11px] text-slate-400">اختبر استخراج بيانات الفاتورة ومطابقتها مع ترويسات المتاجر واحتساب النقاط تلقائياً</p>
+                </div>
+            </div>
+            <span class="badge badge-blue font-mono">Supabase + GPT-4o Vision</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            
+            <!-- Left: Simulator Inputs -->
+            <div class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">المتجر المستهدف للفحص:</label>
+                    <select id="sandboxStoreSelect" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                        <option value="ALL">✨ كشف تلقائي بالذكاء الاصطناعي (Auto-Detect Merchant)</option>
+                        @foreach (var s in Model.Stores)
+                        {
+                            <option value="@s.Id">@s.Name (@s.Category - @s.UnitNumber)</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs font-bold text-slate-700 block mb-1">نماذج فواتير جاهزة للتجربة السريعة:</label>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="loadSampleText('kadi')" class="px-2.5 py-1 text-xs rounded-lg bg-white border border-slate-200 hover:border-blue-600 font-medium text-slate-700 transition">
+                            كافيه كادي (إيصال كاشير)
+                        </button>
+                        <button type="button" onclick="loadSampleText('zara')" class="px-2.5 py-1 text-xs rounded-lg bg-white border border-slate-200 hover:border-blue-600 font-medium text-slate-700 transition">
+                            بوتيك فساتين (أزياء)
+                        </button>
+                        <button type="button" onclick="loadSampleText('supermarket')" class="px-2.5 py-1 text-xs rounded-lg bg-white border border-slate-200 hover:border-blue-600 font-medium text-slate-700 transition">
+                            سوبرماركت (شريط تفصيلي)
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">نص الفاتورة الممسوح ضوئياً (OCR Text):</label>
+                    <textarea id="sandboxReceiptText" rows="6" class="w-full font-mono text-xs p-3 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600" placeholder="أدخل نص الفاتورة أو اختر أحد النماذج أعلاه..."></textarea>
+                </div>
+
+                <button type="button" id="btnRunAiScan" onclick="runAiScanTest()" class="w-full btn-primary py-2.5">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    <span>تشغيل الفحص والتعرف الذكي</span>
+                </button>
+            </div>
+
+            <!-- Right: Results Panel -->
+            <div id="sandboxResultsContainer" class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+                        <span class="text-xs font-bold text-slate-800">نتيجة الفحص واستخراج الحقول:</span>
+                        <span id="scanStatusBadge" class="badge badge-slate font-mono">في انتظار الفحص</span>
+                    </div>
+
+                    <div id="emptyResultPlaceholder" class="py-12 text-center text-slate-400 space-y-2">
+                        <i data-lucide="scan-line" class="w-8 h-8 mx-auto text-slate-300"></i>
+                        <p class="text-xs">اضغط على زر "تشغيل الفحص والتعرف الذكي" لمعاينة استخراج الحقول والمطابقة</p>
+                    </div>
+
+                    <div id="liveResultData" class="space-y-3 hidden">
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200">
+                                <span class="text-[10px] text-slate-400 block">المتجر المكتشف:</span>
+                                <span id="resStoreName" class="font-bold text-slate-900">-</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200">
+                                <span class="text-[10px] text-slate-400 block">رقم الفاتورة:</span>
+                                <span id="resInvoiceNum" class="font-mono font-bold text-slate-900">-</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200">
+                                <span class="text-[10px] text-slate-400 block">المبلغ الإجمالي المستخرج:</span>
+                                <span id="resTotalAmount" class="font-mono font-bold text-emerald-600 text-sm">- د.ل</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200">
+                                <span class="text-[10px] text-slate-400 block">دقة التعرف (Confidence):</span>
+                                <span id="resConfidence" class="font-mono font-bold text-blue-600">- %</span>
+                            </div>
+                        </div>
+
+                        <!-- Line Items Table -->
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase">الأصناف والبنود المستخرجة:</span>
+                            <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                                <table class="w-full text-right text-[11px]">
+                                    <thead class="bg-slate-50 text-slate-500 border-b border-slate-200">
+                                        <tr>
+                                            <th class="p-2">البند</th>
+                                            <th class="p-2 text-center">الكمية</th>
+                                            <th class="p-2 font-mono">السعر</th>
+                                            <th class="p-2 font-mono">الإجمالي</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="resLineItemsBody" class="divide-y divide-slate-100 font-mono">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Loyalty Points Preview -->
+                        <div class="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="award" class="w-4 h-4 text-emerald-600"></i>
+                                <span class="font-semibold text-emerald-900">النقاط والكاش باك المكتسب:</span>
+                            </div>
+                            <span id="resLoyaltyPoints" class="font-bold text-emerald-700 font-mono text-sm">+0 نقطة</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="liveResultFooter" class="pt-3 border-t border-slate-200 hidden">
+                    <p id="resSuccessMessage" class="text-xs text-emerald-700 font-medium"></p>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- 5. Edit / Add Template Modal -->
+<div id="modal-template" class="fixed inset-0 z-50 modal-overlay hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+                <i data-lucide="receipt" class="w-5 h-5 text-blue-600"></i>
+                <h3 class="text-sm font-bold text-slate-900" id="modalTitle">إضافة وتحديث نموذج فاتورة المتجر</h3>
+            </div>
+            <button onclick="closeTemplateModal()" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <form id="templateForm" onsubmit="handleSaveTemplate(event)" class="space-y-4">
+            @Html.AntiForgeryToken()
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">المتجر:</label>
+                <select id="modalStoreId" required class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                    <option value="">اختر المتجر...</option>
+                    @foreach (var s in Model.Stores)
+                    {
+                        <option value="@s.Id">@s.Name (@s.Category - @s.UnitNumber)</option>
+                    }
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">شكل ونمط الفاتورة (Template Layout):</label>
+                <select id="modalTemplateType" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                    <option value="إيصال كافيه ومطعم حراري (POS Slip)">إيصال كافيه ومطعم حراري (POS Slip)</option>
+                    <option value="شريط كاشير تفصيلي (POS Thermal)">شريط كاشير تفصيلي (POS Thermal)</option>
+                    <option value="فاتورة مشتريات تفصيلية (Retail Invoice)">فاتورة مشتريات تفصيلية (Retail Invoice)</option>
+                    <option value="فاتورة ضريبية رسمية (A4 Tax Invoice)">فاتورة ضريبية رسمية (A4 Tax Invoice)</option>
+                    <option value="فاتورة كاشير إلكترونية (Standard POS)">فاتورة كاشير إلكترونية (Standard POS)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">الترويسات والأسماء المكتوبة على الفاتورة (Header Aliases):</label>
+                <input type="text" id="modalAliases" required placeholder="مثال: كادي كافيه، Kadi Cafe، شركة كادي للمشروبات" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">كلمة المجموع الكلي:</label>
+                    <input type="text" id="modalTotalKeyword" value="المجموع الكلي" placeholder="المجموع الكلي" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-mono">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">بادئة رقم الفاتورة:</label>
+                    <input type="text" id="modalPrefix" value="INV-" placeholder="INV-" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-mono">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات نموذج المتجر:</label>
+                <textarea id="modalNotes" rows="2" placeholder="ملاحظات توجيهية للذكاء الاصطناعي حول شكل الفاتورة..." class="w-full text-xs p-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600"></textarea>
+            </div>
+
+            <div class="flex items-center gap-2 pt-1">
+                <input type="checkbox" id="modalIsActive" checked class="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0">
+                <label for="modalIsActive" class="text-xs font-medium text-slate-700">تفعيل واعتماد هذا النموذج فوراً للـ AI</label>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" onclick="closeTemplateModal()" class="btn-secondary">إلغاء</button>
+                <button type="submit" id="btnSubmitTemplate" class="btn-primary">حفظ النموذج</button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<script>
+    const samples = {
+        kadi: `كافي كادي - Kadi Cafe
+فرع مول المرأة - الدور الأرضي G-04
+هاتف: 0912345678
+--------------------------------
+فاتورة ضريبية مبسطة
+رقم الفاتورة: INV-20261028-1042
+التاريخ: 28/10/2026 18:30
+--------------------------------
+2x كابتشينو كلاسيك      28.00 د.ل
+1x كرواسون زبدة فرنسي   12.50 د.ل
+1x مياه معدنية طبيعية    3.50 د.ل
+--------------------------------
+المجموع الصافي / TOTAL: 44.00 د.ل
+طريقة الدفع: بطاقة مصرفية (POS)
+شكراً لزيارتكم!`,
+
+        zara: `بوتيك فساتين السهرة - Evening Dresses
+مول المرأة - الطابق الأول Unit F-02
+--------------------------------
+فاتورة بيع بالتجزئة
+رقم الفاتورة: INV-F1-8842
+التاريخ: 28/10/2026 19:15
+--------------------------------
+1x فستان سهرة كلاسيك مطرز  185.00 د.ل
+1x شال حرير طبيعي فاخر      45.00 د.ل
+--------------------------------
+صافي الفاتورة: 230.00 د.ل
+المجموع الكلي: 230.00 د.ل
+نتشرف بزيارتكم دائماً`,
+
+        supermarket: `سوبرماركت المواد الغذائية - Food Market
+مول المرأة - الطابق الأرضي G-01
+سجل تجاري: 44921-LY
+--------------------------------
+رقم الفاتورة: INV-G01-9921
+التاريخ: 28/10/2026 17:05
+--------------------------------
+2x زيت زيتون بكر ممتاز 1 لتر   44.00 د.ل
+1x أرز بسمتي فاخر 5 كجم        38.50 د.ل
+4x حليب كامل الدسم 1 لتر       18.00 د.ل
+--------------------------------
+المجموع الكلي: 100.50 د.ل`
+    };
+
+    function loadSampleText(type) {
+        if (samples[type]) {
+            document.getElementById('sandboxReceiptText').value = samples[type];
+            if (type === 'kadi') document.getElementById('sandboxStoreSelect').value = 'TEN-KADI-CAFE';
+            else if (type === 'zara') document.getElementById('sandboxStoreSelect').value = 'TEN-EVENING-DRESS';
+            else if (type === 'supermarket') document.getElementById('sandboxStoreSelect').value = 'TEN-FOOD-MARKET';
+        }
+    }
+
+    function scrollToSandbox() {
+        document.getElementById('ai-sandbox-section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function testWithStore(storeId, storeName) {
+        document.getElementById('sandboxStoreSelect').value = storeId;
+        scrollToSandbox();
+        if (!document.getElementById('sandboxReceiptText').value) {
+            loadSampleText('kadi');
+        }
+    }
+
+    function filterTemplates(selectedStoreId) {
+        const cards = document.querySelectorAll('.store-template-card');
+        cards.forEach(card => {
+            if (selectedStoreId === 'ALL' || card.getAttribute('data-store-id') === selectedStoreId) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    function openTemplateModal(storeId = null) {
+        document.getElementById('modal-template').classList.remove('hidden');
+        if (storeId) {
+            editTemplate(storeId);
+        } else {
+            document.getElementById('templateForm').reset();
+            document.getElementById('modalTitle').textContent = 'إضافة نموذج فاتورة جديد لمتجر';
+        }
+    }
+
+    function closeTemplateModal() {
+        document.getElementById('modal-template').classList.add('hidden');
+    }
+
+    function editTemplate(storeId) {
+        const card = document.querySelector(`.store-template-card[data-store-id="${storeId}"]`);
+        if (!card) return;
+
+        document.getElementById('modalStoreId').value = storeId;
+        document.getElementById('modalTemplateType').value = card.getAttribute('data-template-type') || 'إيصال كافيه ومطعم حراري (POS Slip)';
+        document.getElementById('modalAliases').value = card.getAttribute('data-aliases') || '';
+        document.getElementById('modalTotalKeyword').value = card.getAttribute('data-total-keyword') || 'المجموع الكلي';
+        document.getElementById('modalPrefix').value = card.getAttribute('data-prefix') || 'INV-';
+        document.getElementById('modalIsActive').checked = card.getAttribute('data-active') === 'true';
+        document.getElementById('modalTitle').textContent = `تعديل نموذج: ${card.getAttribute('data-store-name')}`;
+
+        document.getElementById('modal-template').classList.remove('hidden');
+    }
+
+    async function handleSaveTemplate(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitTemplate');
+        btn.disabled = true;
+        btn.innerText = 'جاري الحفظ...';
+
+        const storeId = document.getElementById('modalStoreId').value;
+        const templateType = document.getElementById('modalTemplateType').value;
+        const aliases = document.getElementById('modalAliases').value;
+        const totalKeyword = document.getElementById('modalTotalKeyword').value;
+        const prefix = document.getElementById('modalPrefix').value;
+        const notes = document.getElementById('modalNotes').value;
+        const isActive = document.getElementById('modalIsActive').checked;
+
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+        try {
+            const resp = await fetch('/AdminDashboard/SaveInvoiceTemplate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token || ''
+                },
+                body: JSON.stringify({
+                    storeId: storeId,
+                    templateType: templateType,
+                    headerAliases: aliases,
+                    totalAmountKeyword: totalKeyword,
+                    invoiceNumberPrefix: prefix,
+                    notes: notes,
+                    isActive: isActive
+                })
+            });
+
+            const result = await resp.json();
+            if (resp.ok && result.success) {
+                confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم الحفظ',
+                    text: result.message || 'تم حفظ نموذج الفاتورة بنجاح.',
+                    confirmButtonColor: '#2563eb'
+                }).then(() => window.location.reload());
+            } else {
+                Swal.fire({ icon: 'error', title: 'خطأ', text: result.message || 'حدث خطأ أثناء الحفظ.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر الاتصال بالسيرفر.' });
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'حفظ النموذج';
+        }
+    }
+
+    async function runAiScanTest() {
+        const btn = document.getElementById('btnRunAiScan');
+        const storeId = document.getElementById('sandboxStoreSelect').value;
+        const text = document.getElementById('sandboxReceiptText').value;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>جاري تحليل الفاتورة ومطابقة القوالب...</span>';
+        if (window.lucide) lucide.createIcons();
+
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+        try {
+            const resp = await fetch('/AdminDashboard/TestAiInvoiceScan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token || ''
+                },
+                body: JSON.stringify({
+                    storeId: storeId,
+                    receiptText: text
+                })
+            });
+
+            const result = await resp.json();
+
+            document.getElementById('emptyResultPlaceholder').classList.add('hidden');
+            document.getElementById('liveResultData').classList.remove('hidden');
+            document.getElementById('liveResultFooter').classList.remove('hidden');
+
+            if (resp.ok && result.success) {
+                document.getElementById('scanStatusBadge').className = 'badge badge-emerald font-mono';
+                document.getElementById('scanStatusBadge').textContent = 'مطابق ومعتمد 100%';
+
+                document.getElementById('resStoreName').textContent = result.recognizedStoreName;
+                document.getElementById('resInvoiceNum').textContent = result.extractedInvoiceNumber;
+                document.getElementById('resTotalAmount').textContent = result.extractedTotalAmount.toFixed(2) + ' د.ل';
+                document.getElementById('resConfidence').textContent = result.confidencePercentage + '%';
+                document.getElementById('resLoyaltyPoints').textContent = `+${result.calculatedPoints} نقطة (وكاش باك ${result.calculatedCashback.toFixed(2)} د.ل)`;
+                document.getElementById('resSuccessMessage').textContent = result.message;
+
+                const tbody = document.getElementById('resLineItemsBody');
+                tbody.innerHTML = '';
+                if (result.lineItems && result.lineItems.length > 0) {
+                    result.lineItems.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="p-2 font-sans text-slate-800">${item.description}</td>
+                            <td class="p-2 text-center text-slate-600">${item.quantity}</td>
+                            <td class="p-2 text-slate-600">${item.unitPrice.toFixed(2)}</td>
+                            <td class="p-2 font-bold text-slate-900">${item.totalPrice.toFixed(2)} د.ل</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" class="p-2 text-center text-slate-400">لا توجد بنود تفصيلية</td></tr>';
+                }
+
+                confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
+            } else {
+                document.getElementById('scanStatusBadge').className = 'badge badge-rose font-mono';
+                document.getElementById('scanStatusBadge').textContent = 'فشل المطابقة';
+                Swal.fire({ icon: 'warning', title: 'تنبيه', text: result.message || 'فشل الفحص.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: 'حدث خطأ في الاتصال بالخادم.' });
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="play" class="w-4 h-4"></i><span>تشغيل الفحص والتعرف الذكي</span>';
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSampleText('kadi');
+        if (window.lucide) lucide.createIcons();
+    });
+</script>

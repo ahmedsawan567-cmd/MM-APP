@@ -1,0 +1,386 @@
+@model MMApplication.Api.ViewModels.InvoicesPageViewModel
+@using MMApplication.Domain.Enums
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "سجل الفواتير والمعاملات";
+    ViewData["ActiveTab"] = "invoices";
+}
+
+<div class="space-y-6">
+
+    <!-- 1. Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <i data-lucide="receipt" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900">سجل الفواتير والمعاملات اليومية</h1>
+                    <p class="text-xs text-slate-500">متابعة الفواتير الممسوحة ضوئياً، حالات الاعتماد، مبالغ الشراء، والنقاط الممنوحة للعملاء</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" class="btn-secondary">
+                <i data-lucide="scan-line" class="w-4 h-4 text-blue-600"></i>
+                <span>قوالب الفواتير والـ AI</span>
+            </a>
+            <a asp-controller="AdminDashboard" asp-action="Fraud" class="btn-primary">
+                <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                <span>مركز تدقيق الاحتيال</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- 2. Summary KPI Metrics -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">إجمالي الفواتير</span>
+                <i data-lucide="files" class="w-4 h-4 text-slate-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@Model.TotalCount</div>
+            <div class="text-[11px] text-slate-400 mt-1">معاملة شراء مسجلة</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">المبيعات المعتمدة</span>
+                <i data-lucide="wallet" class="w-4 h-4 text-emerald-500"></i>
+            </div>
+            <div class="text-xl font-bold text-emerald-600 num">@Model.TotalApprovedAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-[11px] text-emerald-700 mt-1">مبيعات محققة بالمول</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">النقاط المكتسبة</span>
+                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
+            </div>
+            <div class="text-xl font-bold text-amber-600 num">+@Model.TotalApprovedPoints.ToString("N0")</div>
+            <div class="text-[11px] text-amber-700 mt-1">نقطة ممنوحة للمتسوقين</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">قيد المراجعة</span>
+                <i data-lucide="clock" class="w-4 h-4 text-blue-500"></i>
+            </div>
+            <div class="text-xl font-bold text-blue-600 num">@Model.PendingReviewsCount</div>
+            <div class="text-[11px] text-blue-700 mt-1">تتطلب فحصاً بشرياً</div>
+        </div>
+    </div>
+
+    <!-- 3. Filter Bar & Table View -->
+    <div class="card p-5 space-y-4">
+        
+        <form method="get" asp-controller="AdminDashboard" asp-action="Invoices" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            
+            <div class="flex flex-wrap items-center gap-2.5">
+                <!-- Store Filter -->
+                <select name="storeId" onchange="this.form.submit()" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-blue-600">
+                    <option value="ALL">كافة المتاجر</option>
+                    @foreach (var s in Model.Stores)
+                    {
+                        <!option value="@s.Id" @(Model.SelectedStoreId == s.Id ? "selected" : "")>@s.Name</!option>
+                    }
+                </select>
+
+                <!-- Status Filter -->
+                <select name="status" onchange="this.form.submit()" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-blue-600">
+                    <!option value="ALL" @(Model.StatusFilter == "ALL" ? "selected" : "")>كافة الحالات</!option>
+                    <!option value="APPROVED" @(Model.StatusFilter == "APPROVED" ? "selected" : "")>معتمدة (APPROVED)</!option>
+                    <!option value="PENDING" @(Model.StatusFilter == "PENDING" ? "selected" : "")>قيد الفحص (PENDING)</!option>
+                    <!option value="REVIEW_REQUIRED" @(Model.StatusFilter == "REVIEW_REQUIRED" ? "selected" : "")>تتطلب تدقيق (REVIEW)</!option>
+                    <!option value="REJECTED" @(Model.StatusFilter == "REJECTED" ? "selected" : "")>مرفوضة (REJECTED)</!option>
+                    <!option value="DISPUTED" @(Model.StatusFilter == "DISPUTED" ? "selected" : "")>نزاع مفتوح (DISPUTED)</!option>
+                </select>
+            </div>
+
+            <!-- Search box -->
+            <div class="relative w-full sm:w-72">
+                <input type="text" name="search" value="@Model.SearchQuery" placeholder="بحث برقم الفاتورة أو العميل..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-600 focus:bg-white transition">
+                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5"></i>
+            </div>
+        </form>
+
+        <!-- Invoices Table -->
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>رقم الفاتورة</th>
+                        <th>المتجر</th>
+                        <th>العميل</th>
+                        <th>تاريخ الفاتورة</th>
+                        <th>المبلغ</th>
+                        <th>النقاط</th>
+                        <th>دقة الـ AI</th>
+                        <th>الحالة</th>
+                        <th class="text-center">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Invoices.Any())
+                    {
+                        <tr>
+                            <td colspan="9" class="p-8 text-center text-slate-400">
+                                <i data-lucide="inbox" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i>
+                                <span>لا توجد فواتير مطابقة لمعايير البحث الحالية.</span>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var inv in Model.Invoices)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="font-mono font-bold text-slate-900 text-xs">@inv.InvoiceNumber</div>
+                                    <div class="text-[10px] text-slate-400 num">@inv.CreatedAt.ToString("yyyy/MM/dd HH:mm")</div>
+                                </td>
+
+                                <td>
+                                    <div class="font-bold text-slate-800 text-xs">@inv.StoreName</div>
+                                    <div class="text-[10px] text-slate-400">@inv.StoreCategory</div>
+                                </td>
+
+                                <td>
+                                    <div class="font-semibold text-slate-900 text-xs">@inv.CustomerName</div>
+                                    <div class="num text-[10px] text-slate-400">@inv.CustomerPhone</div>
+                                </td>
+
+                                <td>
+                                    <span class="num text-xs text-slate-600">@inv.InvoiceDate.ToString("yyyy/MM/dd")</span>
+                                </td>
+
+                                <td>
+                                    <span class="num font-bold text-slate-900 text-xs">@inv.Amount.ToString("N2")</span> <span class="text-[10px] text-slate-500">د.ل</span>
+                                </td>
+
+                                <td>
+                                    <span class="num font-bold text-emerald-600 text-xs">+@inv.PointsEarned</span>
+                                </td>
+
+                                <td>
+                                    <span class="badge @(inv.ConfidenceScore >= 90 ? "badge-emerald" : (inv.ConfidenceScore >= 70 ? "badge-amber" : "badge-rose")) num">
+                                        @inv.ConfidenceScore%
+                                    </span>
+                                </td>
+
+                                <td>
+                                    @if (inv.Status == InvoiceStatus.APPROVED)
+                                    {
+                                        <span class="badge badge-emerald">معتمدة</span>
+                                    }
+                                    else if (inv.Status == InvoiceStatus.PENDING || inv.Status == InvoiceStatus.REVIEW_REQUIRED)
+                                    {
+                                        <span class="badge badge-amber">قيد الفحص</span>
+                                    }
+                                    else if (inv.Status == InvoiceStatus.REJECTED || inv.Status == InvoiceStatus.VOIDED)
+                                    {
+                                        <span class="badge badge-rose">مرفوضة</span>
+                                    }
+                                    else if (inv.Status == InvoiceStatus.DISPUTED)
+                                    {
+                                        <span class="badge badge-blue">نزاع مفتوح</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-slate">@inv.Status</span>
+                                    }
+                                </td>
+
+                                <td class="text-center">
+                                    <button onclick="viewInvoiceDetails('@inv.Id')" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                                        عرض التفاصيل
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- 4. Quick Invoice Details Modal -->
+<div id="modal-invoice-details" class="fixed inset-0 z-50 modal-overlay hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+                <i data-lucide="receipt" class="w-5 h-5 text-blue-600"></i>
+                <h3 class="text-sm font-bold text-slate-900">تفاصيل الفاتورة ومطابقة الـ OCR</h3>
+            </div>
+            <button onclick="closeInvoiceModal()" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div id="invoiceModalContent" class="space-y-4">
+            <div class="text-center py-8 text-slate-400">
+                <i data-lucide="loader-2" class="w-6 h-6 mx-auto animate-spin mb-2"></i>
+                <span>جاري تحميل تفاصيل الفاتورة...</span>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+            <div id="modalActionButtons" class="flex items-center gap-2">
+            </div>
+            <button type="button" onclick="closeInvoiceModal()" class="btn-secondary">
+                إغلاق
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    async function viewInvoiceDetails(id) {
+        document.getElementById('modal-invoice-details').classList.remove('hidden');
+        const container = document.getElementById('invoiceModalContent');
+        const actionsContainer = document.getElementById('modalActionButtons');
+        actionsContainer.innerHTML = '';
+        container.innerHTML = '<div class="text-center py-8 text-slate-400"><i data-lucide="loader-2" class="w-6 h-6 mx-auto animate-spin mb-2"></i><span>جاري تحميل تفاصيل الفاتورة...</span></div>';
+        if (window.lucide) lucide.createIcons();
+
+        try {
+            const resp = await fetch(`/AdminDashboard/GetInvoiceDetailsJson?id=${id}`);
+            if (!resp.ok) throw new Error('فشل جلب التفاصيل');
+            const data = await resp.json();
+
+            let itemsHtml = '';
+            if (data.lineItems && data.lineItems.length > 0) {
+                itemsHtml = `
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase">البنود المستخرجة:</span>
+                        <table class="w-full text-right text-xs bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                            <thead class="bg-slate-100 text-slate-500 font-semibold">
+                                <tr>
+                                    <th class="p-2">الصنف</th>
+                                    <th class="p-2 text-center">الكمية</th>
+                                    <th class="p-2 font-mono">السعر</th>
+                                    <th class="p-2 font-mono">الإجمالي</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200/60 font-mono">
+                                ${data.lineItems.map(item => `
+                                    <tr>
+                                        <td class="p-2 font-sans text-slate-800">${item.description}</td>
+                                        <td class="p-2 text-center text-slate-600">${item.quantity}</td>
+                                        <td class="p-2 text-slate-600">${item.unitPrice.toFixed(2)}</td>
+                                        <td class="p-2 font-bold text-slate-900">${item.totalPrice.toFixed(2)} د.ل</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="text-[10px] text-slate-400 block">المتجر:</span>
+                        <span class="font-bold text-slate-900">${data.storeName} (${data.storeCategory})</span>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="text-[10px] text-slate-400 block">رقم الفاتورة:</span>
+                        <span class="font-mono font-bold text-slate-900">${data.invoiceNumber || '-'}</span>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="text-[10px] text-slate-400 block">العميل:</span>
+                        <span class="font-bold text-slate-900">${data.customerName} (${data.customerPhone})</span>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="text-[10px] text-slate-400 block">تاريخ الشراء:</span>
+                        <span class="font-mono font-bold text-slate-900">${data.invoiceDate}</span>
+                    </div>
+                    <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                        <span class="text-[10px] text-emerald-700 block">المبلغ الإجمالي:</span>
+                        <span class="font-mono font-bold text-emerald-800 text-sm">${data.amount.toFixed(2)} د.ل</span>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                        <span class="text-[10px] text-blue-700 block">النقاط والكاش باك:</span>
+                        <span class="font-mono font-bold text-blue-800 text-sm">+${data.points} نقطة (${data.cashback.toFixed(2)} د.ل)</span>
+                    </div>
+                </div>
+
+                ${itemsHtml}
+
+                <div class="flex items-center justify-between p-3 rounded-xl bg-slate-100 text-xs">
+                    <div>
+                        <span class="text-[10px] text-slate-500 block">حالة الفحص ودقة الـ AI:</span>
+                        <span class="font-bold text-slate-800 font-mono">${data.status} — دقة: ${data.confidence}%</span>
+                    </div>
+                    ${data.rejectionReason ? `<span class="text-rose-600 font-semibold text-xs">سبب الرفض: ${data.rejectionReason}</span>` : ''}
+                </div>
+            `;
+
+            if (data.status !== 'APPROVED') {
+                actionsContainer.innerHTML = `
+                    <button onclick="changeStatus('${data.id}', 'APPROVED')" class="btn-primary bg-emerald-600 hover:bg-emerald-700">
+                        اعتماد الفاتورة
+                    </button>
+                    <button onclick="changeStatus('${data.id}', 'REJECTED')" class="btn-danger">
+                        رفض الفاتورة
+                    </button>
+                `;
+            }
+        } catch (e) {
+            container.innerHTML = '<div class="text-center py-6 text-rose-500 text-xs">تعذر جلب تفاصيل الفاتورة.</div>';
+        }
+    }
+
+    function closeInvoiceModal() {
+        document.getElementById('modal-invoice-details').classList.add('hidden');
+    }
+
+    async function changeStatus(id, newStatus) {
+        let reason = null;
+        if (newStatus === 'REJECTED') {
+            const { value: text } = await Swal.fire({
+                title: 'رفض الفاتورة',
+                input: 'textarea',
+                inputLabel: 'يرجى كتابة سبب الرفض للعميل:',
+                inputPlaceholder: 'مثال: الصورة غير واضحة، الفاتورة مكررة...',
+                showCancelButton: true,
+                confirmButtonText: 'تأكيد الرفض',
+                cancelButtonText: 'إلغاء',
+                confirmButtonColor: '#dc2626'
+            });
+            if (!text) return;
+            reason = text;
+        }
+
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+        try {
+            const resp = await fetch(`/AdminDashboard/UpdateInvoiceStatus?id=${id}&status=${newStatus}&reason=${encodeURIComponent(reason || '')}`, {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': token || ''
+                }
+            });
+            const res = await resp.json();
+            if (resp.ok && res.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم التحديث',
+                    text: res.message,
+                    confirmButtonColor: '#2563eb'
+                }).then(() => window.location.reload());
+            } else {
+                Swal.fire({ icon: 'error', title: 'خطأ', text: res.message || 'حدث خطأ.' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر الاتصال بالسيرفر.' });
+        }
+    }
+</script>

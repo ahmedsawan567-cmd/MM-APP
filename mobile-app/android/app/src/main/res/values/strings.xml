@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Almaraa Mall</string>
+    <string name="title_activity_main">Almaraa Mall</string>
+    <string name="package_name">ly.mmapp.almaraamall</string>
+    <string name="custom_url_scheme">ly.mmapp.almaraamall</string>
+</resources>

@@ -1,0 +1,756 @@
+@model List<MMApplication.Application.DTOs.SuperAdminCustomerDto>
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "قاعدة بيانات العملاء والمتسوقين";
+    ViewData["ActiveTab"] = "customers";
+}
+
+<div class="space-y-6">
+
+    <!-- 1. Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900">سجل العملاء والمتسوقين</h1>
+                    <p class="text-xs text-slate-500">متابعة حسابات مستخدمي التطبيق، تتبع مستويات الولاء، والأجهزة المرتبطة مع حماية خصوصية البيانات</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <button onclick="showToast('جاري تصدير قاعدة بيانات العملاء بصيغة CSV...', 'info')" class="btn-secondary">
+                <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
+                <span>تصدير البيانات</span>
+            </button>
+            <button onclick="openModal('modal-add-customer')" class="btn-primary">
+                <i data-lucide="user-plus" class="w-4 h-4"></i>
+                <span>إضافة عميل جديد</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. KPI Metrics -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">إجمالي المسجلين</span>
+                <i data-lucide="users" class="w-4 h-4 text-blue-500"></i>
+            </div>
+            <div class="text-xl font-bold text-slate-900 num">@Model.Count</div>
+            <div class="text-[11px] text-emerald-700 mt-1 font-medium">قاعدة بيانات متنامية</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">المستخدمون النشطون</span>
+                <i data-lucide="user-check" class="w-4 h-4 text-emerald-500"></i>
+            </div>
+            <div class="text-xl font-bold text-emerald-600 num">@Model.Count(c => !c.IsArchived && !c.IsSuspended)</div>
+            <div class="text-[11px] text-slate-400 mt-1">حسابات نشطة ومحققة</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">أعضاء النخبة (VIP)</span>
+                <i data-lucide="crown" class="w-4 h-4 text-purple-600"></i>
+            </div>
+            <div class="text-xl font-bold text-purple-600 num">@Model.Count(c => c.Tier == "Platinum")</div>
+            <div class="text-[11px] text-purple-700 mt-1 font-medium">أعلى شريحة إنفاق</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-semibold text-slate-500">إجمالي رصيد النقاط</span>
+                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
+            </div>
+            <div class="text-xl font-bold text-amber-600 num">@Model.Sum(c => c.CurrentPoints).ToString("N0")</div>
+            <div class="text-[11px] text-slate-400 mt-1">مشتريات: @Model.Sum(c => c.TotalSpent).ToString("N0") د.ل</div>
+        </div>
+    </div>
+
+    <!-- 3. Security & Growth Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Security & Privacy Card -->
+        <div class="lg:col-span-4 card p-5 space-y-4">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">حماية خصوصية بيانات المتسوقين</h3>
+                    <p class="text-[11px] text-slate-500">بروتوكولات التشفير والرقابة المدمجة</p>
+                </div>
+            </div>
+
+            <p class="text-xs text-slate-600 leading-relaxed">
+                يتم تشفير وتعتيم أرقام الهواتف والمعلومات الحساسة في السجلات العامة (<span class="font-mono font-bold text-slate-800">Data Masking</span>). كما يُمنع الحذف النهائي للبيانات المالية للحفاظ على سلامة التسويات ومكافحة الاحتيال.
+            </p>
+
+            <div class="space-y-2 pt-2 border-t border-slate-100 text-xs">
+                <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <span class="text-slate-600 font-medium">حالة التشفير والتعمية:</span>
+                    <span class="badge badge-emerald">مفعّل بالكامل</span>
+                </div>
+                <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <span class="text-slate-600 font-medium">بصمة الأجهزة المشتركة:</span>
+                    <span class="badge badge-amber">Device Fingerprint</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Growth Chart Card -->
+        <div class="lg:col-span-8 card p-5 space-y-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">نمو قاعدة المتسوقين والنشاط الشهري</h3>
+                    <p class="text-xs text-slate-500">معدل انضمام وتفاعل المتسوقين الجدد</p>
+                </div>
+                <span class="badge badge-emerald num">+24% سنوياً</span>
+            </div>
+
+            <div id="customerGrowthChart" class="w-full h-44"></div>
+        </div>
+    </div>
+
+    <!-- 4. Customer Directory Ledger -->
+    <div class="card overflow-hidden">
+        <!-- Top Toolbar & Filters -->
+        <div class="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white">
+            <!-- Tier Filter Pills -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+                <a asp-action="Customers" asp-route-tier="ALL" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "ALL" || ViewData["TierFilter"] == null ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")">
+                    الكل (@Model.Count)
+                </a>
+                <a asp-action="Customers" asp-route-tier="Platinum" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Platinum" ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100")">
+                    البلاتيني VIP
+                </a>
+                <a asp-action="Customers" asp-route-tier="Gold" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Gold" ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100")">
+                    الذهبي
+                </a>
+                <a asp-action="Customers" asp-route-tier="Silver" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Silver" ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200")">
+                    الفضي
+                </a>
+                <a asp-action="Customers" asp-route-tier="Bronze" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Bronze" ? "bg-amber-800 text-white" : "bg-orange-50 text-amber-800 hover:bg-orange-100")">
+                    البرونزي
+                </a>
+            </div>
+
+            <!-- Search Field -->
+            <form method="get" asp-action="Customers" class="flex items-center gap-2">
+                <input type="hidden" name="tier" value="@ViewData["TierFilter"]">
+                <div class="relative w-full sm:w-64">
+                    <input type="text" name="search" value="@ViewData["SearchQuery"]" placeholder="بحث بالاسم أو رقم الهاتف..." class="form-input text-xs pr-8 pl-3">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3"></i>
+                </div>
+            </form>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>المعرف</th>
+                        <th>العميل / الهاتف</th>
+                        <th>فئة الولاء</th>
+                        <th>رصيد النقاط</th>
+                        <th>عدد الفواتير</th>
+                        <th>إجمالي الإنفاق</th>
+                        <th>الحالة</th>
+                        <th class="text-left">الإجراءات وكشف الحساب</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center py-12 text-slate-400">
+                                <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                                    <i data-lucide="users-round" class="w-6 h-6"></i>
+                                </div>
+                                <div class="font-bold text-slate-700">لا يوجد متسوقون مطابقون لشرط البحث</div>
+                                <p class="text-xs text-slate-400 mt-1">تأكد من الاسم أو الهاتف المدخل أو قم بإلغاء الفلترة</p>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var c in Model)
+                    {
+                        <tr>
+                            <td class="font-bold text-slate-500 num">#@c.Id</td>
+                            <td>
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center font-bold text-xs shrink-0">
+                                        @(string.IsNullOrWhiteSpace(c.FullName) ? "ع" : c.FullName.Substring(0, 1))
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                            <span>@c.FullName</span>
+                                            @if (c.IsMultiAccountDevice || c.SharedDevicesCount > 1)
+                                            {
+                                                <span class="badge badge-amber text-[10px]" title="تم رصد مشاركة الجهاز مع @c.SharedDevicesCount حسابات">
+                                                    <i data-lucide="smartphone" class="w-2.5 h-2.5"></i>
+                                                    <span>جهاز مشترك (@c.SharedDevicesCount)</span>
+                                                </span>
+                                            }
+                                        </div>
+                                        <div class="text-xs text-slate-500 num" dir="ltr">@c.PhoneNumber</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                @switch (c.Tier)
+                                {
+                                    case "Platinum":
+                                        <span class="badge badge-purple">بلاتيني VIP</span>
+                                        break;
+                                    case "Gold":
+                                        <span class="badge badge-amber">ذهبي</span>
+                                        break;
+                                    case "Silver":
+                                        <span class="badge badge-slate">فضي</span>
+                                        break;
+                                    default:
+                                        <span class="badge badge-slate">برونزي</span>
+                                        break;
+                                }
+                            </td>
+                            <td>
+                                <span class="font-bold text-slate-900 num">
+                                    @c.CurrentPoints.ToString("N0") <span class="text-xs font-normal text-slate-500">نقطة</span>
+                                </span>
+                            </td>
+                            <td class="font-semibold text-slate-700 num">@c.TotalInvoicesScanned فاتورة</td>
+                            <td class="font-bold text-emerald-600 num">@c.TotalSpent.ToString("N2") د.ل</td>
+                            <td>
+                                @if (c.IsArchived)
+                                {
+                                    <span class="badge badge-slate">مؤرشف</span>
+                                }
+                                else if (c.IsSuspended)
+                                {
+                                    <span class="badge badge-rose">مجمّد</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-emerald">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> نشط
+                                    </span>
+                                }
+                            </td>
+                            <td class="text-left">
+                                <div class="flex items-center gap-1 justify-end">
+                                    <button onclick="openQuickLedgerModal('@c.Id')" title="معاينة سريعة" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="openEditCustomerModal('@c.Id', '@c.FullName', '@c.PhoneNumber', '@c.Tier', @(c.IsSuspended ? "true" : "false"))" title="تعديل بيانات العميل" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="openAdjustPointsModal('@c.Id', '@c.FullName', @c.CurrentPoints)" title="تعديل النقاط" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                        <i data-lucide="coins" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="toggleSuspendCustomer('@c.Id', '@c.FullName')" title="@(c.IsSuspended ? "فك التجميد" : "تجميد الحساب")" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                        <i data-lucide="@(c.IsSuspended ? "unlock" : "lock")" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="confirmArchiveCustomer('@c.Id', '@c.FullName')" title="أرشفة العميل مالياً (Soft Archive)" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
+                                        <i data-lucide="archive" class="w-4 h-4"></i>
+                                    </button>
+                                    <a asp-action="CustomerDetails" asp-route-id="@c.Id" class="btn-secondary !py-1 !px-2.5 !text-xs font-semibold mr-1">
+                                        <span>كشف الحساب ←</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Summary Footer -->
+        <div class="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
+            <span>إجمالي العملاء المعروضين: <b class="text-slate-800 num">@Model.Count</b> عميل</span>
+            <span class="text-xs text-slate-400">محدث لحظياً ومربوط ببيانات Supabase</span>
+        </div>
+    </div>
+
+</div>
+
+<!-- ======================================================== -->
+<!-- MODALS -->
+<!-- ======================================================== -->
+
+<!-- Modal: Add Customer -->
+<div id="modal-add-customer" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-4 h-4 text-blue-600"></i>
+                <span>إضافة وتوثيق عميل جديد</span>
+            </h3>
+            <button onclick="closeModal('modal-add-customer')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">الاسم الكامل:</label>
+                <input type="text" id="cust-name" placeholder="مثال: يونس المحجوب" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">رقم الهاتف:</label>
+                <input type="text" id="cust-phone" placeholder="091XXXXXXX" class="form-input num">
+            </div>
+            <div>
+                <label class="form-label">فئة العضوية:</label>
+                <select id="cust-tier" class="form-select">
+                    <option value="BRONZE">برونزي</option>
+                    <option value="SILVER">فضي</option>
+                    <option value="GOLD">ذهبي</option>
+                    <option value="PLATINUM">بلاتيني VIP</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">رصيد نقاط ترحيبي (اختياري):</label>
+                <input type="number" id="cust-init-points" value="0" min="0" class="form-input num">
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-add-customer')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitAddCustomer()" class="btn-primary">حفظ وتأكيد</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Customer -->
+<div id="modal-edit-customer" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-4 h-4 text-blue-600"></i>
+                <span>تعديل بيانات العميل</span>
+            </h3>
+            <button onclick="closeModal('modal-edit-customer')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <input type="hidden" id="edit-cust-id" />
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">الاسم الكامل:</label>
+                <input type="text" id="edit-cust-name" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">رقم الهاتف:</label>
+                <input type="text" id="edit-cust-phone" class="form-input num">
+            </div>
+            <div>
+                <label class="form-label">فئة العضوية:</label>
+                <select id="edit-cust-tier" class="form-select">
+                    <option value="BRONZE">برونزي</option>
+                    <option value="SILVER">فضي</option>
+                    <option value="GOLD">ذهبي</option>
+                    <option value="PLATINUM">بلاتيني VIP</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-edit-customer')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitEditCustomer()" class="btn-primary">حفظ التعديلات</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Adjust Points -->
+<div id="modal-adjust-points" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
+                <span>تعديل رصيد نقاط العميل</span>
+            </h3>
+            <button onclick="closeModal('modal-adjust-points')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <input type="hidden" id="adjust-cust-id" />
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
+            العميل: <b id="adjust-cust-name" class="text-slate-900">---</b> | الرصيد الحالي: <b id="adjust-cust-curr" class="text-slate-900 num">0</b> نقطة
+        </div>
+
+        <div class="modal-body space-y-3.5">
+            <div>
+                <label class="form-label">النقاط المراد إضافتها أو خصمها (+ للإضافة، - للخصم):</label>
+                <input type="number" id="adjust-points-delta" placeholder="مثال: 50 أو -20" class="form-input num">
+            </div>
+            <div>
+                <label class="form-label">سبب التعديل (موثق في سجل الأمان):</label>
+                <input type="text" id="adjust-points-reason" placeholder="مثال: تسوية يدوية لشكوى هاتفية" class="form-input">
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-adjust-points')" class="btn-secondary">إلغاء</button>
+            <button onclick="submitAdjustPoints()" class="btn-primary">تأكيد التعديل</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Quick Customer Ledger Preview -->
+<div id="modal-quick-customer-ledger" class="hidden modal-overlay">
+    <div class="modal-box max-w-2xl max-h-[90vh] flex flex-col">
+        <!-- Header -->
+        <div class="modal-header">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm">
+                    <span id="quick-cust-avatar">ع</span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 id="quick-cust-name" class="font-bold text-slate-900 text-sm">جاري التحميل...</h3>
+                        <span id="quick-cust-tier" class="badge badge-slate">فئة</span>
+                    </div>
+                    <div class="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                        <span id="quick-cust-id" class="font-bold num">#---</span>
+                        <span>•</span>
+                        <span id="quick-cust-phone" class="num" dir="ltr">09XXXXXXXX</span>
+                    </div>
+                </div>
+            </div>
+            <button onclick="closeModal('modal-quick-customer-ledger')" class="text-slate-400 hover:text-slate-700 p-1 rounded-lg">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- 3 Quick KPI Counters -->
+        <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50/70 border-b border-slate-100">
+            <div class="p-3 rounded-xl bg-white border border-slate-200/80">
+                <div class="text-xs text-slate-500">رصيد النقاط الحالي</div>
+                <div id="quick-cust-points" class="text-lg font-bold text-slate-900 num mt-0.5">0</div>
+            </div>
+            <div class="p-3 rounded-xl bg-white border border-slate-200/80">
+                <div class="text-xs text-slate-500">إجمالي الإنفاق المعتمد</div>
+                <div id="quick-cust-spent" class="text-lg font-bold text-emerald-600 num mt-0.5">0.00 د.ل</div>
+            </div>
+            <div class="p-3 rounded-xl bg-white border border-slate-200/80">
+                <div class="text-xs text-slate-500">إجمالي الفواتير</div>
+                <div id="quick-cust-invoices-count" class="text-lg font-bold text-slate-900 num mt-0.5">0</div>
+            </div>
+        </div>
+
+        <!-- Recent Invoices List (Scrollable) -->
+        <div class="modal-body flex-1 overflow-y-auto space-y-3 text-xs">
+            <div class="font-bold text-slate-800 flex items-center justify-between text-xs">
+                <span>سجل الفواتير وعمليات الشراء الأخيرة</span>
+                <span id="quick-cust-invoices-badge" class="text-xs text-slate-500 num">0 عمليات</span>
+            </div>
+            <div id="quick-cust-invoices-list" class="space-y-2">
+                <div class="py-6 text-center text-slate-400 text-xs">جاري جلب بيانات المعاملات...</div>
+            </div>
+
+            <!-- Stores Visited -->
+            <div class="pt-3 border-t border-slate-100">
+                <div class="font-bold text-slate-800 text-xs mb-2">المحلات الأكثر ارتياداً</div>
+                <div id="quick-cust-stores-list" class="flex flex-wrap gap-1.5">
+                    <span class="text-slate-400 text-xs">لا توجد بيانات متاجر.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-quick-customer-ledger')" class="btn-secondary">
+                إغلاق
+            </button>
+            <a id="quick-cust-full-link" href="#" class="btn-primary">
+                <span>فتح كشف الحساب الكامل ←</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const growthEl = document.getElementById('customerGrowthChart');
+        if (growthEl && window.ApexCharts) {
+            const chart = new ApexCharts(growthEl, {
+                series: [{
+                    name: 'المسجلين الجدد',
+                    data: [3200, 4800, 4600, 6200, 8000, 9400]
+                }],
+                chart: {
+                    type: 'area',
+                    height: 170,
+                    fontFamily: 'Cairo, sans-serif',
+                    toolbar: { show: false },
+                    sparkline: { enabled: false }
+                },
+                dataLabels: { enabled: false },
+                stroke: { curve: 'smooth', width: 2.5, colors: ['#0f172a'] },
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.25,
+                        opacityTo: 0.02,
+                        stops: [0, 90, 100],
+                        colorStops: [{ offset: 0, color: '#0f172a', opacity: 0.2 }, { offset: 100, color: '#0f172a', opacity: 0 }]
+                    }
+                },
+                xaxis: {
+                    categories: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'],
+                    labels: { style: { colors: '#64748b', fontSize: '11px' } },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false }
+                },
+                yaxis: {
+                    labels: {
+                        style: { colors: '#64748b', fontSize: '11px' },
+                        formatter: val => (val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val)
+                    }
+                },
+                grid: {
+                    borderColor: '#f1f5f9',
+                    strokeDashArray: 4
+                },
+                tooltip: {
+                    y: { formatter: val => val.toLocaleString() + ' متسوق' }
+                }
+            });
+            chart.render();
+        }
+    });
+
+    async function submitAddCustomer() {
+        const fullName = document.getElementById('cust-name').value.trim();
+        const phoneNumber = document.getElementById('cust-phone').value.trim();
+        const tier = document.getElementById('cust-tier').value;
+        const initialPoints = parseInt(document.getElementById('cust-init-points').value) || 0;
+
+        if (!fullName || !phoneNumber) {
+            showToast('يرجى كتابة الاسم ورقم الهاتف.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/SuperAdmin/customers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fullName, phoneNumber, tier, initialPoints })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeModal('modal-add-customer');
+                showToast('تمت إضافة المتسوق بنجاح في قاعدة البيانات!', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(data.message || 'فشلت إضافة العميل.', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('حدث خطأ أثناء الاتصال بالخادم.', 'error');
+        }
+    }
+
+    function openEditCustomerModal(id, name, phone, tier, isFrozen) {
+        document.getElementById('edit-cust-id').value = id;
+        document.getElementById('edit-cust-name').value = name;
+        document.getElementById('edit-cust-phone').value = phone;
+        document.getElementById('edit-cust-tier').value = tier.toUpperCase();
+        openModal('modal-edit-customer');
+    }
+
+    async function submitEditCustomer() {
+        const id = document.getElementById('edit-cust-id').value;
+        const fullName = document.getElementById('edit-cust-name').value.trim();
+        const phoneNumber = document.getElementById('edit-cust-phone').value.trim();
+        const tier = document.getElementById('edit-cust-tier').value;
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/customers/${encodeURIComponent(id)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fullName, phoneNumber, tier })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeModal('modal-edit-customer');
+                showToast('تم تحديث بيانات العميل بنجاح!', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(data.message || 'فشل تعديل البيانات.', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('حدث خطأ أثناء الاتصال بالخادم.', 'error');
+        }
+    }
+
+    function openAdjustPointsModal(id, name, currPoints) {
+        document.getElementById('adjust-cust-id').value = id;
+        document.getElementById('adjust-cust-name').innerText = name;
+        document.getElementById('adjust-cust-curr').innerText = Number(currPoints).toLocaleString();
+        document.getElementById('adjust-points-delta').value = '';
+        document.getElementById('adjust-points-reason').value = '';
+        openModal('modal-adjust-points');
+    }
+
+    async function submitAdjustPoints() {
+        const id = document.getElementById('adjust-cust-id').value;
+        const pointsDelta = parseInt(document.getElementById('adjust-points-delta').value);
+        const reason = document.getElementById('adjust-points-reason').value.trim();
+
+        if (isNaN(pointsDelta) || pointsDelta === 0) {
+            showToast('يرجى تحديد عدد النقاط المراد إضافتها أو خصمها.', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/customers/${encodeURIComponent(id)}/adjust-points`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pointsDelta, reason: reason || 'تعديل إداري' })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeModal('modal-adjust-points');
+                showToast(data.message || 'تم تعديل الرصيد بنجاح!', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(data.message || 'فشل تعديل الرصيد.', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('حدث خطأ في الاتصال.', 'error');
+        }
+    }
+
+    async function toggleSuspendCustomer(id, name) {
+        const result = await Swal.fire({
+            title: 'حالة الحساب',
+            text: `هل تريد تغيير حالة الحساب للعميل (${name})؟`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، تابع',
+            cancelButtonText: 'إلغاء'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/customers/${encodeURIComponent(id)}/toggle-suspend`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(data.message || 'تم تحديث حالة الحساب.', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast('فشل تغيير حالة الحساب.', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('حدث خطأ في الاتصال.', 'error');
+        }
+    }
+
+    async function confirmArchiveCustomer(id, name) {
+        const result = await Swal.fire({
+            title: 'تحذير أمني ومالي',
+            text: `هل أنت متأكد من أرشفة حساب العميل (${name})؟ لن يتم حذف السجلات والفواتير للحفاظ على سلامة القيود المالية ومنع إعادة استغلال الهواتف.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'تأكيد الأرشفة',
+            cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch(`/api/SuperAdmin/customers/${encodeURIComponent(id)}/archive`, {
+                method: 'POST'
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                showToast(data.message || 'تمت أرشفة حساب العميل وتجميد عملياته بنجاح!', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(data.message || 'فشل أرشفة الحساب.', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('حدث خطأ أثناء أرشفة الحساب.', 'error');
+        }
+    }
+
+    async function openQuickLedgerModal(customerId) {
+        openModal('modal-quick-customer-ledger');
+        document.getElementById('quick-cust-name').innerText = 'جاري التحميل...';
+        document.getElementById('quick-cust-full-link').href = `/AdminDashboard/CustomerDetails/${customerId}`;
+
+        try {
+            const res = await fetch(`/AdminDashboard/GetCustomerDetailsJson?id=${encodeURIComponent(customerId)}`);
+            if (!res.ok) throw new Error('فشل جلب تفاصيل العميل');
+            const data = await res.json();
+
+            document.getElementById('quick-cust-avatar').innerText = data.fullName.charAt(0);
+            document.getElementById('quick-cust-name').innerText = data.fullName;
+            document.getElementById('quick-cust-id').innerText = '#' + data.customerId;
+            document.getElementById('quick-cust-phone').innerText = data.phoneNumber;
+            
+            const tierBadge = document.getElementById('quick-cust-tier');
+            tierBadge.innerText = data.tier === 'Platinum' ? 'بلاتيني VIP' : (data.tier === 'Gold' ? 'ذهبي' : (data.tier === 'Silver' ? 'فضي' : 'برونزي'));
+            tierBadge.className = `badge ${data.tier === 'Platinum' ? 'badge-purple' : (data.tier === 'Gold' ? 'badge-amber' : 'badge-slate')}`;
+
+            document.getElementById('quick-cust-points').innerText = Number(data.pointsBalance).toLocaleString() + ' نقطة';
+            document.getElementById('quick-cust-spent').innerText = Number(data.totalSpent).toLocaleString(undefined, { minimumFractionDigits: 2 }) + ' د.ل';
+            document.getElementById('quick-cust-invoices-count').innerText = data.invoicesCount + ' فاتورة';
+            document.getElementById('quick-cust-invoices-badge').innerText = `${data.invoices.length} فواتير مسجلة`;
+
+            // Invoices list
+            const invContainer = document.getElementById('quick-cust-invoices-list');
+            if (data.invoices.length === 0) {
+                invContainer.innerHTML = '<div class="py-4 text-center text-slate-400 text-xs">لا توجد فواتير مسجلة لهذا العميل حتى الآن.</div>';
+            } else {
+                invContainer.innerHTML = data.invoices.slice(0, 6).map(inv => `
+                    <div class="p-3 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div>
+                            <div class="font-bold text-slate-800">${inv.merchantName}</div>
+                            <div class="text-xs text-slate-400 num flex items-center gap-1.5 mt-0.5">
+                                <span>#${inv.invoiceNumber}</span>
+                                <span>•</span>
+                                <span>${inv.invoiceDate}</span>
+                            </div>
+                        </div>
+                        <div class="text-left">
+                            <div class="font-bold text-slate-900 num">${Number(inv.totalAmount).toLocaleString(undefined, {minimumFractionDigits: 2})} د.ل</div>
+                            <div class="text-xs font-semibold text-amber-600 num">+${inv.pointsEarned} نقطة</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Stores list
+            const storesContainer = document.getElementById('quick-cust-stores-list');
+            if (data.storeVisits.length === 0) {
+                storesContainer.innerHTML = '<span class="text-slate-400 text-xs">لا توجد بيانات متاجر.</span>';
+            } else {
+                storesContainer.innerHTML = data.storeVisits.map(sv => `
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700 font-semibold text-xs">
+                        <span>${sv.storeName}</span>
+                        <span class="text-slate-500 num">(${sv.visitCount} زيارات - ${Number(sv.totalSpent).toLocaleString()} د.ل)</span>
+                    </span>
+                `).join('');
+            }
+
+            if (window.lucide) lucide.createIcons();
+        } catch (err) {
+            console.error(err);
+            showToast('حدث خطأ أثناء تحميل بيانات العميل', 'error');
+        }
+    }
+</script>
+}

@@ -1,0 +1,15 @@
+C:\MMApp\src\MMApplication.Application\bin\Debug\net9.0\MMApplication.Application.deps.json
+C:\MMApp\src\MMApplication.Application\bin\Debug\net9.0\MMApplication.Application.dll
+C:\MMApp\src\MMApplication.Application\bin\Debug\net9.0\MMApplication.Application.pdb
+C:\MMApp\src\MMApplication.Application\bin\Debug\net9.0\MMApplication.Domain.dll
+C:\MMApp\src\MMApplication.Application\bin\Debug\net9.0\MMApplication.Domain.pdb
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\MMApplication.Application.csproj.AssemblyReference.cache
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\MMApplication.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\MMApplication.Application.AssemblyInfoInputs.cache
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\MMApplication.Application.AssemblyInfo.cs
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\MMApplication.Application.csproj.CoreCompileInputs.cache
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\MMApplic.6A4BCD4B.Up2Date
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\MMApplication.Application.dll
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\refint\MMApplication.Application.dll
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\MMApplication.Application.pdb
+C:\MMApp\src\MMApplication.Application\obj\Debug\net9.0\ref\MMApplication.Application.dll

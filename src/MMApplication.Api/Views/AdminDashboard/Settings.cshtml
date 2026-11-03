@@ -1,0 +1,181 @@
+@model MMApplication.Api.ViewModels.SettingsPageViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "إعدادات محرك الذكاء الاصطناعي وسجلات الأمان";
+    ViewData["ActiveTab"] = "settings";
+}
+
+<div class="space-y-6">
+
+    <!-- 1. Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold">
+                    <i data-lucide="sliders" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900">إعدادات محرك الذكاء الاصطناعي وسجلات الرقابة</h1>
+                    <p class="text-xs text-slate-500">تعديل معايير الاعتماد الآلي للفواتير، نسب الثقة بالـ OCR، وتتبع سجل النشاطات والعمليات الرقابية</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <button onclick="showToast('جاري استخراج سجلات الأمان والتدقيق...', 'info')" class="btn-secondary">
+                <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
+                <span>تصدير السجلات</span>
+            </button>
+            <button onclick="saveSystemSettings()" class="btn-primary">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                <span>حفظ التعديلات</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. AI Engine & Fraud Rules Config Cards -->
+    <div class="card p-6 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">شروط ومحددات محرك الذكاء الاصطناعي ومكافحة الاحتيال</h3>
+                <p class="text-xs text-slate-500 mt-0.5">ضبط حساسية محرك الـ OCR وبصمة الصور والحدود القصوى للاعتماد الآلي</p>
+            </div>
+            <button onclick="saveSystemSettings()" class="btn-primary">
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                <span>حفظ المعايير</span>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="form-label font-bold text-slate-800">حد دقة الـ OCR للاعتماد الآلي:</label>
+                    <span class="text-xs font-bold text-emerald-600 num">%</span>
+                </div>
+                <input type="number" id="setting-ocr-conf" value="@Model.Settings.OcrConfidenceThreshold" class="form-input font-bold text-emerald-600 num">
+                <p class="text-[11px] text-slate-500">الفواتير الأقل دقة تدخل طابور التدقيق تلقائياً للمراجعة البشرية.</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="form-label font-bold text-slate-800">أقصى مبلغ للفاتورة الآلية:</label>
+                    <span class="text-xs font-bold text-slate-600 num">د.ل</span>
+                </div>
+                <input type="number" id="setting-max-amount" value="@Model.Settings.MaxInvoiceAmountAutoApproval" class="form-input font-bold text-slate-900 num">
+                <p class="text-[11px] text-slate-500">المبالغ الأعلى تتطلب مراجعة وتدقيق بشري من قبل المحاسب.</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="form-label font-bold text-slate-800">أقصى مسح يومي للعميل:</label>
+                    <span class="text-xs font-bold text-slate-600 num">عمليات</span>
+                </div>
+                <input type="number" id="setting-daily-scans" value="@Model.Settings.MaxDailyScansPerCustomer" class="form-input font-bold text-slate-900 num">
+                <p class="text-[11px] text-slate-500">لمنع الإغراق العشوائي والتكرار المفرط للفواتير في اليوم الواحد.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Live System Audit Logs -->
+    <div class="card overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">سجلات الأمان والرقابة الإدارية (Audit Logs)</h3>
+                <p class="text-xs text-slate-500 mt-0.5">تتبع زمني لكافة التعديلات والعمليات الحساسة التي نفذها المشغلون في المنظومة</p>
+            </div>
+            <form method="get" asp-controller="AdminDashboard" asp-action="Settings">
+                <div class="relative w-full sm:w-64">
+                    <input type="text" name="search" value="@Model.SearchQuery" placeholder="بحث في سجلات الأمان..." class="form-input text-xs pr-8 pl-3">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3"></i>
+                </div>
+            </form>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>الوقت والتاريخ</th>
+                        <th>المسؤول / المشغل</th>
+                        <th>نوع الإجراء</th>
+                        <th>الكائن / السجل</th>
+                        <th>التفاصيل الفنية</th>
+                        <th>عنوان IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.AuditLogs.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-12 text-slate-400">
+                                <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                                    <i data-lucide="clipboard-list" class="w-6 h-6"></i>
+                                </div>
+                                <div class="font-bold text-slate-700">لا توجد سجلات أمان مطابقة</div>
+                                <p class="text-xs text-slate-400 mt-1">تظهر السجلات عند قيام المشغلين بإجراءات وتعديلات في النظام</p>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var a in Model.AuditLogs)
+                    {
+                        <tr>
+                            <td class="num text-slate-500 text-xs">@a.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss")</td>
+                            <td>
+                                <div class="font-bold text-slate-900">@a.PerformedBy</div>
+                            </td>
+                            <td>
+                                @if (a.Action.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <span class="badge badge-rose font-mono">@a.Action</span>
+                                }
+                                else if (a.Action.Contains("CREATE", StringComparison.OrdinalIgnoreCase) || a.Action.Contains("ADD", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <span class="badge badge-emerald font-mono">@a.Action</span>
+                                }
+                                else if (a.Action.Contains("UPDATE", StringComparison.OrdinalIgnoreCase) || a.Action.Contains("EDIT", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <span class="badge badge-blue font-mono">@a.Action</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-slate font-mono">@a.Action</span>
+                                }
+                            </td>
+                            <td class="font-semibold text-slate-800">@a.EntityName @(a.EntityId != null ? $"#{a.EntityId}" : "")</td>
+                            <td class="text-slate-600 max-w-xs truncate text-xs">@a.Details</td>
+                            <td class="num text-slate-400 text-xs">@(a.IpAddress ?? "127.0.0.1")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    async function saveSystemSettings() {
+        const ocrConfidenceThreshold = parseFloat(document.getElementById('setting-ocr-conf').value);
+        const maxInvoiceAmountAutoApproval = parseFloat(document.getElementById('setting-max-amount').value);
+        const maxDailyScansPerCustomer = parseInt(document.getElementById('setting-daily-scans').value, 10);
+
+        try {
+            const res = await fetch('/api/superadmin/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ocrConfidenceThreshold,
+                    maxInvoiceAmountAutoApproval,
+                    maxDailyScansPerCustomer
+                })
+            });
+
+            if (!res.ok) throw new Error('فشل حفظ الإعدادات');
+            showToast('تم حفظ معايير الذكاء الاصطناعي والإعدادات بنجاح!', 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+</script>
+}
