@@ -12,18 +12,16 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   
-  # Backend & Database
-  supabase_flutter: ^2.6.0
+  # Backend API
   http: ^1.2.2
   
   # UI & Styling
   google_fonts: ^6.2.1
   flutter_svg: ^2.0.10+1
-  lucide_icons: ^0.257.0
+  lucide_icons_flutter: ^3.0.0
   intl: ^0.20.2
   
   # Device Capabilities
-  mobile_scanner: ^5.2.3
   image_picker: ^1.1.2
   shared_preferences: ^2.3.2
   cached_network_image: ^3.3.1
@@ -35,6 +33,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/images/
-    - assets/icons/

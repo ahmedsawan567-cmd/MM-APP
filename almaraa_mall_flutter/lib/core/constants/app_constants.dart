@@ -2,19 +2,29 @@ import 'package:flutter/material.dart';
 
 class AppConstants {
   // ----------------------------------------------------
-  // 1. SUPABASE CLOUD CONFIGURATION
+  // 1. BACKEND API (ASP.NET CORE 9)
   // ----------------------------------------------------
-  static const String supabaseUrl = 'https://exswegtnsxvtdwkbhdqw.supabase.co';
-  static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4c3dlZ3Ruc3h2dGR3a2JoZHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3NjQ5MDcsImV4cCI6MjEwNTM0MDkwN30.-19YvZX5PKCTpIGPy6AyfKEG19CPgltF9iexBdpzqtg';
+  // يمكن تغيير العنوان عند البناء بدون تعديل الكود:
+  //   flutter run --dart-define=API_BASE_URL=http://192.168.1.10:5000/api
+  // القيمة الافتراضية 10.0.2.2 تشير إلى جهاز الكمبيوتر من داخل محاكي أندرويد.
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:5000/api',
+  );
+
+  /// عنوان السيرفر بدون /api (لعرض الصور المرفوعة مثل صور الفواتير).
+  static String get serverBaseUrl =>
+      apiBaseUrl.endsWith('/api') ? apiBaseUrl.substring(0, apiBaseUrl.length - 4) : apiBaseUrl;
+
+  /// يحوّل مسار صورة نسبي من السيرفر إلى رابط كامل.
+  static String? resolveImageUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (url.startsWith('http')) return url;
+    return '$serverBaseUrl${url.startsWith('/') ? '' : '/'}$url';
+  }
 
   // ----------------------------------------------------
-  // 2. BACKEND API (ASP.NET CORE 9)
-  // ----------------------------------------------------
-  static const String apiBaseUrl = 'http://localhost:5000/api';
-
-  // ----------------------------------------------------
-  // 3. ENTERPRISE LUXURY PALETTE (المرأة مول)
+  // 2. ENTERPRISE LUXURY PALETTE (المرأة مول)
   // ----------------------------------------------------
   static const Color primaryGreen = Color(0xFF064E3B);     // زمردي ملكي داكن
   static const Color primaryGreenLight = Color(0xFF047857);
@@ -30,7 +40,7 @@ class AppConstants {
   static const Color dangerColor = Color(0xFFEF4444);
 
   // ----------------------------------------------------
-  // 4. MALL INFORMATION
+  // 3. MALL INFORMATION
   // ----------------------------------------------------
   static const String appNameAr = 'المرأة مول';
   static const String appNameEn = 'Almaraa Mall';

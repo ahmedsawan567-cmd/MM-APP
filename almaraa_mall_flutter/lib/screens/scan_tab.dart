@@ -1,320 +1,263 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
 import '../core/constants/app_constants.dart';
-import '../core/services/supabase_service.dart';
-import '../models/invoice_model.dart';
+import '../core/services/loyalty_api.dart';
+import '../core/services/session.dart';
+import '../models/invoice.dart';
+import '../widgets/common.dart';
+import 'invoices_screen.dart';
+
+/// اختيار صورة فاتورة من الكاميرا أو المعرض بحجم مناسب للرفع.
+Future<File?> pickReceiptImage(BuildContext context, ImageSource source) async {
+  try {
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 2000,
+      maxHeight: 2000,
+    );
+    return picked == null ? null : File(picked.path);
+  } catch (_) {
+    if (context.mounted) {
+      showMessage(context, 'تعذر الوصول إلى الكاميرا أو المعرض. تحقق من صلاحيات التطبيق.', error: true);
+    }
+    return null;
+  }
+}
 
 class ScanTab extends StatefulWidget {
-  final Function(int)? onNavigateToWallet;
-  const ScanTab({super.key, this.onNavigateToWallet});
+  final void Function(int) onTabChange;
+  const ScanTab({super.key, required this.onTabChange});
 
   @override
   State<ScanTab> createState() => _ScanTabState();
 }
 
 class _ScanTabState extends State<ScanTab> {
-  bool _isProcessing = false;
+  File? _image;
+  bool _uploading = false;
 
-  void _simulateScan(String merchant, double amount, String invNo) async {
-    setState(() {
-      _isProcessing = true;
-    });
+  Future<void> _pick(ImageSource source) async {
+    final file = await pickReceiptImage(context, source);
+    if (file != null) setState(() => _image = file);
+  }
 
-    // محاكاة معالجة الذكاء الاصطناعي واستخراج البيانات
-    await Future.delayed(const Duration(milliseconds: 1400));
-
-    final invoice = await SupabaseService.instance.submitInvoice(
-      customerId: 'CUST-SARAH',
-      merchantName: merchant,
-      invoiceNumber: invNo,
-      totalAmount: amount,
-      imagePath: 'receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
-    );
-
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-      });
-      _showResultSheet(invoice);
+  Future<void> _upload() async {
+    final image = _image;
+    if (image == null) return;
+    setState(() => _uploading = true);
+    try {
+      final result = await LoyaltyApi.uploadInvoice(image);
+      Session.instance.notifyDataChanged();
+      if (!mounted) return;
+      setState(() => _image = null);
+      await _showResult(result);
+    } catch (e) {
+      if (mounted) showMessage(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _uploading = false);
     }
   }
 
-  void _showResultSheet(InvoiceModel invoice) {
-    showModalBottomSheet(
+  Future<void> _showResult(InvoiceUploadResult r) {
+    final approved = r.isApproved;
+    final inv = r.invoice;
+    return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppConstants.successColor.withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(LucideIcons.checkCircle2, color: AppConstants.successColor, size: 40),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'تم التحقق من الفاتورة بنجاح!',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'تمت المطابقة والتحقق بالذكاء الاصطناعي وقيد النقاط في رصيدك',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-              ),
-              const SizedBox(height: 20),
-
-              // Breakdown Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppConstants.bgLight,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  children: [
-                    _sheetRow('المتجر:', invoice.tenantName),
-                    const Divider(height: 16),
-                    _sheetRow('رقم الفاتورة:', invoice.invoiceNumber),
-                    const Divider(height: 16),
-                    _sheetRow('إجمالي المبلغ:', '${invoice.totalAmount.toStringAsFixed(2)} ${AppConstants.currency}'),
-                    const Divider(height: 16),
-                    _sheetRow('النقاط المكتسبة:', '+${invoice.pointsAwarded} نقطة', highlightColor: AppConstants.primaryGreen),
-                    const Divider(height: 16),
-                    _sheetRow('الاسترداد النقدي:', '+${invoice.cashbackAwarded.toStringAsFixed(2)} ${AppConstants.currency}', highlightColor: AppConstants.accentGold),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    if (widget.onNavigateToWallet != null) {
-                      widget.onNavigateToWallet!(3);
-                    }
-                  },
-                  child: const Text('عرض المحفظة والنقاط'),
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _sheetRow(String label, String value, {Color? highlightColor}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: highlightColor ?? AppConstants.textPrimary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'مسح الفاتورة ضوئياً (AI Scanner)',
-          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: Stack(
-        children: [
-          // Simulated Camera Viewport
-          Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              height: 440,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppConstants.accentGoldLight.withOpacity(0.8), width: 2),
+                color: (approved ? AppConstants.successColor : AppConstants.accentGold).withOpacity(0.12),
+                shape: BoxShape.circle,
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                  ),
-
-                  // Framing Corner Accents
-                  _cornerMarker(Alignment.topLeft),
-                  _cornerMarker(Alignment.topRight),
-                  _cornerMarker(Alignment.bottomLeft),
-                  _cornerMarker(Alignment.bottomRight),
-
-                  if (_isProcessing) ...[
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircularProgressIndicator(color: AppConstants.accentGoldLight),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.black87,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'جاري فحص الفاتورة والتحقق بالذكاء الاصطناعي...',
-                            style: TextStyle(color: Colors.white, fontSize: 13),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(LucideIcons.scanLine, color: Colors.white.withOpacity(0.6), size: 54),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'ضعي الفاتورة داخل الإطار للمسح التلقائي',
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
+              child: Icon(approved ? LucideIcons.checkCircle2 : LucideIcons.clock,
+                  color: approved ? AppConstants.successColor : AppConstants.accentGold, size: 40),
             ),
-          ),
-
-          // Action Bottom Controls
-          Positioned(
-            bottom: 30,
-            left: 20,
-            right: 20,
-            child: Column(
+            const SizedBox(height: 16),
+            Text(approved ? 'تمت إضافة النقاط!' : 'تم استلام الفاتورة',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(r.message, textAlign: TextAlign.center, style: const TextStyle(color: AppConstants.textMuted)),
+            if (approved && r.pointsEarned > 0) ...[
+              const SizedBox(height: 16),
+              Text('+${formatPoints(r.pointsEarned)} نقطة',
+                  textDirection: TextDirection.ltr,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppConstants.successColor)),
+            ],
+            if (inv != null) ...[
+              const SizedBox(height: 16),
+              _row('المتجر', inv.merchantName),
+              _row('رقم الفاتورة', inv.invoiceNumber),
+              _row('المبلغ', formatMoney(inv.totalAmount)),
+            ],
+            _row('رصيدك الحالي', '${formatPoints(r.newBalance)} نقطة'),
+            const SizedBox(height: 20),
+            Row(
               children: [
-                // Quick Test Triggers (للاختبار الفوري)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _testInvoiceBtn('كافي كادي (45 د.ل)', () => _simulateScan('كافي كادي (Kadi Café)', 45.0, 'KD-2041')),
-                    _testInvoiceBtn('فساتين السهرة (1200 د.ل)', () => _simulateScan('بوتيك فساتين السهرة', 1200.0, 'EV-84920')),
-                  ],
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvoicesScreen()));
+                    },
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                    child: const Text('سجل الفواتير'),
+                  ),
                 ),
-                const SizedBox(height: 16),
-
-                // Main Trigger Button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      icon: const Icon(LucideIcons.image, color: Colors.white, size: 28),
-                      onPressed: () => _simulateScan('سنيور كافيه', 45.0, 'SC-1002'),
-                      tooltip: 'اختيار من الاستوديو',
-                    ),
-                    GestureDetector(
-                      onTap: _isProcessing
-                          ? null
-                          : () => _simulateScan('دار الحرير للأزياء والعبايات', 290.0, 'DH-9481'),
-                      child: Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                          color: AppConstants.accentGold,
-                        ),
-                        child: const Icon(LucideIcons.camera, color: Colors.white, size: 32),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(LucideIcons.zap, color: Colors.white, size: 28),
-                      onPressed: () {},
-                      tooltip: 'الفلاش',
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      widget.onTabChange(3);
+                    },
+                    child: const Text('المحفظة'),
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _testInvoiceBtn(String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: _isProcessing ? null : onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white12,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white24),
-        ),
-        child: Row(
-          children: [
-            const Icon(LucideIcons.fileText, color: AppConstants.accentGoldLight, size: 14),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 11)),
           ],
         ),
       ),
     );
   }
 
-  Widget _cornerMarker(Alignment alignment) {
-    return Align(
-      alignment: alignment,
-      child: Container(
-        width: 24,
-        height: 24,
-        margin: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          border: Border(
-            top: alignment.y < 0 ? const BorderSide(color: AppConstants.accentGoldLight, width: 4) : BorderSide.none,
-            bottom: alignment.y > 0 ? const BorderSide(color: AppConstants.accentGoldLight, width: 4) : BorderSide.none,
-            left: alignment.x < 0 ? const BorderSide(color: AppConstants.accentGoldLight, width: 4) : BorderSide.none,
-            right: alignment.x > 0 ? const BorderSide(color: AppConstants.accentGoldLight, width: 4) : BorderSide.none,
+  Widget _row(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(color: AppConstants.textMuted)),
+            Flexible(child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.end)),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('مسح فاتورة'),
+        actions: [
+          IconButton(
+            tooltip: 'سجل الفواتير',
+            icon: const Icon(LucideIcons.history),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvoicesScreen())),
           ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _preview(),
+          const SizedBox(height: 16),
+          if (_image == null) ...[
+            ElevatedButton.icon(
+              onPressed: () => _pick(ImageSource.camera),
+              icon: const Icon(LucideIcons.camera),
+              label: const Text('تصوير الفاتورة'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _pick(ImageSource.gallery),
+              icon: const Icon(LucideIcons.image),
+              label: const Text('اختيار من المعرض'),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+            ),
+          ] else ...[
+            ElevatedButton.icon(
+              onPressed: _uploading ? null : _upload,
+              icon: _uploading
+                  ? const SizedBox(
+                      width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(LucideIcons.uploadCloud),
+              label: Text(_uploading ? 'جاري قراءة الفاتورة...' : 'إرسال الفاتورة'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _uploading ? null : () => setState(() => _image = null),
+              icon: const Icon(LucideIcons.rotateCcw),
+              label: const Text('اختيار صورة أخرى'),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+            ),
+          ],
+          const SizedBox(height: 24),
+          _tips(),
+        ],
+      ),
+    );
+  }
+
+  Widget _preview() {
+    return AspectRatio(
+      aspectRatio: 3 / 4,
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: AppConstants.bgDark,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: _image != null
+            ? Image.file(_image!, fit: BoxFit.contain)
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(LucideIcons.scanLine, size: 72, color: AppConstants.accentGoldLight.withOpacity(0.9)),
+                  const SizedBox(height: 16),
+                  const Text('صوّر فاتورة الشراء لتحصل على نقاط',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  Text('سيتم قراءة المتجر والمبلغ تلقائياً',
+                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _tips() {
+    const tips = [
+      'تأكد أن الفاتورة كاملة وواضحة وغير مقطوعة.',
+      'صوّر في مكان جيد الإضاءة وبدون انعكاسات.',
+      'يجب أن يظهر اسم المتجر ورقم الفاتورة والمبلغ الإجمالي.',
+      'لا يمكن استخدام نفس الفاتورة أكثر من مرة.',
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(LucideIcons.lightbulb, color: AppConstants.accentGold, size: 20),
+                SizedBox(width: 8),
+                Text('نصائح لقبول الفاتورة', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...tips.map((t) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('•  ', style: TextStyle(color: AppConstants.primaryGreen)),
+                      Expanded(child: Text(t, style: const TextStyle(fontSize: 13))),
+                    ],
+                  ),
+                )),
+          ],
         ),
       ),
     );

@@ -485,3 +485,16 @@ $RECYCLE.BIN/
 
 # Uploaded receipts (runtime data)
 src/MMApplication.Api/wwwroot/uploads/
+
+# Flutter / Dart
+.pub-cache/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+almaraa_mall_flutter/build/
+almaraa_mall_flutter/android/local.properties
+almaraa_mall_flutter/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+almaraa_mall_flutter/ios/Flutter/Generated.xcconfig
+almaraa_mall_flutter/ios/Flutter/flutter_export_environment.sh
+almaraa_mall_flutter/ios/Runner/GeneratedPluginRegistrant.*
+almaraa_mall_flutter/ios/Flutter/ephemeral/

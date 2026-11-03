@@ -76,6 +76,14 @@ class AppTheme {
           ),
         ),
       ),
+      tabBarTheme: TabBarThemeData(
+        dividerColor: Colors.grey.withOpacity(0.15),
+      ),
+      dividerTheme: DividerThemeData(
+        color: Colors.grey.withOpacity(0.15),
+        thickness: 1,
+        space: 1,
+      ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
         selectedItemColor: AppConstants.primaryGreen,

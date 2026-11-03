@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
 import '../core/constants/app_constants.dart';
-import '../core/services/supabase_service.dart';
-import '../models/customer_model.dart';
-import '../models/stamp_model.dart';
+import '../core/services/loyalty_api.dart';
+import '../core/services/session.dart';
+import '../models/wallet.dart';
+import '../widgets/common.dart';
+import 'rewards_screen.dart';
+
+class _WalletData {
+  final WalletSummary summary;
+  final List<PointTransaction> transactions;
+  final List<Voucher> vouchers;
+  _WalletData(this.summary, this.transactions, this.vouchers);
+}
 
 class WalletTab extends StatefulWidget {
   const WalletTab({super.key});
@@ -13,303 +24,336 @@ class WalletTab extends StatefulWidget {
 }
 
 class _WalletTabState extends State<WalletTab> {
-  CustomerModel? _customer;
-  List<StampCardModel> _stamps = [];
-  bool _isLoading = true;
+  Future<_WalletData>? _future;
 
   @override
   void initState() {
     super.initState();
-    _loadWallet();
+    _load();
+    Session.instance.dataVersion.addListener(_load);
   }
 
-  Future<void> _loadWallet() async {
-    final customer = await SupabaseService.instance.getCustomerProfile('CUST-SARAH');
-    final stamps = await SupabaseService.instance.getCustomerStamps('CUST-SARAH');
-    if (mounted) {
-      setState(() {
-        _customer = customer;
-        _stamps = stamps;
-        _isLoading = false;
-      });
+  @override
+  void dispose() {
+    Session.instance.dataVersion.removeListener(_load);
+    super.dispose();
+  }
+
+  void _load() {
+    setState(() => _future = _fetch());
+  }
+
+  Future<_WalletData> _fetch() async {
+    final results = await Future.wait([
+      LoyaltyApi.getWalletSummary(),
+      LoyaltyApi.getTransactions(),
+      LoyaltyApi.getVouchers(),
+    ]);
+    return _WalletData(
+      results[0] as WalletSummary,
+      results[1] as List<PointTransaction>,
+      results[2] as List<Voucher>,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('محفظتي')),
+        body: AsyncView<_WalletData>(
+          future: _future,
+          onRetry: _load,
+          builder: (context, data) => NestedScrollView(
+            headerSliverBuilder: (_, __) => [
+              SliverToBoxAdapter(child: _summaryCard(context, data.summary)),
+              const SliverToBoxAdapter(
+                child: TabBar(
+                  labelColor: AppConstants.primaryGreen,
+                  indicatorColor: AppConstants.primaryGreen,
+                  unselectedLabelColor: AppConstants.textMuted,
+                  tabs: [Tab(text: 'حركات النقاط'), Tab(text: 'قسائمي')],
+                ),
+              ),
+            ],
+            body: TabBarView(
+              children: [
+                _refreshable(TransactionsList(transactions: data.transactions)),
+                _refreshable(VouchersList(vouchers: data.vouchers)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _refreshable(Widget child) => RefreshIndicator(
+        color: AppConstants.primaryGreen,
+        onRefresh: () async {
+          _load();
+          await _future;
+        },
+        child: child,
+      );
+
+  Widget _summaryCard(BuildContext context, WalletSummary s) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [AppConstants.bgDark, Color(0xFF1E293B)]),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('الرصيد المتاح', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(formatPoints(s.pointsBalance),
+                  style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 6),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6),
+                child: Text('نقطة', style: TextStyle(color: AppConstants.accentGoldLight)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _stat('مكتسبة', formatPoints(s.totalPointsEarned), AppConstants.successColor),
+              _stat('مستبدلة', formatPoints(s.totalPointsSpent), AppConstants.accentGoldLight),
+              _stat('قسائم نشطة', '${s.activeVouchersCount}', Colors.white),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppConstants.accentGold,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RewardsScreen())),
+              icon: const Icon(LucideIcons.gift, size: 20),
+              label: const Text('استبدل نقاطك بمكافآت'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stat(String label, String value, Color color) => Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: TextStyle(color: color, fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+          ],
+        ),
+      );
+}
+
+class TransactionsList extends StatelessWidget {
+  final List<PointTransaction> transactions;
+  const TransactionsList({super.key, required this.transactions});
+
+  IconData _icon(String type) {
+    switch (type) {
+      case 'EARN_RECEIPT':
+      case 'EARN_INVOICE':
+        return LucideIcons.receipt;
+      case 'REDEEM_PURCHASE':
+      case 'REDEEM_REWARD':
+        return LucideIcons.gift;
+      case 'POINTS_EXPIRED':
+        return LucideIcons.clock;
+      case 'BONUS':
+        return LucideIcons.sparkles;
+      default:
+        return LucideIcons.settings2;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen));
+    if (transactions.isEmpty) {
+      return ListView(children: const [
+        EmptyView(
+          icon: LucideIcons.history,
+          title: 'لا توجد حركات بعد',
+          subtitle: 'ارفع أول فاتورة لتبدأ بجمع النقاط',
+        ),
+      ]);
     }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('المحفظة وبطاقات الأختام'),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadWallet,
-        color: AppConstants.primaryGreen,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: transactions.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (_, i) {
+        final t = transactions[i];
+        final color = t.isCredit ? AppConstants.successColor : AppConstants.dangerColor;
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: CircleAvatar(
+            backgroundColor: color.withOpacity(0.1),
+            child: Icon(_icon(t.type), color: color, size: 20),
+          ),
+          title: Text(t.description.isEmpty ? 'حركة نقاط' : t.description,
+              maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
+          subtitle: Text(formatDateTime(t.createdAt), style: const TextStyle(fontSize: 12)),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Digital VIP Card with QR Code
-              _buildDigitalMembershipCard(),
-
-              const SizedBox(height: 24),
-
-              // Digital Stamps Section (الأختام الرقمية)
-              const Row(
-                children: [
-                  Icon(LucideIcons.stamp, color: AppConstants.accentGold, size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    'بطاقات الأختام الرقمية للمتاجر',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ..._stamps.map((stamp) => _buildStampCardItem(stamp)),
-
-              const SizedBox(height: 24),
-
-              // Redeemable Vouchers & Gift Cards
-              const Row(
-                children: [
-                  Icon(LucideIcons.gift, color: AppConstants.primaryGreen, size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    'قسائم الشراء والمكافآت المتاحة',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _buildVoucherItem('قسيمة مشتريات 50 دينار', 'صالحة في دار الحرير للأزياء', 500, AppConstants.primaryGreen),
-              _buildVoucherItem('استرداد نقدي فوري 25 دينار', 'صالحة في كافة مقاهي المول', 300, AppConstants.accentGold),
-              _buildVoucherItem('عطر ملكي فاخر مجاناً', 'صالحة لدى العنبر الملكي', 1000, const Color(0xFF7C3AED)),
-
-              const SizedBox(height: 20),
+              Text('${t.isCredit ? '+' : ''}${formatPoints(t.amount)}',
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('الرصيد ${formatPoints(t.balanceAfter)}', style: const TextStyle(fontSize: 11)),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
+}
 
-  Widget _buildDigitalMembershipCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0F172A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+class VouchersList extends StatelessWidget {
+  final List<Voucher> vouchers;
+  const VouchersList({super.key, required this.vouchers});
+
+  @override
+  Widget build(BuildContext context) {
+    if (vouchers.isEmpty) {
+      return ListView(children: const [
+        EmptyView(
+          icon: LucideIcons.ticket,
+          title: 'لا توجد قسائم',
+          subtitle: 'استبدل نقاطك بمكافأة لتحصل على قسيمة خصم',
         ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppConstants.accentGold.withOpacity(0.4), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    AppConstants.appNameAr,
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    'بطاقة العضوية الذهبية VIP',
-                    style: TextStyle(color: AppConstants.accentGoldLight.withOpacity(0.9), fontSize: 12),
-                  ),
-                ],
-              ),
-              const Icon(LucideIcons.crown, color: AppConstants.accentGoldLight, size: 28),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  // Simulated QR / Barcode Visual
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(LucideIcons.qrCode, size: 54, color: Color(0xFF0F172A)),
-                      const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('امسحي الكود عند الدفع', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                          Text(
-                            'VIP-${_customer?.phoneNumber ?? "0912345678"}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _customer?.fullName ?? 'سارة المنصوري',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              Text(
-                'الرصيد: ${_customer?.pointsBalance ?? 0} نقطة',
-                style: const TextStyle(color: AppConstants.accentGoldLight, fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-            ],
-          ),
-        ],
-      ),
+      ]);
+    }
+    // القسائم النشطة أولاً
+    final sorted = [...vouchers]..sort((a, b) {
+        if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
+        return b.redeemedAt.compareTo(a.redeemedAt);
+      });
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: sorted.length,
+      itemBuilder: (_, i) => VoucherCard(voucher: sorted[i]),
     );
   }
+}
 
-  Widget _buildStampCardItem(StampCardModel stamp) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+class VoucherCard extends StatelessWidget {
+  final Voucher voucher;
+  const VoucherCard({super.key, required this.voucher});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = voucher;
+    final active = v.isActive;
+    return Opacity(
+      opacity: active ? 1 : 0.6,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => showVoucherCode(context, code: v.code, title: v.rewardTitle, expiresAt: v.expiresAt),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  stamp.tenantName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppConstants.primaryGreen.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '${stamp.currentStamps} من ${stamp.totalStampsNeeded}',
-                    style: const TextStyle(
-                      color: AppConstants.primaryGreen,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                Row(
+                  children: [
+                    const Icon(LucideIcons.ticket, color: AppConstants.accentGold),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(v.rewardTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                     ),
-                  ),
+                    StatusChip.voucher(v.effectiveStatus),
+                  ],
+                ),
+                if (v.merchantName != null) ...[
+                  const SizedBox(height: 4),
+                  Text(v.merchantName!, style: const TextStyle(fontSize: 12, color: AppConstants.textMuted)),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(v.code,
+                        textDirection: TextDirection.ltr,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2, color: AppConstants.primaryGreen)),
+                    if (v.discountValue > 0)
+                      Text('خصم ${formatMoney(v.discountValue)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  v.usedAt != null ? 'استُخدمت في ${formatDate(v.usedAt!)}' : 'صالحة حتى ${formatDate(v.expiresAt)}',
+                  style: const TextStyle(fontSize: 12, color: AppConstants.textMuted),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-
-            // Stamps Grid Visual (10 slots)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(stamp.totalStampsNeeded, (index) {
-                final isStamped = index < stamp.currentStamps;
-                return Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isStamped ? AppConstants.accentGold : Colors.grey.shade100,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isStamped ? AppConstants.accentGoldLight : Colors.grey.shade300,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: isStamped
-                        ? const Icon(LucideIcons.stamp, size: 16, color: Colors.white)
-                        : Text(
-                            '${index + 1}',
-                            style: TextStyle(color: Colors.grey.shade400, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                  ),
-                );
-              }),
-            ),
-
-            const SizedBox(height: 12),
-            Text(
-              'المكافأة: ${stamp.rewardDescription}',
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVoucherItem(String title, String subtitle, int pointsNeeded, Color accentColor) {
-    final bool canRedeem = (_customer?.pointsBalance ?? 0) >= pointsNeeded;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: accentColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(LucideIcons.tag, color: accentColor, size: 22),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-        trailing: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: canRedeem ? AppConstants.primaryGreen : Colors.grey.shade300,
-            foregroundColor: canRedeem ? Colors.white : Colors.grey.shade600,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            elevation: 0,
-          ),
-          onPressed: canRedeem
-              ? () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('تم استبدال $pointsNeeded نقطة بنجاح وتفعيل القسيمة!'),
-                      backgroundColor: AppConstants.primaryGreen,
-                    ),
-                  );
-                }
-              : null,
-          child: Text(
-            canRedeem ? '$pointsNeeded نقطة' : 'غير كافٍ',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ),
       ),
     );
   }
+}
+
+/// نافذة تعرض كود القسيمة بخط كبير لإظهاره للكاشير، مع زر النسخ.
+Future<void> showVoucherCode(BuildContext context,
+    {required String code, required String title, required DateTime expiresAt}) {
+  return showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(title, textAlign: TextAlign.center),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('أظهر هذا الكود للكاشير عند الدفع', style: TextStyle(color: AppConstants.textMuted)),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              color: AppConstants.primaryGreen.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppConstants.primaryGreen.withOpacity(0.3), width: 1.5),
+            ),
+            child: Text(code,
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.ltr,
+                style: const TextStyle(
+                    fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 4, color: AppConstants.primaryGreen)),
+          ),
+          const SizedBox(height: 12),
+          Text('صالحة حتى ${formatDate(expiresAt)}', style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+      actions: [
+        TextButton.icon(
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: code));
+            showMessage(context, 'تم نسخ الكود');
+          },
+          icon: const Icon(LucideIcons.copy, size: 18),
+          label: const Text('نسخ'),
+        ),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+      ],
+    ),
+  );
 }

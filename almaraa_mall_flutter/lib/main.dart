@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+
 import 'core/constants/app_constants.dart';
-import 'core/services/supabase_service.dart';
+import 'core/services/session.dart';
 import 'core/theme/app_theme.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/main_screen.dart';
+import 'widgets/common.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // تهيئة اتصال Supabase السحابي
-  await SupabaseService.instance.initialize();
-
+  await initializeDateFormatting('ar');
+  // استعادة جلسة الدخول المحفوظة (إن وجدت) بالخلفية.
+  Session.instance.restore();
   runApp(const AlmaraaMallApp());
 }
 
@@ -34,7 +37,17 @@ class AlmaraaMallApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const MainScreen(),
+      home: ListenableBuilder(
+        listenable: Session.instance,
+        builder: (context, _) {
+          final session = Session.instance;
+          if (session.isRestoring) return const Scaffold(body: LoadingView());
+          // مفتاح مختلف لكل مستخدم حتى تُبنى الشاشات من جديد بعد تبديل الحساب.
+          return session.isLoggedIn
+              ? MainScreen(key: ValueKey(session.user!.id))
+              : const LoginScreen();
+        },
+      ),
     );
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/constants/app_constants.dart';
 import 'home_tab.dart';
 import 'stores_tab.dart';
@@ -28,7 +28,7 @@ class _MainScreenState extends State<MainScreen> {
     final List<Widget> tabs = [
       HomeTab(onTabChange: _onTabTapped),
       const StoresTab(),
-      ScanTab(onNavigateToWallet: _onTabTapped),
+      ScanTab(onTabChange: _onTabTapped),
       const WalletTab(),
       const ProfileTab(),
     ];

@@ -1,188 +1,145 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import '../core/constants/app_constants.dart';
-import '../core/services/supabase_service.dart';
-import '../models/customer_model.dart';
-import '../models/invoice_model.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-class ProfileTab extends StatefulWidget {
+import '../core/constants/app_constants.dart';
+import '../core/services/session.dart';
+import '../widgets/common.dart';
+import 'invoices_screen.dart';
+import 'rewards_screen.dart';
+
+class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
-  @override
-  State<ProfileTab> createState() => _ProfileTabState();
-}
-
-class _ProfileTabState extends State<ProfileTab> {
-  CustomerModel? _customer;
-  List<InvoiceModel> _invoices = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProfile();
-  }
-
-  Future<void> _loadProfile() async {
-    final customer = await SupabaseService.instance.getCustomerProfile('CUST-SARAH');
-    final invoices = await SupabaseService.instance.getInvoices('CUST-SARAH');
-    if (mounted) {
-      setState(() {
-        _customer = customer;
-        _invoices = invoices;
-        _isLoading = false;
-      });
-    }
+  Future<void> _logout(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تسجيل الخروج'),
+        content: const Text('هل تريد تسجيل الخروج من حسابك؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppConstants.dangerColor),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('خروج'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await Session.instance.logout();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppConstants.primaryGreen));
-    }
+    void push(Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('الملف الشخصي والأرشيف'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // User Header
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: AppConstants.primaryGreen.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppConstants.accentGold, width: 2),
-                    ),
-                    child: const Icon(LucideIcons.user, size: 36, color: AppConstants.primaryGreen),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _customer?.fullName ?? 'سارة المنصوري',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _customer?.phoneNumber ?? '0912345678',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppConstants.accentGold.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _customer?.loyaltyTier ?? 'عضوية VIP',
-                      style: const TextStyle(color: AppConstants.accentGold, fontWeight: FontWeight.bold, fontSize: 12),
+      appBar: AppBar(title: const Text('حسابي')),
+      body: ListenableBuilder(
+        listenable: Session.instance,
+        builder: (context, _) {
+          final user = Session.instance.user;
+          if (user == null) return const LoadingView();
+          return RefreshIndicator(
+            color: AppConstants.primaryGreen,
+            onRefresh: () => Session.instance.refreshProfile().catchError((_) {}),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: AppConstants.primaryGreen,
+                          child: Text(
+                            user.fullName.isNotEmpty ? user.fullName.characters.first : '?',
+                            style: const TextStyle(fontSize: 30, color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(user.fullName, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(user.phoneNumber,
+                            textDirection: TextDirection.ltr, style: const TextStyle(color: AppConstants.textMuted)),
+                        const SizedBox(height: 4),
+                        Text('عضو منذ ${formatDate(user.createdAt)}',
+                            style: const TextStyle(fontSize: 12, color: AppConstants.textMuted)),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Invoices Archive
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                children: [
-                  const Icon(LucideIcons.receipt, color: AppConstants.primaryGreen, size: 20),
-                  const SizedBox(width: 8),
-                  const Text('أرشيف الفواتير الممسوحة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const Spacer(),
-                  Text('${_invoices.length} فواتير', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            ..._invoices.map((inv) => _buildInvoiceItem(inv)),
-
-            const SizedBox(height: 20),
-
-            // Settings & Support Options
-            Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(LucideIcons.globe, color: AppConstants.primaryGreen),
-                    title: const Text('لغة التطبيق (Language)'),
-                    trailing: const Text('العربية', style: TextStyle(fontWeight: FontWeight.bold, color: AppConstants.primaryGreen)),
-                    onTap: () {},
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Column(
+                    children: [
+                      _item(LucideIcons.receipt, 'سجل الفواتير', () => push(const InvoicesScreen())),
+                      const Divider(height: 1),
+                      _item(LucideIcons.gift, 'كتالوج المكافآت', () => push(const RewardsScreen())),
+                      const Divider(height: 1),
+                      _item(LucideIcons.helpCircle, 'كيف أكسب النقاط؟', () => _showHowItWorks(context)),
+                    ],
                   ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(LucideIcons.shieldCheck, color: AppConstants.primaryGreen),
-                    title: const Text('سياسة الخصوصية وحماية البيانات'),
-                    trailing: const Icon(LucideIcons.chevronLeft, size: 18),
-                    onTap: () {},
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(LucideIcons.headphones, color: AppConstants.primaryGreen),
-                    title: const Text('الدعم الفني وخدمة العملاء'),
-                    trailing: const Icon(LucideIcons.chevronLeft, size: 18),
-                    onTap: () {},
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: _item(LucideIcons.logOut, 'تسجيل الخروج', () => _logout(context), color: AppConstants.dangerColor),
+                ),
+                const SizedBox(height: 16),
+                const Center(
+                  child: Text('${AppConstants.appNameAr} • الإصدار 1.0.0',
+                      style: TextStyle(fontSize: 12, color: AppConstants.textMuted)),
+                ),
+              ],
             ),
-
-            const SizedBox(height: 20),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildInvoiceItem(InvoiceModel inv) {
-    final bool isApproved = inv.processingStatus == 'APPROVED';
-    final Color statusColor = isApproved ? AppConstants.successColor : AppConstants.warningColor;
-    final String statusText = isApproved ? 'معتمدة ومقيدة' : 'قيد المراجعة';
+  Widget _item(IconData icon, String label, VoidCallback onTap, {Color? color}) => ListTile(
+        leading: Icon(icon, color: color ?? AppConstants.primaryGreen),
+        title: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+        trailing: color == null ? const Icon(Icons.chevron_left) : null,
+        onTap: onTap,
+      );
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(isApproved ? LucideIcons.checkCheck : LucideIcons.clock, color: statusColor, size: 20),
-        ),
-        title: Text(inv.tenantName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Column(
+  void _showHowItWorks(BuildContext context) {
+    const steps = [
+      (LucideIcons.shoppingBag, 'تسوّق من أي متجر مشارك في المول'),
+      (LucideIcons.camera, 'صوّر الفاتورة من تبويب "مسح فاتورة"'),
+      (LucideIcons.coins, 'تُضاف النقاط لمحفظتك بعد قراءة الفاتورة ومراجعتها'),
+      (LucideIcons.gift, 'استبدل النقاط بقسائم خصم من كتالوج المكافآت'),
+    ];
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${inv.invoiceNumber} • ${inv.totalAmount.toStringAsFixed(2)} ${AppConstants.currency}', style: const TextStyle(fontSize: 12)),
-            Text(statusText, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '+${inv.pointsAwarded} نقطة',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppConstants.primaryGreen, fontSize: 13),
-            ),
-            Text(
-              '+${inv.cashbackAwarded.toStringAsFixed(2)} ${AppConstants.currency}',
-              style: const TextStyle(color: AppConstants.accentGold, fontSize: 11),
-            ),
+            const Text('كيف أكسب النقاط؟', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            for (var i = 0; i < steps.length; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppConstants.primaryGreen.withOpacity(0.1),
+                      child: Icon(steps[i].$1, size: 18, color: AppConstants.primaryGreen),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('${i + 1}. ${steps[i].$2}')),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
