@@ -155,7 +155,18 @@ public class AuthController : ControllerBase
             });
         }
 
-        if (!string.IsNullOrEmpty(customer.PasswordHash) && !_passwordHasher.VerifyPassword(request.Password, customer.PasswordHash))
+        // حساب بدون كلمة مرور (مثلاً أُنشئ من مكتب خدمة العملاء) لا يُسمح بالدخول إليه بأي كلمة مرور،
+        // وإلا أمكن لأي شخص يعرف رقم الهاتف الدخول إلى الحساب.
+        if (string.IsNullOrEmpty(customer.PasswordHash))
+        {
+            return Unauthorized(new
+            {
+                success = false,
+                message = "هذا الحساب غير مفعّل لتطبيق الجوال بعد. يرجى مراجعة مكتب خدمة العملاء في المول لتفعيله (Account has no password set)."
+            });
+        }
+
+        if (!_passwordHasher.VerifyPassword(request.Password, customer.PasswordHash))
         {
             return Unauthorized(new
             {

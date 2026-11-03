@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using MMApplication.Application.DTOs;
 
 namespace MMApplication.Tests;
@@ -85,5 +86,38 @@ public class SecurityAccessTests : IClassFixture<WebApplicationFactory<Program>>
         var stores = await response.Content.ReadFromJsonAsync<List<MobileStoreDto>>();
         Assert.NotNull(stores);
         Assert.NotEmpty(stores!);
+    }
+
+    [Fact]
+    public async Task CustomerLogin_WrongPassword_ShouldReturn401()
+    {
+        var response = await CreateClient().PostAsJsonAsync("/api/Auth/login",
+            new LoginRequestDto { PhoneNumber = "0912345678", Password = "not-the-password" });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CustomerLogin_AccountWithoutPassword_ShouldReturn401ForAnyPassword()
+    {
+        var client = CreateClient();
+
+        // عميل أُنشئ مباشرة في قاعدة البيانات بدون كلمة مرور (مثل حساب مكتب خدمة العملاء)
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MMApplication.Infrastructure.Data.AppDbContext>();
+            db.Customers.Add(new MMApplication.Domain.Entities.Customer
+            {
+                CustomerId = "CUST-NOPASS",
+                FullName = "عميل بدون كلمة مرور",
+                PhoneNumber = "0917770000",
+                LoyaltyTier = "BRONZE",
+                RegisteredAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync("/api/Auth/login",
+            new LoginRequestDto { PhoneNumber = "0917770000", Password = "anything" });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

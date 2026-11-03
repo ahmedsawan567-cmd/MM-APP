@@ -107,6 +107,10 @@ BEGIN
     BEGIN
         ALTER TABLE Customers ADD IsArchived BIT DEFAULT 0;
     END
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Customers') AND name = 'PasswordHash')
+    BEGIN
+        ALTER TABLE Customers ADD PasswordHash NVARCHAR(256) NULL;
+    END
 END
 
 -- 5. الفواتير وعمليات المسح بالذكاء الاصطناعي
@@ -484,6 +488,7 @@ CREATE TABLE IF NOT EXISTS ""Customers"" (
 );
 
 ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""IsArchived"" BOOLEAN DEFAULT FALSE;
+ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""PasswordHash"" VARCHAR(256) NULL;
 
 -- 5. الفواتير وعمليات المسح بالذكاء الاصطناعي
 CREATE TABLE IF NOT EXISTS ""Invoices"" (

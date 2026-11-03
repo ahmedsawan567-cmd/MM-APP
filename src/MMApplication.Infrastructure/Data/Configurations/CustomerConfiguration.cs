@@ -21,6 +21,9 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.LoyaltyTier).HasMaxLength(20).HasDefaultValue("BRONZE");
         builder.Property(c => c.RegisteredAt).IsRequired();
 
+        // كلمة مرور المتسوق (مُجزّأة PBKDF2). يجب حفظها وإلا قُبلت أي كلمة مرور عند الدخول.
+        builder.Property(c => c.PasswordHash).HasMaxLength(256);
+
         // Ignore compatibility helper properties
         builder.Ignore(c => c.Id);
         builder.Ignore(c => c.Tier);
@@ -28,7 +31,6 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Ignore(c => c.CreatedAt);
         builder.Ignore(c => c.Role);
         builder.Ignore(c => c.StaffRole);
-        builder.Ignore(c => c.PasswordHash);
         builder.Ignore(c => c.StoreTenantId);
         builder.Ignore(c => c.StoreTenant);
         builder.Ignore(c => c.Wallet);

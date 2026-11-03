@@ -621,6 +621,9 @@ public static class DataSeeder
         // ----------------------------------------------------
         // 5. 🛍️ TABLE: Customers (المتسوقون في المول)
         // ----------------------------------------------------
+        // كلمة مرور الحسابات التجريبية للمتسوقين (موثقة في README)
+        var customerPw = passwordHasher.HashPassword("Customer123!");
+
         var customers = new List<Customer>
         {
             new()
@@ -628,6 +631,7 @@ public static class DataSeeder
                 CustomerId = "CUST-001",
                 FullName = "أحمد محمد الزنتاني",
                 PhoneNumber = "0912345678",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-SM-G998B-8831",
                 LoyaltyTier = "SILVER",
                 IsFrozen = false,
@@ -638,6 +642,7 @@ public static class DataSeeder
                 CustomerId = "CUST-002",
                 FullName = "منال الشريف",
                 PhoneNumber = "0911112233",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-IPHONE15-9921",
                 LoyaltyTier = "GOLD",
                 IsFrozen = false,
@@ -648,6 +653,7 @@ public static class DataSeeder
                 CustomerId = "CUST-003",
                 FullName = "خالد الترهوني",
                 PhoneNumber = "0925556677",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-XIAOMI13-7741",
                 LoyaltyTier = "SILVER",
                 IsFrozen = false,
@@ -658,6 +664,7 @@ public static class DataSeeder
                 CustomerId = "CUST-004",
                 FullName = "عمر الفرجاني (حساب مجمد)",
                 PhoneNumber = "0939998877",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-SUSP-9900",
                 LoyaltyTier = "BRONZE",
                 IsFrozen = true,
@@ -668,6 +675,7 @@ public static class DataSeeder
                 CustomerId = "CUST-005",
                 FullName = "فاطمة الزهراء الورفلي",
                 PhoneNumber = "0914445566",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-IPHONE14-1120",
                 LoyaltyTier = "VIP",
                 IsFrozen = false,
@@ -678,6 +686,7 @@ public static class DataSeeder
                 CustomerId = "CUST-006",
                 FullName = "يوسف القرقني",
                 PhoneNumber = "0923334455",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-SAMS23-4412",
                 LoyaltyTier = "GOLD",
                 IsFrozen = false,
@@ -688,6 +697,7 @@ public static class DataSeeder
                 CustomerId = "CUST-007",
                 FullName = "آية المهدوي",
                 PhoneNumber = "0917778899",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-HUAWEI-8832",
                 LoyaltyTier = "SILVER",
                 IsFrozen = false,
@@ -698,6 +708,7 @@ public static class DataSeeder
                 CustomerId = "CUST-008",
                 FullName = "محمود السويحلي",
                 PhoneNumber = "0941112233",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-OPPO-5510",
                 LoyaltyTier = "BRONZE",
                 IsFrozen = false,
@@ -708,6 +719,7 @@ public static class DataSeeder
                 CustomerId = "CUST-009",
                 FullName = "مريم بن عيسى",
                 PhoneNumber = "0928889900",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-IPHONE15PRO-0012",
                 LoyaltyTier = "VIP",
                 IsFrozen = false,
@@ -718,6 +730,7 @@ public static class DataSeeder
                 CustomerId = "CUST-010",
                 FullName = "سالم الأوجلي",
                 PhoneNumber = "0916667788",
+                PasswordHash = customerPw,
                 DeviceFingerprint = "DEV-HONOR-9081",
                 LoyaltyTier = "GOLD",
                 IsFrozen = false,
