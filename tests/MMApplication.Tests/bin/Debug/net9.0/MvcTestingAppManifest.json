@@ -1,6 +1,0 @@
-{
-  "MMApplication.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "c:\\MMApp\\src\\MMApplication.Api",
-  "MMApplication.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "c:\\MMApp\\src\\MMApplication.Application",
-  "MMApplication.Domain, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "c:\\MMApp\\src\\MMApplication.Domain",
-  "MMApplication.Infrastructure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "c:\\MMApp\\src\\MMApplication.Infrastructure"
-}
