@@ -4,52 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@(ViewData["Title"] ?? "لوحة التحكم") - منظومة المرأة مول</title>
-    
-    <!-- 1. Google Fonts: Cairo (Arabic) & Plus Jakarta Sans (Numbers / English) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- 2. Tailwind CSS CDN with Custom SaaS Config -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['"Cairo"', 'system-ui', '-apple-system', 'sans-serif'],
-                        mono: ['"Plus Jakarta Sans"', 'monospace']
-                    },
-                    colors: {
-                        brand: {
-                            50: '#eff6ff',
-                            100: '#dbeafe',
-                            500: '#3b82f6',
-                            600: '#2563eb',
-                            700: '#1d4ed8',
-                            900: '#1e3a8a'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <!-- 3. Professional Frontend Libraries -->
-    <!-- Lucide Vector Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- ApexCharts for modern silky graphs -->
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- SweetAlert2 for modern modals and toast alerts -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-    <!-- Canvas Confetti -->
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    <!-- مكتبات الواجهة تُخدم محلياً من wwwroot/lib (تُبنى من مجلد frontend) -->
+    <link rel="stylesheet" href="~/lib/tailwind.css" asp-append-version="true">
+    <link rel="stylesheet" href="~/lib/apexcharts.css" asp-append-version="true">
+    <script src="~/lib/lucide.min.js" asp-append-version="true"></script>
+    <script src="~/lib/apexcharts.min.js" asp-append-version="true"></script>
+    <script src="~/lib/sweetalert2.all.min.js" asp-append-version="true"></script>
 
     <!-- Custom Rebuilt Design System -->
     <link rel="stylesheet" href="~/styles.css" asp-append-version="true">
@@ -330,10 +290,16 @@
 
             <!-- Right Controls: Status & User -->
             <div class="flex items-center gap-3">
-                <!-- Supabase Cloud Badge -->
-                <div class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>قاعدة بيانات Supabase سحابية</span>
+                @{
+                    var dbIsPersistent = !string.Equals(
+                        (Context.RequestServices.GetService(typeof(MMApplication.Infrastructure.Data.AppDbContext)) as MMApplication.Infrastructure.Data.AppDbContext)?.Database.ProviderName,
+                        "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal);
+                }
+                <!-- حالة قاعدة البيانات الفعلية -->
+                <div class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border @(dbIsPersistent ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200")"
+                     title="@(dbIsPersistent ? "البيانات محفوظة بشكل دائم" : "قاعدة بيانات مؤقتة في الذاكرة: تُمسح البيانات عند إعادة تشغيل الخادم")">
+                    <span class="w-1.5 h-1.5 rounded-full @(dbIsPersistent ? "bg-emerald-500" : "bg-amber-500")"></span>
+                    <span>@(dbIsPersistent ? "قاعدة البيانات متصلة" : "قاعدة بيانات تجريبية مؤقتة")</span>
                 </div>
 
                 <!-- User Profile Dropdown Pill -->

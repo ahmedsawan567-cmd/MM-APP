@@ -1,0 +1,16 @@
+{
+  "name": "mm-dashboard-frontend",
+  "private": true,
+  "description": "يبني ملفات لوحة التحكم محلياً (بدون CDN). الناتج في wwwroot/lib ويُرفع مع المشروع، فلا حاجة لـ Node لتشغيل اللوحة.",
+  "scripts": {
+    "build": "tailwindcss -c tailwind.config.js -i input.css -o ../wwwroot/lib/tailwind.css --minify && node copy-libs.js",
+    "watch": "tailwindcss -c tailwind.config.js -i input.css -o ../wwwroot/lib/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "@fontsource/cairo": "^5.1.1",
+    "apexcharts": "4.3.0",
+    "lucide": "0.468.0",
+    "sweetalert2": "11.15.10",
+    "tailwindcss": "3.4.17"
+  }
+}

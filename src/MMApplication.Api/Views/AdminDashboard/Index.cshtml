@@ -41,10 +41,18 @@
                 <div class="text-xl font-bold text-slate-900 num">
                     @Model.TotalSalesVolume.ToString("N2") <span class="text-xs font-sans font-medium text-slate-500">د.ل</span>
                 </div>
-                <div class="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
-                    <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
-                    <span>+14.2% مقارنة بالفترة السابقة</span>
-                </div>
+                @{ var change = ViewData["SalesChangePercent"] as decimal?; }
+                @if (change.HasValue)
+                {
+                    <div class="text-[11px] font-semibold flex items-center gap-1 @(change.Value >= 0 ? "text-emerald-600" : "text-rose-600")">
+                        <i data-lucide="@(change.Value >= 0 ? "trending-up" : "trending-down")" class="w-3.5 h-3.5"></i>
+                        <span>@(change.Value >= 0 ? "+" : "")@change.Value% آخر 30 يوماً مقارنة بالـ 30 السابقة</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-[11px] text-slate-400">لا توجد بيانات كافية للمقارنة</div>
+                }
             </div>
         </div>
 
@@ -115,8 +123,8 @@
                         <i data-lucide="activity" class="w-4 h-4"></i>
                     </div>
                     <div>
-                        <h2 class="text-xs font-bold text-slate-900">وتيرة مبيعات وحركة الفواتير بالساعات</h2>
-                        <p class="text-[11px] text-slate-400">كثافة الفواتير ومبالغ الإنفاق خلال ساعات العمل (10:00 ص - 10:00 م)</p>
+                        <h2 class="text-xs font-bold text-slate-900">حركة الفواتير والمبيعات — آخر 14 يوماً</h2>
+                        <p class="text-[11px] text-slate-400">عدد الفواتير المرفوعة يومياً وقيمة المبيعات المعتمدة</p>
                     </div>
                 </div>
                 <span class="badge badge-emerald">مباشر</span>

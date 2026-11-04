@@ -10,29 +10,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تسجيل الدخول المركزي - منظومة المرأة مول</title>
-    
-    <!-- Google Fonts: Cairo & Plus Jakarta Sans -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['"Cairo"', 'system-ui', 'sans-serif'],
-                        mono: ['"Plus Jakarta Sans"', 'monospace']
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- مكتبات الواجهة تُخدم محلياً من wwwroot/lib (تُبنى من مجلد frontend) -->
+    <link rel="stylesheet" href="~/lib/tailwind.css" asp-append-version="true">
+    <link rel="stylesheet" href="~/lib/apexcharts.css" asp-append-version="true">
+    <script src="~/lib/lucide.min.js" asp-append-version="true"></script>
+    <script src="~/lib/apexcharts.min.js" asp-append-version="true"></script>
+    <script src="~/lib/sweetalert2.all.min.js" asp-append-version="true"></script>
 </head>
 <body class="min-h-screen bg-[#090d16] text-slate-100 flex items-center justify-center p-4 font-sans antialiased relative overflow-hidden">
 

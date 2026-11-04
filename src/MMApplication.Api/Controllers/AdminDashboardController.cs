@@ -198,41 +198,59 @@ public class AdminDashboardController : Controller
             .Take(5)
             .ToListAsync();
 
-        var pace = new List<ScanChartDataPoint>
-        {
-            new() { TimeLabel = "10:00 ص", ScanCount = 14, VolumeAmount = 3200m },
-            new() { TimeLabel = "12:00 م", ScanCount = 48, VolumeAmount = 12400m },
-            new() { TimeLabel = "02:00 م", ScanCount = 65, VolumeAmount = 18900m },
-            new() { TimeLabel = "04:00 م", ScanCount = 52, VolumeAmount = 14800m },
-            new() { TimeLabel = "06:00 م", ScanCount = 110, VolumeAmount = 38500m },
-            new() { TimeLabel = "08:00 م", ScanCount = 145, VolumeAmount = 52100m },
-            new() { TimeLabel = "10:00 م", ScanCount = 92, VolumeAmount = 28500m }
-        };
+        // آخر 14 يوماً: عدد الفواتير ومبيعاتها المعتمدة لكل يوم (بيانات حقيقية)
+        var since = today.AddDays(-13);
+        var recent = await invoiceQuery
+            .Where(i => i.CreatedAt >= since)
+            .Select(i => new { i.CreatedAt, i.TotalAmount, i.ProcessingStatus })
+            .ToListAsync();
+        var pace = Enumerable.Range(0, 14)
+            .Select(offset => since.AddDays(offset))
+            .Select(day => new ScanChartDataPoint
+            {
+                TimeLabel = day.ToString("MM/dd"),
+                ScanCount = recent.Count(i => i.CreatedAt.Date == day),
+                VolumeAmount = recent
+                    .Where(i => i.CreatedAt.Date == day && i.ProcessingStatus == InvoiceStatus.APPROVED)
+                    .Sum(i => i.TotalAmount ?? 0m)
+            })
+            .ToList();
 
-        var categories = new List<CategorySpendPoint>
-        {
-            new() { CategoryName = "أزياء وملابس", TotalAmount = 45200m, Percentage = 42.5m },
-            new() { CategoryName = "مطاعم وكافيهات", TotalAmount = 28600m, Percentage = 26.9m },
-            new() { CategoryName = "إلكترونيات وهواتف", TotalAmount = 18400m, Percentage = 17.3m },
-            new() { CategoryName = "عطور ومستحضرات تجميل", TotalAmount = 14250m, Percentage = 13.3m }
-        };
+        // توزيع المبيعات المعتمدة حسب فئة المتجر
+        var byCategory = await invoiceQuery
+            .Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED && i.Tenant != null)
+            .GroupBy(i => i.Tenant!.Category)
+            .Select(g => new { Category = g.Key, Total = g.Sum(i => i.TotalAmount) ?? 0m })
+            .OrderByDescending(g => g.Total)
+            .ToListAsync();
+        var categoryTotal = byCategory.Sum(c => c.Total);
+        var categories = byCategory
+            .Select(c => new CategorySpendPoint
+            {
+                CategoryName = string.IsNullOrWhiteSpace(c.Category) ? "أخرى" : c.Category,
+                TotalAmount = c.Total,
+                Percentage = categoryTotal > 0 ? Math.Round(c.Total / categoryTotal * 100, 1) : 0
+            })
+            .ToList();
+
+        // مقارنة مبيعات آخر 30 يوماً بالثلاثين التي قبلها
+        var last30 = await invoiceQuery
+            .Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED && i.CreatedAt >= today.AddDays(-30))
+            .SumAsync(i => i.TotalAmount) ?? 0m;
+        var prev30 = await invoiceQuery
+            .Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED && i.CreatedAt >= today.AddDays(-60) && i.CreatedAt < today.AddDays(-30))
+            .SumAsync(i => i.TotalAmount) ?? 0m;
+        ViewData["SalesChangePercent"] = prev30 > 0 ? Math.Round((last30 - prev30) / prev30 * 100, 1) : (decimal?)null;
 
         var overviewDto = new SuperAdminOverviewDto
         {
-            TotalSalesVolume = totalSales > 0 ? totalSales : (IsStoreManager ? 14850.00m : 128450.00m),
-            TodayScansCount = todayScans > 0 ? todayScans : (IsStoreManager ? 28 : 412),
-            PendingReviewCount = pendingReviews > 0 ? pendingReviews : (IsStoreManager ? 0 : 3),
-            CirculatingPoints = (int)(circulatingPoints > 0 ? circulatingPoints : 1248500),
+            TotalSalesVolume = totalSales,
+            TodayScansCount = todayScans,
+            PendingReviewCount = pendingReviews,
+            CirculatingPoints = (int)circulatingPoints,
             ScanActivityPace = pace,
             CategoryDistribution = categories,
-            TopPerformingStores = topStores.Count > 0 ? topStores : new List<TopStorePoint>
-            {
-                new() { StoreName = IsStoreManager ? (User?.FindFirst("TenantName")?.Value ?? "متجري") : "كافي كادي (Kadi Café)", InvoicesCount = 380, TotalSales = 48500m },
-                new() { StoreName = "بوتيك فساتين السهرة", InvoicesCount = 290, TotalSales = 18200m },
-                new() { StoreName = "سوبرماركت المواد الغذائية", InvoicesCount = 85, TotalSales = 34600m },
-                new() { StoreName = "Zara Fashion", InvoicesCount = 210, TotalSales = 22400m },
-                new() { StoreName = "Sephora Beauty", InvoicesCount = 140, TotalSales = 15300m }
-            }
+            TopPerformingStores = topStores
         };
 
         ViewData["ActiveTab"] = "overview";
