@@ -510,6 +510,54 @@ END
         }
 
         logger.LogInformation("PostgreSQL: المخطط متوافق ({Tables} جدول جديد، {Columns} عمود جديد).", missingTables.Count, added);
+        await LockDownSupabasePublicApiAsync(context, logger);
+    }
+
+    /// <summary>
+    /// في Supabase: مفتاح anon عام بطبيعته، فأي صلاحية لدوري anon/authenticated على الجداول
+    /// تعني أن أي شخص يستطيع قراءة البيانات أو تعديلها مباشرة متجاوزاً الـ API.
+    /// كل الوصول يمر عبر الخادم (يتصل كمالك الجداول فلا تنطبق عليه RLS)، لذا نسحب صلاحياتهما
+    /// ونفعّل Row Level Security بدون سياسات على كل جدول = رفض كامل لواجهة Supabase العامة.
+    /// </summary>
+    private static async Task LockDownSupabasePublicApiAsync(AppDbContext context, ILogger logger)
+    {
+        var connection = context.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync();
+        List<string> roles = new(), tables = new();
+        try
+        {
+            await using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')";
+                await using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) roles.Add(r.GetString(0));
+            }
+            if (roles.Count == 0) return; // ليست Supabase
+
+            await using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND NOT rowsecurity";
+                await using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) tables.Add(r.GetString(0));
+            }
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+
+        var who = string.Join(", ", roles);
+        foreach (var table in tables)
+        {
+            await ExecuteAsync(context, $"ALTER TABLE \"{table}\" ENABLE ROW LEVEL SECURITY");
+        }
+        foreach (var kind in new[] { "TABLES", "SEQUENCES", "FUNCTIONS" })
+        {
+            await ExecuteAsync(context, $"REVOKE ALL ON ALL {kind} IN SCHEMA public FROM {who}");
+            await ExecuteAsync(context, $"ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON {kind} FROM {who}");
+        }
+        logger.LogInformation("Supabase: أُغلقت واجهة البيانات العامة (anon/authenticated) وفُعّلت RLS على {Count} جدول.", tables.Count);
     }
 
     private static string? DefaultFor(string type)

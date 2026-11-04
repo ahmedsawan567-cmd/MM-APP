@@ -218,15 +218,38 @@ using (var scope = app.Services.CreateScope())
         {
             await db.Database.EnsureCreatedAsync();
         }
-        // البيانات التجريبية: افتراضياً في القاعدة المؤقتة فقط. في Supabase تُفعّل صراحةً بـ "SeedDemoData": true
-        var seedDemo = builder.Configuration.GetValue<bool?>("SeedDemoData") ?? !database.UsePostgres;
-        if (seedDemo)
+        // تعبئة البيانات (الإعداد "SeedData"):
+        //   Demo    = كل البيانات التجريبية (الافتراضي في القاعدة المؤقتة)
+        //   Catalog = بيانات المول فقط: متاجر، قواعد نقاط، مكافآت، بنرات، عروض (الافتراضي في Supabase)
+        //             تُضاف مرة واحدة فقط عندما تكون القاعدة بلا متاجر.
+        //   None    = بدون أي بيانات
+        var seedMode = builder.Configuration["SeedData"]
+            ?? (builder.Configuration.GetValue<bool?>("SeedDemoData") == true ? "Demo" : database.UsePostgres ? "Catalog" : "Demo");
+
+        if (seedMode.Equals("Demo", StringComparison.OrdinalIgnoreCase))
         {
-            await DataSeeder.SeedAsync(db, hasher);
+            await DataSeeder.SeedAsync(db, hasher, includeDemoData: true);
             logger.LogInformation("Database is ready and seeded with demo data and test accounts.");
         }
         else
         {
+            // مرة واحدة فقط (علامة في سجل العمليات)، حتى لا يعود متجر حذفه المدير بعد إعادة التشغيل
+            if (seedMode.Equals("Catalog", StringComparison.OrdinalIgnoreCase) &&
+                !await db.AuditLogs.AnyAsync(a => a.Action == "CATALOG_SEEDED"))
+            {
+                await DataSeeder.SeedAsync(db, hasher, includeDemoData: false);
+                db.AuditLogs.Add(new MMApplication.Domain.Entities.AuditLog
+                {
+                    Action = "CATALOG_SEEDED",
+                    EntityName = "System",
+                    PerformedBy = "النظام",
+                    Details = "تعبئة بيانات المول الأساسية: المتاجر، قواعد النقاط، أسماء الفواتير، المكافآت، البنرات، الحملات والعروض.",
+                    CreatedAt = DateTime.UtcNow,
+                });
+                await db.SaveChangesAsync();
+                logger.LogInformation("تمت تعبئة بيانات المول الأساسية: المتاجر، قواعد النقاط، المكافآت، البنرات والعروض.");
+            }
+
             var generated = await DataSeeder.EnsureBootstrapAdminAsync(db, hasher, builder.Configuration["Bootstrap:AdminPassword"]);
             if (generated != null)
             {

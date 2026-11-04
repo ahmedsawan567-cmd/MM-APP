@@ -42,7 +42,12 @@ public static class DataSeeder
         return string.IsNullOrWhiteSpace(configuredPassword) ? password : "(كلمة المرور المضبوطة في Bootstrap:AdminPassword)";
     }
 
-    public static async Task SeedAsync(AppDbContext context, IPasswordHasherService passwordHasher)
+    /// <param name="includeDemoData">
+    /// true: كل البيانات التجريبية (حسابات طاقم بكلمات مرور معروفة، عملاء، فواتير، تسويات، سجل عمليات).
+    /// false: بيانات المول فقط (المتاجر، قواعد النقاط، أسماء الفواتير، المكافآت، البنرات، الحملات، العروض)
+    ///        — آمنة للقاعدة الحقيقية.
+    /// </param>
+    public static async Task SeedAsync(AppDbContext context, IPasswordHasherService passwordHasher, bool includeDemoData = true)
     {
         var now = DateTime.UtcNow;
 
@@ -492,6 +497,8 @@ public static class DataSeeder
         }
         await context.SaveChangesAsync();
 
+        if (includeDemoData)
+        {
         // ----------------------------------------------------
         // 4. 👥 TABLE: SystemUsers (المستخدمون، المدراء، والموظفون المطلوبون)
         // ----------------------------------------------------
@@ -1164,6 +1171,8 @@ public static class DataSeeder
             await context.SaveChangesAsync();
         }
 
+        }
+
         // ----------------------------------------------------
         // 11. 🎁 TABLE: Rewards & Redemptions
         // ----------------------------------------------------
@@ -1372,6 +1381,8 @@ public static class DataSeeder
             await context.SaveChangesAsync();
         }
 
+        if (includeDemoData)
+        {
         // ----------------------------------------------------
         // 13. 🛡️ TABLE: Audit Logs
         // ----------------------------------------------------
@@ -1404,6 +1415,7 @@ public static class DataSeeder
 
             await context.AuditLogs.AddRangeAsync(logs);
             await context.SaveChangesAsync();
+        }
         }
     }
 }
