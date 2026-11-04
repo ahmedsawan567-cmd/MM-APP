@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <!-- لحفظ رابط قاعدة البيانات ومفتاح Claude على جهاز المطوّر خارج الكود (dotnet user-secrets) -->
+    <UserSecretsId>mm-app-api-7f3c9a2e</UserSecretsId>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
