@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../core/constants/app_constants.dart';
 import '../core/services/loyalty_api.dart';
+import '../core/theme/app_theme.dart';
 import '../models/mall.dart';
 import '../widgets/common.dart';
 
@@ -34,29 +34,26 @@ class _StoresTabState extends State<StoresTab> {
     super.dispose();
   }
 
-  void _load() {
-    setState(() => _future = LoyaltyApi.getStores());
-  }
+  void _load() => setState(() => _future = LoyaltyApi.getStores());
 
   void _onSearchChanged(String _) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () => setState(() {}));
+    _debounce = Timer(const Duration(milliseconds: 220), () => setState(() {}));
   }
 
   List<Store> _filter(List<Store> stores) {
     final q = _search.text.trim().toLowerCase();
     return stores.where((s) {
       final matchesCategory = _category == null || s.category == _category;
-      final matchesQuery = q.isEmpty ||
-          s.nameAr.toLowerCase().contains(q) ||
-          s.nameEn.toLowerCase().contains(q) ||
-          s.category.toLowerCase().contains(q);
+      final matchesQuery =
+          q.isEmpty || s.nameAr.toLowerCase().contains(q) || s.nameEn.toLowerCase().contains(q) || s.category.toLowerCase().contains(q);
       return matchesCategory && matchesQuery;
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Scaffold(
       appBar: AppBar(title: const Text('دليل المتاجر')),
       body: AsyncView<List<Store>>(
@@ -68,30 +65,27 @@ class _StoresTabState extends State<StoresTab> {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                 child: TextField(
                   controller: _search,
                   onChanged: _onSearchChanged,
+                  textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
-                    hintText: 'ابحث عن متجر أو فئة...',
+                    hintText: 'ابحث عن متجر أو فئة',
                     prefixIcon: const Icon(LucideIcons.search, size: 20),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                    ),
+                    suffixIcon: _search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(LucideIcons.x, size: 18),
+                            onPressed: () => setState(_search.clear),
+                          ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),
               if (categories.length > 1)
                 SizedBox(
-                  height: 44,
+                  height: 42,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -101,21 +95,29 @@ class _StoresTabState extends State<StoresTab> {
                     ],
                   ),
                 ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
+                child: Row(
+                  children: [
+                    Text('${filtered.length} متجر', style: TextStyle(color: p.muted, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
               Expanded(
                 child: RefreshIndicator(
-                  color: AppConstants.primaryGreen,
                   onRefresh: () async {
                     _load();
                     await _future;
                   },
                   child: filtered.isEmpty
                       ? ListView(children: const [
-                          EmptyView(icon: LucideIcons.store, title: 'لا توجد متاجر مطابقة'),
+                          EmptyView(icon: LucideIcons.searchX, title: 'لا توجد متاجر مطابقة', subtitle: 'جرّب كلمة بحث أخرى أو فئة مختلفة'),
                         ])
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                           itemCount: filtered.length,
-                          itemBuilder: (_, i) => _StoreCard(store: filtered[i]),
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (_, i) => FadeSlideIn(index: i, child: _StoreCard(store: filtered[i])),
                         ),
                 ),
               ),
@@ -134,9 +136,6 @@ class _StoresTabState extends State<StoresTab> {
         label: Text(label),
         selected: selected,
         onSelected: (_) => setState(() => _category = value),
-        selectedColor: AppConstants.primaryGreen,
-        labelStyle: TextStyle(color: selected ? Colors.white : AppConstants.textPrimary),
-        showCheckmark: false,
       ),
     );
   }
@@ -148,55 +147,46 @@ class _StoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            StoreLogo(name: store.nameAr, logoUrl: store.logoUrl, size: 56),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(store.nameAr,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  if (store.nameEn.isNotEmpty && store.nameEn != store.nameAr)
-                    Text(store.nameEn,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: AppConstants.textMuted)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      StatusChip(label: store.category, color: AppConstants.primaryGreenLight),
-                      StatusChip(label: store.rewardLabel, color: AppConstants.accentGold),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(LucideIcons.mapPin, size: 13, color: AppConstants.textMuted),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text('${store.floorLabel} • ${store.unitNumber}',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, color: AppConstants.textMuted)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+    final p = context.palette;
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          StoreLogo(name: store.nameAr, logoUrl: store.logoUrl, size: 58),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(store.nameAr,
+                    maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.3)),
+                if (store.nameEn.isNotEmpty && store.nameEn != store.nameAr)
+                  Text(store.nameEn, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.muted)),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    StatusChip(label: store.category, tone: Tone.brand),
+                    StatusChip(label: store.rewardLabel, tone: Tone.gold, icon: LucideIcons.coins),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(LucideIcons.mapPin, size: 14, color: p.muted),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text('${store.floorLabel} • ${store.unitNumber}',
+                          overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.muted)),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

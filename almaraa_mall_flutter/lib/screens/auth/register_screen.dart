@@ -93,12 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               validator: (v) => v != _password.text ? 'كلمتا المرور غير متطابقتين' : null,
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: _loading
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('إنشاء الحساب'),
-            ),
+            LoadingButton(loading: _loading, label: 'إنشاء الحساب', onPressed: _submit),
           ],
         ),
       ),

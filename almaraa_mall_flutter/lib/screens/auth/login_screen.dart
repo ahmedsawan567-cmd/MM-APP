@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/services/session.dart';
 import '../../widgets/common.dart';
 import 'auth_widgets.dart';
@@ -73,23 +73,18 @@ class _LoginScreenState extends State<LoginScreen> {
               validator: (v) => (v == null || v.isEmpty) ? 'أدخل كلمة المرور' : null,
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: _loading
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('تسجيل الدخول'),
-            ),
+            LoadingButton(loading: _loading, label: 'تسجيل الدخول', onPressed: _submit),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('ليس لديك حساب؟'),
+                Text('ليس لديك حساب؟', style: TextStyle(color: context.palette.muted)),
                 TextButton(
                   onPressed: _loading
                       ? null
-                      : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen())),
-                  child: const Text('أنشئ حساباً جديداً',
-                      style: TextStyle(color: AppConstants.primaryGreen, fontWeight: FontWeight.bold)),
+                      : () => pushPage(context, const RegisterScreen()),
+                  child: Text('أنشئ حساباً جديداً',
+                      style: TextStyle(color: context.palette.brand, fontWeight: FontWeight.w800)),
                 ),
               ],
             ),

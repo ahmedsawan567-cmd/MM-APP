@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/constants/app_constants.dart';
 import '../core/services/loyalty_api.dart';
 import '../core/services/session.dart';
+import '../core/theme/app_theme.dart';
 import '../models/reward.dart';
 import '../models/wallet.dart';
 import '../widgets/common.dart';
@@ -26,28 +27,44 @@ class _RewardsScreenState extends State<RewardsScreen> {
     _load();
   }
 
-  void _load() {
-    setState(() => _future = _fetch());
-  }
+  void _load() => setState(() => _future = _fetch());
 
   Future<(List<Reward>, int)> _fetch() async {
-    final results = await Future.wait([LoyaltyApi.getRewards(), LoyaltyApi.getWalletSummary()]);
-    final rewards = results[0] as List<Reward>;
-    rewards.sort((a, b) => a.pointsCost.compareTo(b.pointsCost));
-    return (rewards, (results[1] as WalletSummary).pointsBalance);
+    final r = await Future.wait([LoyaltyApi.getRewards(), LoyaltyApi.getWalletSummary()]);
+    final rewards = r[0] as List<Reward>..sort((a, b) => a.pointsCost.compareTo(b.pointsCost));
+    return (rewards, (r[1] as WalletSummary).pointsBalance);
   }
 
   Future<void> _redeem(Reward reward) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد الاستبدال'),
-        content: Text('سيتم خصم ${formatPoints(reward.pointsCost)} نقطة مقابل "${reward.title}". هل تريد المتابعة؟'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استبدال')),
-        ],
-      ),
+      builder: (ctx) {
+        final p = ctx.palette;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconBadge(LucideIcons.gift, tone: Tone.gold, size: 60),
+              const SizedBox(height: 14),
+              Text('تأكيد الاستبدال', style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text('سيتم خصم ${formatPoints(reward.pointsCost)} نقطة مقابل:',
+                  textAlign: TextAlign.center, style: TextStyle(color: p.muted)),
+              const SizedBox(height: 4),
+              Text(reward.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء'))),
+                  const SizedBox(width: 12),
+                  Expanded(child: ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استبدال'))),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
     if (confirmed != true || !mounted) return;
 
@@ -68,51 +85,74 @@ class _RewardsScreenState extends State<RewardsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('كتالوج المكافآت')),
+      appBar: AppBar(title: const Text('المكافآت')),
       body: AsyncView<(List<Reward>, int)>(
         future: _future,
         onRetry: _load,
+        loading: const SkeletonList(header: Skeleton(height: 84, radius: AppRadius.lg), itemHeight: 150, count: 3),
         builder: (context, data) {
           final (rewards, balance) = data;
           return RefreshIndicator(
-            color: AppConstants.primaryGreen,
             onRefresh: () async {
               _load();
               await _future;
             },
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppConstants.primaryGreen,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(LucideIcons.coins, color: AppConstants.accentGoldLight, size: 28),
-                      const SizedBox(width: 12),
-                      const Expanded(child: Text('رصيدك الحالي', style: TextStyle(color: Colors.white70))),
-                      Text('${formatPoints(balance)} نقطة',
-                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
+                _BalanceStrip(balance: balance),
                 const SizedBox(height: 16),
                 if (rewards.isEmpty)
-                  const EmptyView(icon: LucideIcons.gift, title: 'لا توجد مكافآت متاحة حالياً')
+                  const EmptyView(icon: LucideIcons.gift, title: 'لا توجد مكافآت متاحة حالياً', subtitle: 'تابعنا، ستضاف مكافآت جديدة قريباً')
                 else
-                  ...rewards.map((r) => _RewardCard(
-                        reward: r,
-                        balance: balance,
-                        busy: _redeemingId == r.id,
-                        onRedeem: _redeemingId == null ? () => _redeem(r) : null,
-                      )),
+                  for (var i = 0; i < rewards.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: FadeSlideIn(
+                        index: i,
+                        child: _RewardCard(
+                          reward: rewards[i],
+                          balance: balance,
+                          busy: _redeemingId == rewards[i].id,
+                          onRedeem: _redeemingId == null ? () => _redeem(rewards[i]) : null,
+                        ),
+                      ),
+                    ),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _BalanceStrip extends StatelessWidget {
+  final int balance;
+  const _BalanceStrip({required this.balance});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        gradient: const LinearGradient(colors: [Color(0xFF064E3B), Color(0xFF047857)]),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
+            child: const Icon(LucideIcons.coins, color: Color(0xFFFBBF24)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Text('رصيدك الحالي', style: TextStyle(color: Colors.white.withValues(alpha: 0.8)))),
+          AnimatedCount(value: balance, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
+          const SizedBox(width: 6),
+          const Text('نقطة', style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w700)),
+        ],
       ),
     );
   }
@@ -128,22 +168,24 @@ class _RewardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final r = reward;
     final affordable = balance >= r.pointsCost;
-    final missing = r.pointsCost - balance;
     final image = AppConstants.resolveImageUrl(r.imageUrl);
+    final progress = r.pointsCost == 0 ? 1.0 : (balance / r.pointsCost).clamp(0.0, 1.0);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
+    return Container(
       clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: p.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (image != null)
-            SizedBox(
-              height: 130,
-              child: Image.network(image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox()),
-            ),
+            SizedBox(height: 140, child: Image.network(image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox())),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -152,56 +194,61 @@ class _RewardCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(r.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    ),
-                    if (r.discountValue > 0)
-                      StatusChip(label: 'خصم ${formatMoney(r.discountValue)}', color: AppConstants.accentGold),
+                    Expanded(child: Text(r.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.35))),
+                    if (r.discountValue > 0) ...[
+                      const SizedBox(width: 8),
+                      StatusChip(label: 'خصم ${formatMoney(r.discountValue)}', tone: Tone.gold),
+                    ],
                   ],
                 ),
                 if (r.merchantName != null) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Row(children: [
-                    const Icon(LucideIcons.store, size: 13, color: AppConstants.textMuted),
+                    Icon(LucideIcons.store, size: 14, color: p.muted),
                     const SizedBox(width: 4),
-                    Text(r.merchantName!, style: const TextStyle(fontSize: 12, color: AppConstants.textMuted)),
+                    Text(r.merchantName!, style: TextStyle(fontSize: 12, color: p.muted)),
                   ]),
                 ],
                 if (r.description.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text(r.description, style: const TextStyle(fontSize: 13)),
+                  Text(r.description, style: TextStyle(fontSize: 13, color: p.muted, height: 1.5)),
                 ],
-                const SizedBox(height: 8),
-                Text(
-                  [
-                    'صالحة ${r.validityDays} يوم بعد الاستبدال',
-                    if (r.stockQuantity != null) 'المتبقي: ${r.stockQuantity}',
-                  ].join('  •  '),
-                  style: const TextStyle(fontSize: 12, color: AppConstants.textMuted),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Row(
                   children: [
-                    const Icon(LucideIcons.coins, color: AppConstants.accentGold, size: 20),
+                    Icon(LucideIcons.coins, color: p.gold, size: 20),
                     const SizedBox(width: 6),
                     Text('${formatPoints(r.pointsCost)} نقطة',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppConstants.accentGold)),
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: p.gold)),
                     const Spacer(),
                     if (r.isOutOfStock)
-                      const StatusChip(label: 'نفدت الكمية', color: AppConstants.dangerColor)
-                    else if (!affordable)
-                      Text('ينقصك ${formatPoints(missing)} نقطة',
-                          style: const TextStyle(fontSize: 12, color: AppConstants.textMuted))
-                    else
+                      const StatusChip(label: 'نفدت الكمية', tone: Tone.danger)
+                    else if (affordable)
                       ElevatedButton(
                         onPressed: onRedeem,
-                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10)),
+                        style: ElevatedButton.styleFrom(minimumSize: const Size(110, 42)),
                         child: busy
-                            ? const SizedBox(
-                                width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                             : const Text('استبدال'),
                       ),
                   ],
+                ),
+                if (!affordable && !r.isOutOfStock) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(value: progress, minHeight: 6, backgroundColor: p.surfaceAlt, color: p.gold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text('ينقصك ${formatPoints(r.pointsCost - balance)} نقطة', style: TextStyle(fontSize: 12, color: p.muted)),
+                ],
+                const SizedBox(height: 10),
+                Text(
+                  [
+                    'صالحة ${r.validityDays} يوم بعد الاستبدال',
+                    if (r.stockQuantity != null && !r.isOutOfStock) 'المتبقي ${r.stockQuantity}',
+                  ].join('  •  '),
+                  style: TextStyle(fontSize: 11, color: p.muted),
                 ),
               ],
             ),
