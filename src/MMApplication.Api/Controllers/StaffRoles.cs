@@ -18,4 +18,7 @@ public static class StaffRoles
 
     /// <summary>المدير العام فقط (إدارة حسابات طاقم العمل والصلاحيات).</summary>
     public const string SuperAdmin = "superadmin,SUPER_ADMIN";
+
+    /// <summary>خدمة العملاء: المدير العام ومدقق الفواتير (تعديل بيانات العملاء).</summary>
+    public const string CustomerService = "superadmin,SUPER_ADMIN,auditor,FRAUD_AUDITOR";
 }

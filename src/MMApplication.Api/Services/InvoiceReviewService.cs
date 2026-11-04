@@ -85,13 +85,14 @@ public class InvoiceReviewService
             return InvoiceReviewOutcome.Fail("أدخل رقم الفاتورة والمبلغ قبل الاعتماد.");
         }
 
-        // منع اعتماد نفس الفاتورة مرتين (نفس المتجر ونفس الرقم)
-        var duplicate = await _context.Invoices.AnyAsync(i =>
-            i.InvoiceId != invoice.InvoiceId &&
-            i.InvoiceNumber == invoice.InvoiceNumber &&
-            (i.TenantId == invoice.TenantId || i.ExtractedMerchant == invoice.ExtractedMerchant) &&
-            i.ProcessingStatus == InvoiceStatus.APPROVED);
-        if (duplicate) return InvoiceReviewOutcome.Fail("توجد فاتورة معتمدة أخرى بنفس الرقم لنفس المتجر.", 409);
+        // منع استخدام نفس الفاتورة مرتين (نفس المتجر ونفس الرقم بصيغته الموحّدة، بأي حالة)
+        var duplicate = await InvoiceKeys.FindDuplicateAsync(_context, invoice.TenantId,
+            MMApplication.Application.Common.InvoiceNumbers.Key(invoice.InvoiceNumber), invoice.TotalAmount, invoice.InvoiceDate, invoice.InvoiceId, invoice.ExtractedMerchant);
+        if (duplicate != null)
+        {
+            return InvoiceReviewOutcome.Fail(
+                $"رقم الفاتورة مستخدم في فاتورة أخرى لنفس المتجر (العميل {duplicate.CustomerId}، الحالة {duplicate.ProcessingStatus}). لا يمكن اعتمادها.", 409);
+        }
 
         var evaluation = await _loyalty.EvaluateInvoicePointsAsync(new LoyaltyEvaluationRequest
         {

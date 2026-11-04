@@ -322,8 +322,13 @@ public class GenerateSettlementBatchRequest
 public class SuperAdminCustomerDto
 {
     public string Id { get; set; } = string.Empty;
+    public string? MembershipNumber { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public DateTime? BirthDate { get; set; }
+    public string? Gender { get; set; }
+    public bool HasAppAccess { get; set; }
     public string Tier { get; set; } = "Bronze";
     public int CurrentPoints { get; set; }
     public int TotalInvoicesScanned { get; set; }
@@ -411,6 +416,11 @@ public class CreateCustomerRequest
     public string Tier { get; set; } = "BRONZE";
     public int InitialPoints { get; set; } = 0;
     public string? DeviceFingerprint { get; set; }
+    public string? Email { get; set; }
+    public DateTime? BirthDate { get; set; }
+    public string? Gender { get; set; }
+    /// <summary>كلمة مرور للتطبيق (اختيارية). بدونها لا يستطيع العميل الدخول للتطبيق حتى تُضبط.</summary>
+    public string? Password { get; set; }
 }
 
 public class UpdateCustomerRequest
@@ -420,6 +430,15 @@ public class UpdateCustomerRequest
     public string Tier { get; set; } = "BRONZE";
     public bool? IsFrozen { get; set; }
     public bool? IsArchived { get; set; }
+    public string? Email { get; set; }
+    public DateTime? BirthDate { get; set; }
+    public string? Gender { get; set; }
+}
+
+public class ResetCustomerPasswordRequest
+{
+    /// <summary>فارغة = توليد كلمة مرور عشوائية تُعرض مرة واحدة.</summary>
+    public string? NewPassword { get; set; }
 }
 
 public class UpdateStaffUserRequest

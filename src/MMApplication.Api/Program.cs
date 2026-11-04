@@ -66,6 +66,12 @@ switch (ocrProvider.ToLowerInvariant())
         break;
 }
 
+// تعلّم بصمة فاتورة كل متجر من صورة نموذجية (لوحة التحكم ← نماذج الفواتير)
+if (ClaudeReceiptOcrService.IsConfigured(builder.Configuration) || builder.Configuration["Claude:BaseUrl"] is { Length: > 0 })
+    builder.Services.AddScoped<IInvoiceProfileAnalyzer, ClaudeInvoiceProfileAnalyzer>();
+else
+    builder.Services.AddScoped<IInvoiceProfileAnalyzer, ManualInvoiceProfileAnalyzer>();
+
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -259,6 +265,12 @@ using (var scope = app.Services.CreateScope())
             }
             logger.LogInformation("Database is ready.");
         }
+
+        var keyed = await InvoiceKeys.BackfillAsync(db, logger);
+        if (keyed > 0) logger.LogInformation("حُسبت الصيغة الموحّدة لأرقام {Count} فاتورة سابقة.", keyed);
+
+        var numbered = await CustomerAccounts.EnsureMembershipNumbersAsync(db);
+        if (numbered > 0) logger.LogInformation("أُعطي {Count} عميل رقم عضوية مميز.", numbered);
 
         // استعادة الدخول للمدير العام (تشغيل لمرة واحدة):
         //   dotnet run -- --Bootstrap:ResetAdminPassword=true

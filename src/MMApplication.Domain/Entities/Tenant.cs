@@ -24,6 +24,7 @@ public class Tenant
 
     // Navigation properties
     public TenantLoyaltyRule? LoyaltyRule { get; set; }
+    public StoreInvoiceProfile? InvoiceProfile { get; set; }
     public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
     public ICollection<SystemUser> SystemUsers { get; set; } = new List<SystemUser>();
     public ICollection<CustomerWallet> CustomerWallets { get; set; } = new List<CustomerWallet>();

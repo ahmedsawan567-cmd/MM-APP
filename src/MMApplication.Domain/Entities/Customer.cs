@@ -7,6 +7,14 @@ public class Customer
     public string CustomerId { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+
+    /// <summary>رقم العضوية المميز الظاهر للعميل وللموظفين (مثل MM-100001). فريد ولا يتغير.</summary>
+    public string? MembershipNumber { get; set; }
+    public string? Email { get; set; }
+    public DateTime? BirthDate { get; set; }
+    /// <summary>M أو F (اختياري).</summary>
+    public string? Gender { get; set; }
+    public DateTime? UpdatedAt { get; set; }
     public string? DeviceFingerprint { get; set; }
     public string LoyaltyTier { get; set; } = "BRONZE"; // BRONZE, SILVER, GOLD, VIP
     public bool IsFrozen { get; set; } = false;

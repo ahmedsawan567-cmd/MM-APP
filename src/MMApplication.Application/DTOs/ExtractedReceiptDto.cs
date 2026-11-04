@@ -4,6 +4,8 @@ public class ExtractedReceiptDto
 {
     public string? MerchantName { get; set; }
     public string? InvoiceNumber { get; set; }
+    /// <summary>الرقم الضريبي / السجل التجاري المطبوع على الفاتورة إن وجد.</summary>
+    public string? TaxNumber { get; set; }
     public DateTime? InvoiceDate { get; set; }
     public decimal? TotalAmount { get; set; }
     public double Confidence { get; set; }
@@ -45,6 +47,32 @@ public class KnownStoreDto
     public string NameAr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
     public List<string> Aliases { get; set; } = new();
+
+    // بصمة فاتورة المتجر (إن تعلّمها النظام)
+    public string? TaxNumber { get; set; }
+    public string? InvoiceNumberLabel { get; set; }
+    public string? InvoiceNumberExample { get; set; }
+    public string? LayoutNotes { get; set; }
+}
+
+/// <summary>ما استنتجه الذكاء الاصطناعي من صورة فاتورة نموذجية لمتجر.</summary>
+public class InvoiceProfileSuggestionDto
+{
+    public bool IsReceipt { get; set; } = true;
+    public string? PrintedName { get; set; }
+    public List<string> OtherNames { get; set; } = new();
+    public string? TaxNumber { get; set; }
+    public string? PhoneOnReceipt { get; set; }
+    public string? InvoiceNumberLabel { get; set; }
+    public string? InvoiceNumberExample { get; set; }
+    public string? InvoiceNumberPattern { get; set; }
+    public string? TotalLabel { get; set; }
+    public string? DateFormat { get; set; }
+    public string? Currency { get; set; }
+    public string? LayoutNotes { get; set; }
+    public string Provider { get; set; } = "Mock";
+    /// <summary>رسالة عند تعذّر التحليل الآلي (يُكمل الموظف الحقول يدوياً).</summary>
+    public string? Warning { get; set; }
 }
 
 public class ExtractedReceiptItemDto

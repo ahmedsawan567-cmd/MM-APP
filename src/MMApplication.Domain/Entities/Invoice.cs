@@ -11,6 +11,8 @@ public class Invoice
     // AI extraction data
     public string? ExtractedMerchant { get; set; }
     public string? InvoiceNumber { get; set; }
+    /// <summary>رقم الفاتورة بصيغة موحّدة لكشف التكرار (بدون مسافات/رموز، أحرف كبيرة، أرقام لاتينية).</summary>
+    public string? InvoiceNumberKey { get; set; }
     public DateTime? InvoiceDate { get; set; }
     public decimal? TotalAmount { get; set; }
     public decimal? ConfidenceScore { get; set; } // 0.0000 to 1.0000

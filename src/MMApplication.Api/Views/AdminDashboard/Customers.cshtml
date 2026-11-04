@@ -1,78 +1,68 @@
 @model List<MMApplication.Application.DTOs.SuperAdminCustomerDto>
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "قاعدة بيانات العملاء والمتسوقين";
+    ViewData["Title"] = "العملاء";
     ViewData["ActiveTab"] = "customers";
+    var canEdit = ViewData["CanEditCustomers"] as bool? ?? false;
+    var isSuperAdmin = ViewData["IsSuperAdmin"] as bool? ?? false;
+    var tierFilter = (ViewData["TierFilter"]?.ToString() ?? "ALL").ToUpperInvariant();
+    var tiers = new[] { ("ALL", "الكل"), ("VIP", "VIP"), ("GOLD", "ذهبي"), ("SILVER", "فضي"), ("BRONZE", "برونزي") };
+    string TierLabel(string t) => t.ToUpperInvariant() switch { "VIP" => "VIP", "GOLD" => "ذهبي", "SILVER" => "فضي", _ => "برونزي" };
+    string TierBadge(string t) => t.ToUpperInvariant() switch { "VIP" => "badge-purple", "GOLD" => "badge-amber", "SILVER" => "badge-slate", _ => "badge-orange" };
 }
+@Html.AntiForgeryToken()
 
-<div class="space-y-6">
+<div class="space-y-5">
 
-    <!-- 1. Page Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-        <div>
-            <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center font-bold">
-                    <i data-lucide="users" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <h1 class="text-base font-bold text-slate-900">سجل العملاء والمتسوقين</h1>
-                    <p class="text-xs text-slate-500">متابعة حسابات مستخدمي التطبيق، تتبع مستويات الولاء، والأجهزة المرتبطة مع حماية خصوصية البيانات</p>
-                </div>
+    <!-- الترويسة -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center">
+                <i data-lucide="users" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold text-slate-900">العملاء</h1>
+                <p class="text-xs text-slate-500">كل عميل له رقم عضوية مميز، ورقم الهاتف لا يتكرر بين حسابين</p>
             </div>
         </div>
-
-        <div class="flex items-center gap-2.5">
-            <button onclick="showToast('جاري تصدير قاعدة بيانات العملاء بصيغة CSV...', 'info')" class="btn-secondary">
-                <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
-                <span>تصدير البيانات</span>
+        <div class="flex items-center gap-2">
+            <button type="button" onclick="exportCsv()" class="btn-secondary" @(Model.Count == 0 ? "disabled" : "")>
+                <i data-lucide="download" class="w-4 h-4"></i> تصدير
             </button>
-            <button onclick="openModal('modal-add-customer')" class="btn-primary">
-                <i data-lucide="user-plus" class="w-4 h-4"></i>
-                <span>إضافة عميل جديد</span>
-            </button>
+            @if (canEdit)
+            {
+                <button type="button" onclick="openCustomerForm()" class="btn-primary">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> عميل جديد
+                </button>
+            }
         </div>
     </div>
 
-    <!-- 2. KPI Metrics -->
+    <!-- مؤشرات -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">إجمالي المسجلين</span>
-                <i data-lucide="users" class="w-4 h-4 text-brand-500"></i>
-            </div>
-            <div class="text-xl font-bold text-slate-900 num">@Model.Count</div>
-            <div class="text-[11px] text-emerald-700 mt-1 font-medium">قاعدة بيانات متنامية</div>
+            <div class="text-xs font-semibold text-slate-500">العملاء المعروضون</div>
+            <div class="mt-2 text-xl font-bold text-slate-900 num">@Model.Count.ToString("N0")</div>
+            <div class="text-[11px] text-slate-400 mt-1"><span class="num">@Model.Count(c => !c.IsArchived && !c.IsSuspended)</span> نشط</div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">المستخدمون النشطون</span>
-                <i data-lucide="user-check" class="w-4 h-4 text-emerald-500"></i>
-            </div>
-            <div class="text-xl font-bold text-emerald-600 num">@Model.Count(c => !c.IsArchived && !c.IsSuspended)</div>
-            <div class="text-[11px] text-slate-400 mt-1">حسابات نشطة ومحققة</div>
+            <div class="text-xs font-semibold text-slate-500">يستخدمون التطبيق</div>
+            <div class="mt-2 text-xl font-bold text-slate-900 num">@Model.Count(c => c.HasAppAccess)</div>
+            <div class="text-[11px] text-slate-400 mt-1">لديهم كلمة مرور للتطبيق</div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">أعضاء النخبة (VIP)</span>
-                <i data-lucide="crown" class="w-4 h-4 text-purple-600"></i>
-            </div>
-            <div class="text-xl font-bold text-purple-600 num">@Model.Count(c => c.Tier == "Platinum")</div>
-            <div class="text-[11px] text-purple-700 mt-1 font-medium">أعلى شريحة إنفاق</div>
+            <div class="text-xs font-semibold text-slate-500">رصيد النقاط</div>
+            <div class="mt-2 text-xl font-bold text-gold-600 num">@Model.Sum(c => c.CurrentPoints).ToString("N0")</div>
+            <div class="text-[11px] text-slate-400 mt-1">مشتريات معتمدة: <span class="num">@Model.Sum(c => c.TotalSpent).ToString("N0")</span> د.ل</div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">إجمالي رصيد النقاط</span>
-                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
-            </div>
-            <div class="text-xl font-bold text-amber-600 num">@Model.Sum(c => c.CurrentPoints).ToString("N0")</div>
-            <div class="text-[11px] text-slate-400 mt-1">مشتريات: @Model.Sum(c => c.TotalSpent).ToString("N0") د.ل</div>
+            <div class="text-xs font-semibold text-slate-500">أجهزة مشتركة</div>
+            <div class="mt-2 text-xl font-bold @(Model.Any(c => c.IsMultiAccountDevice) ? "text-amber-600" : "text-slate-900") num">@Model.Count(c => c.IsMultiAccountDevice)</div>
+            <div class="text-[11px] text-slate-400 mt-1">حسابات على جهاز واحد (احتمال احتيال)</div>
         </div>
     </div>
 
-    <!-- 3. تسجيلات العملاء الجدد (بيانات حقيقية) -->
+    <!-- العملاء الجدد -->
     <div class="card p-5 space-y-3">
         <div>
             <h3 class="text-sm font-bold text-slate-900">العملاء الجدد شهرياً</h3>
@@ -81,36 +71,20 @@
         <div id="customerGrowthChart" class="w-full h-44"></div>
     </div>
 
-    <!-- 4. Customer Directory Ledger -->
+    <!-- القائمة -->
     <div class="card overflow-hidden">
-        <!-- Top Toolbar & Filters -->
-        <div class="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white">
-            <!-- Tier Filter Pills -->
+        <div class="p-4 border-b border-line flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div class="flex items-center gap-1.5 flex-wrap">
-                <a asp-action="Customers" asp-route-tier="ALL" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "ALL" || ViewData["TierFilter"] == null ? "bg-ink text-surface" : "bg-slate-100 text-slate-600 hover:bg-slate-200")">
-                    الكل (@Model.Count)
-                </a>
-                <a asp-action="Customers" asp-route-tier="Platinum" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Platinum" ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100")">
-                    البلاتيني VIP
-                </a>
-                <a asp-action="Customers" asp-route-tier="Gold" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Gold" ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100")">
-                    الذهبي
-                </a>
-                <a asp-action="Customers" asp-route-tier="Silver" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Silver" ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200")">
-                    الفضي
-                </a>
-                <a asp-action="Customers" asp-route-tier="Bronze" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Bronze" ? "bg-amber-800 text-white" : "bg-orange-50 text-amber-800 hover:bg-orange-100")">
-                    البرونزي
-                </a>
+                @foreach (var (value, label) in tiers)
+                {
+                    <a asp-action="Customers" asp-route-tier="@value" asp-route-search="@ViewData["SearchQuery"]"
+                       class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(tierFilter == value ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")">@label</a>
+                }
             </div>
-
-            <!-- Search Field -->
-            <form method="get" asp-action="Customers" class="flex items-center gap-2">
-                <input type="hidden" name="tier" value="@ViewData["TierFilter"]">
-                <div class="relative w-full sm:w-64">
-                    <input type="text" name="search" value="@ViewData["SearchQuery"]" placeholder="بحث بالاسم أو رقم الهاتف..." class="form-input text-xs pr-8 pl-3">
-                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3"></i>
-                </div>
+            <form method="get" asp-action="Customers" class="relative w-full md:w-80">
+                <input type="hidden" name="tier" value="@tierFilter">
+                <input type="text" name="search" value="@ViewData["SearchQuery"]" placeholder="الاسم، الهاتف، رقم العضوية أو البريد" class="form-input pr-9 text-sm">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
             </form>
         </div>
 
@@ -118,77 +92,50 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>المعرف</th>
-                        <th>العميل / الهاتف</th>
-                        <th>فئة الولاء</th>
-                        <th>رصيد النقاط</th>
-                        <th>عدد الفواتير</th>
-                        <th>إجمالي الإنفاق</th>
+                        <th>رقم العضوية</th>
+                        <th>العميل</th>
+                        <th>الفئة</th>
+                        <th>النقاط</th>
+                        <th>الفواتير</th>
+                        <th>الإنفاق</th>
                         <th>الحالة</th>
-                        <th class="text-left">الإجراءات وكشف الحساب</th>
+                        <th class="text-left">إجراءات</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="customers-body">
                     @if (Model.Count == 0)
                     {
                         <tr>
-                            <td colspan="8" class="text-center py-12 text-slate-400">
-                                <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
-                                    <i data-lucide="users-round" class="w-6 h-6"></i>
-                                </div>
-                                <div class="font-bold text-slate-700">لا يوجد متسوقون مطابقون لشرط البحث</div>
-                                <p class="text-xs text-slate-400 mt-1">تأكد من الاسم أو الهاتف المدخل أو قم بإلغاء الفلترة</p>
+                            <td colspan="8" class="text-center py-12 text-slate-500">
+                                <i data-lucide="users-round" class="w-8 h-8 mx-auto text-slate-300"></i>
+                                <div class="mt-2 font-bold text-slate-700">لا يوجد عملاء مطابقون</div>
+                                <p class="text-xs mt-1">جرّب البحث برقم العضوية أو رقم الهاتف</p>
                             </td>
                         </tr>
                     }
                     @foreach (var c in Model)
                     {
-                        <tr>
-                            <td class="font-bold text-slate-500 num">#@c.Id</td>
+                        <tr data-customer="@System.Text.Json.JsonSerializer.Serialize(new { c.Id, c.MembershipNumber, c.FullName, c.PhoneNumber, c.Email, BirthDate = c.BirthDate?.ToString("yyyy-MM-dd"), c.Gender, Tier = c.Tier.ToUpperInvariant(), c.CurrentPoints, c.TotalInvoicesScanned, c.TotalSpent, c.IsSuspended, c.IsArchived, c.HasAppAccess, CreatedAt = c.CreatedAt.ToString("yyyy-MM-dd") })"
+                            class="@(c.IsArchived ? "opacity-60" : "")">
+                            <td class="font-bold text-brand-700 num whitespace-nowrap" dir="ltr">@(c.MembershipNumber ?? "—")</td>
                             <td>
-                                <div class="flex items-center gap-2.5">
-                                    <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center font-bold text-xs shrink-0">
-                                        @(string.IsNullOrWhiteSpace(c.FullName) ? "ع" : c.FullName.Substring(0, 1))
-                                    </div>
-                                    <div>
-                                        <div class="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
-                                            <span>@c.FullName</span>
-                                            @if (c.IsMultiAccountDevice || c.SharedDevicesCount > 1)
-                                            {
-                                                <span class="badge badge-amber text-[10px]" title="تم رصد مشاركة الجهاز مع @c.SharedDevicesCount حسابات">
-                                                    <i data-lucide="smartphone" class="w-2.5 h-2.5"></i>
-                                                    <span>جهاز مشترك (@c.SharedDevicesCount)</span>
-                                                </span>
-                                            }
-                                        </div>
-                                        <div class="text-xs text-slate-500 num" dir="ltr">@c.PhoneNumber</div>
-                                    </div>
+                                <div class="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                    <a asp-action="CustomerDetails" asp-route-id="@c.Id" class="hover:text-brand-700">@c.FullName</a>
+                                    @if (c.IsMultiAccountDevice)
+                                    {
+                                        <span class="badge badge-amber text-[10px]" title="الجهاز مستخدم من @c.SharedDevicesCount حسابات"><i data-lucide="smartphone" class="w-2.5 h-2.5"></i> جهاز مشترك</span>
+                                    }
+                                    @if (!c.HasAppAccess && !c.IsArchived)
+                                    {
+                                        <span class="badge badge-slate text-[10px]" title="لا توجد كلمة مرور للتطبيق">بدون تطبيق</span>
+                                    }
                                 </div>
+                                <div class="text-xs text-slate-500 num" dir="ltr">@c.PhoneNumber</div>
                             </td>
-                            <td>
-                                @switch (c.Tier)
-                                {
-                                    case "Platinum":
-                                        <span class="badge badge-purple">بلاتيني VIP</span>
-                                        break;
-                                    case "Gold":
-                                        <span class="badge badge-amber">ذهبي</span>
-                                        break;
-                                    case "Silver":
-                                        <span class="badge badge-slate">فضي</span>
-                                        break;
-                                    default:
-                                        <span class="badge badge-slate">برونزي</span>
-                                        break;
-                                }
-                            </td>
-                            <td>
-                                <span class="font-bold text-slate-900 num">
-                                    @c.CurrentPoints.ToString("N0") <span class="text-xs font-normal text-slate-500">نقطة</span>
-                                </span>
-                            </td>
-                            <td class="font-semibold text-slate-700 num">@c.TotalInvoicesScanned فاتورة</td>
-                            <td class="font-bold text-emerald-600 num">@c.TotalSpent.ToString("N2") د.ل</td>
+                            <td><span class="badge @TierBadge(c.Tier)">@TierLabel(c.Tier)</span></td>
+                            <td class="num font-bold text-slate-900">@c.CurrentPoints.ToString("N0")</td>
+                            <td class="num text-slate-700">@c.TotalInvoicesScanned</td>
+                            <td class="num font-semibold text-slate-700">@c.TotalSpent.ToString("N2") <span class="text-xs text-slate-400">د.ل</span></td>
                             <td>
                                 @if (c.IsArchived)
                                 {
@@ -200,31 +147,29 @@
                                 }
                                 else
                                 {
-                                    <span class="badge badge-emerald">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> نشط
-                                    </span>
+                                    <span class="badge badge-emerald">نشط</span>
                                 }
                             </td>
                             <td class="text-left">
-                                <div class="flex items-center gap-1 justify-end">
-                                    <button onclick="openQuickLedgerModal('@c.Id')" title="معاينة سريعة" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
-                                        <i data-lucide="eye" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="openEditCustomerModal('@c.Id', '@c.FullName', '@c.PhoneNumber', '@c.Tier', @(c.IsSuspended ? "true" : "false"))" title="تعديل بيانات العميل" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
-                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="openAdjustPointsModal('@c.Id', '@c.FullName', @c.CurrentPoints)" title="تعديل النقاط" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
-                                        <i data-lucide="coins" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="toggleSuspendCustomer('@c.Id', '@c.FullName')" title="@(c.IsSuspended ? "فك التجميد" : "تجميد الحساب")" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
-                                        <i data-lucide="@(c.IsSuspended ? "unlock" : "lock")" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="confirmArchiveCustomer('@c.Id', '@c.FullName')" title="أرشفة العميل مالياً (Soft Archive)" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
-                                        <i data-lucide="archive" class="w-4 h-4"></i>
-                                    </button>
-                                    <a asp-action="CustomerDetails" asp-route-id="@c.Id" class="btn-secondary !py-1 !px-2.5 !text-xs font-semibold mr-1">
-                                        <span>كشف الحساب ←</span>
-                                    </a>
+                                <div class="flex items-center gap-0.5 justify-end">
+                                    <button type="button" onclick="openQuickLedgerModal(this)" title="معاينة سريعة" class="btn-icon !w-8 !h-8"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                                    @if (canEdit && !c.IsArchived)
+                                    {
+                                        <button type="button" onclick="openCustomerForm(this)" title="تعديل البيانات" class="btn-icon !w-8 !h-8"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                                        <button type="button" onclick="resetPassword(this)" title="كلمة مرور جديدة للتطبيق" class="btn-icon !w-8 !h-8"><i data-lucide="key-round" class="w-4 h-4"></i></button>
+                                    }
+                                    @if (isSuperAdmin && !c.IsArchived)
+                                    {
+                                        <button type="button" onclick="openAdjustPoints(this)" title="تعديل النقاط" class="btn-icon !w-8 !h-8"><i data-lucide="coins" class="w-4 h-4"></i></button>
+                                    }
+                                    @if (canEdit && !c.IsArchived)
+                                    {
+                                        <button type="button" onclick="toggleSuspend(this)" title="@(c.IsSuspended ? "تنشيط الحساب" : "تجميد الحساب")" class="btn-icon !w-8 !h-8"><i data-lucide="@(c.IsSuspended ? "lock-open" : "lock")" class="w-4 h-4"></i></button>
+                                    }
+                                    @if (isSuperAdmin)
+                                    {
+                                        <button type="button" onclick="deleteCustomer(this)" title="حذف العميل" class="btn-icon !w-8 !h-8 text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -232,216 +177,134 @@
                 </tbody>
             </table>
         </div>
-
-        <!-- Summary Footer -->
-        <div class="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
-            <span>إجمالي العملاء المعروضين: <b class="text-slate-800 num">@Model.Count</b> عميل</span>
-            <span class="text-xs text-slate-400">محدث لحظياً ومربوط ببيانات Supabase</span>
-        </div>
     </div>
-
 </div>
 
-<!-- ======================================================== -->
-<!-- MODALS -->
-<!-- ======================================================== -->
-
-<!-- Modal: Add Customer -->
-<div id="modal-add-customer" class="hidden modal-overlay">
-    <div class="modal-box max-w-md">
+<!-- إضافة / تعديل عميل -->
+<div id="customer-modal" class="hidden modal-overlay">
+    <div class="modal-box max-w-lg">
         <div class="modal-header">
-            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <i data-lucide="user-plus" class="w-4 h-4 text-brand-600"></i>
-                <span>إضافة وتوثيق عميل جديد</span>
-            </h3>
-            <button onclick="closeModal('modal-add-customer')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2"><i data-lucide="user-round-pen" class="w-4 h-4 text-brand-600"></i> <span id="cf-title">عميل جديد</span></h3>
+            <button type="button" onclick="MM.closeModal('customer-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
-
-        <div class="modal-body space-y-3.5">
-            <div>
-                <label class="form-label">الاسم الكامل:</label>
-                <input type="text" id="cust-name" placeholder="مثال: يونس المحجوب" class="form-input">
+        <div class="modal-body grid sm:grid-cols-2 gap-3">
+            <div id="cf-membership-row" class="sm:col-span-2 hidden rounded-xl bg-brand-50 text-brand-800 px-3 py-2 text-sm">رقم العضوية: <b id="cf-membership" class="num" dir="ltr"></b></div>
+            <div class="sm:col-span-2">
+                <label class="form-label">الاسم الكامل</label>
+                <input id="cf-name" class="form-input" />
             </div>
             <div>
-                <label class="form-label">رقم الهاتف:</label>
-                <input type="text" id="cust-phone" placeholder="091XXXXXXX" class="form-input num">
+                <label class="form-label">رقم الهاتف</label>
+                <input id="cf-phone" class="form-input num" dir="ltr" placeholder="09XXXXXXXX" />
             </div>
             <div>
-                <label class="form-label">فئة العضوية:</label>
-                <select id="cust-tier" class="form-select">
-                    <option value="BRONZE">برونزي</option>
-                    <option value="SILVER">فضي</option>
-                    <option value="GOLD">ذهبي</option>
-                    <option value="PLATINUM">بلاتيني VIP</option>
+                <label class="form-label">البريد الإلكتروني <span class="text-slate-400 font-normal">(اختياري)</span></label>
+                <input id="cf-email" type="email" class="form-input num" dir="ltr" />
+            </div>
+            <div>
+                <label class="form-label">تاريخ الميلاد <span class="text-slate-400 font-normal">(اختياري)</span></label>
+                <input id="cf-birth" type="date" class="form-input num" />
+            </div>
+            <div>
+                <label class="form-label">الجنس</label>
+                <select id="cf-gender" class="form-select">
+                    <option value="">غير محدد</option>
+                    <option value="F">أنثى</option>
+                    <option value="M">ذكر</option>
                 </select>
             </div>
             <div>
-                <label class="form-label">رصيد نقاط ترحيبي (اختياري):</label>
-                <input type="number" id="cust-init-points" value="0" min="0" class="form-input num">
-            </div>
-        </div>
-
-        <div class="modal-footer">
-            <button onclick="closeModal('modal-add-customer')" class="btn-secondary">إلغاء</button>
-            <button onclick="submitAddCustomer()" class="btn-primary">حفظ وتأكيد</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Edit Customer -->
-<div id="modal-edit-customer" class="hidden modal-overlay">
-    <div class="modal-box max-w-md">
-        <div class="modal-header">
-            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <i data-lucide="edit-3" class="w-4 h-4 text-brand-600"></i>
-                <span>تعديل بيانات العميل</span>
-            </h3>
-            <button onclick="closeModal('modal-edit-customer')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
-        </div>
-
-        <input type="hidden" id="edit-cust-id" />
-
-        <div class="modal-body space-y-3.5">
-            <div>
-                <label class="form-label">الاسم الكامل:</label>
-                <input type="text" id="edit-cust-name" class="form-input">
-            </div>
-            <div>
-                <label class="form-label">رقم الهاتف:</label>
-                <input type="text" id="edit-cust-phone" class="form-input num">
-            </div>
-            <div>
-                <label class="form-label">فئة العضوية:</label>
-                <select id="edit-cust-tier" class="form-select">
+                <label class="form-label">فئة العضوية</label>
+                <select id="cf-tier" class="form-select">
                     <option value="BRONZE">برونزي</option>
                     <option value="SILVER">فضي</option>
                     <option value="GOLD">ذهبي</option>
-                    <option value="PLATINUM">بلاتيني VIP</option>
+                    <option value="VIP">VIP</option>
                 </select>
             </div>
+            <div id="cf-points-row">
+                <label class="form-label">رصيد افتتاحي (نقاط)</label>
+                <input id="cf-points" type="number" min="0" value="0" class="form-input num" />
+            </div>
+            <div id="cf-password-row" class="sm:col-span-2">
+                <label class="form-label">كلمة مرور للتطبيق <span class="text-slate-400 font-normal">(اختيارية — يمكن ضبطها لاحقاً)</span></label>
+                <div class="flex gap-2">
+                    <input id="cf-password" class="form-input num flex-1" dir="ltr" autocomplete="new-password" placeholder="8 أحرف على الأقل" />
+                    <button type="button" onclick="document.getElementById('cf-password').value = generatePassword()" class="btn-secondary shrink-0"><i data-lucide="wand-sparkles" class="w-4 h-4"></i> توليد</button>
+                </div>
+            </div>
         </div>
-
         <div class="modal-footer">
-            <button onclick="closeModal('modal-edit-customer')" class="btn-secondary">إلغاء</button>
-            <button onclick="submitEditCustomer()" class="btn-primary">حفظ التعديلات</button>
+            <button type="button" onclick="MM.closeModal('customer-modal')" class="btn-secondary">إلغاء</button>
+            <button type="button" id="cf-save" onclick="saveCustomer()" class="btn-primary">حفظ</button>
         </div>
     </div>
 </div>
 
-<!-- Modal: Adjust Points -->
-<div id="modal-adjust-points" class="hidden modal-overlay">
+<!-- تعديل النقاط -->
+<div id="points-modal" class="hidden modal-overlay">
     <div class="modal-box max-w-md">
         <div class="modal-header">
-            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
-                <span>تعديل رصيد نقاط العميل</span>
-            </h3>
-            <button onclick="closeModal('modal-adjust-points')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2"><i data-lucide="coins" class="w-4 h-4 text-gold-600"></i> تعديل نقاط <span id="pt-name"></span></h3>
+            <button type="button" onclick="MM.closeModal('points-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
-
-        <input type="hidden" id="adjust-cust-id" />
-        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
-            العميل: <b id="adjust-cust-name" class="text-slate-900">---</b> | الرصيد الحالي: <b id="adjust-cust-curr" class="text-slate-900 num">0</b> نقطة
-        </div>
-
-        <div class="modal-body space-y-3.5">
+        <div class="modal-body space-y-3">
+            <div class="rounded-xl bg-slate-50 px-3 py-2 text-sm">الرصيد الحالي: <b id="pt-current" class="num"></b> نقطة</div>
             <div>
-                <label class="form-label">النقاط المراد إضافتها أو خصمها (+ للإضافة، - للخصم):</label>
-                <input type="number" id="adjust-points-delta" placeholder="مثال: 50 أو -20" class="form-input num">
+                <label class="form-label">النقاط (موجب للإضافة، سالب للخصم)</label>
+                <input id="pt-delta" type="number" class="form-input num" placeholder="مثال: 100 أو -50" />
             </div>
             <div>
-                <label class="form-label">سبب التعديل (موثق في سجل الأمان):</label>
-                <input type="text" id="adjust-points-reason" placeholder="مثال: تسوية يدوية لشكوى هاتفية" class="form-input">
+                <label class="form-label">السبب (يظهر في سجل العمليات)</label>
+                <input id="pt-reason" class="form-input" placeholder="مثال: تعويض فاتورة لم تُقرأ" />
             </div>
         </div>
-
         <div class="modal-footer">
-            <button onclick="closeModal('modal-adjust-points')" class="btn-secondary">إلغاء</button>
-            <button onclick="submitAdjustPoints()" class="btn-primary">تأكيد التعديل</button>
+            <button type="button" onclick="MM.closeModal('points-modal')" class="btn-secondary">إلغاء</button>
+            <button type="button" onclick="savePoints()" class="btn-primary">تأكيد</button>
         </div>
     </div>
 </div>
 
-<!-- Modal: Quick Customer Ledger Preview -->
-<div id="modal-quick-customer-ledger" class="hidden modal-overlay">
-    <div class="modal-box max-w-2xl max-h-[90vh] flex flex-col">
-        <!-- Header -->
+<!-- معاينة سريعة -->
+<div id="ledger-modal" class="hidden modal-overlay">
+    <div class="modal-box max-w-2xl">
         <div class="modal-header">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm">
-                    <span id="quick-cust-avatar">ع</span>
-                </div>
-                <div>
-                    <div class="flex items-center gap-2">
-                        <h3 id="quick-cust-name" class="font-bold text-slate-900 text-sm">جاري التحميل...</h3>
-                        <span id="quick-cust-tier" class="badge badge-slate">فئة</span>
-                    </div>
-                    <div class="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                        <span id="quick-cust-id" class="font-bold num">#---</span>
-                        <span>•</span>
-                        <span id="quick-cust-phone" class="num" dir="ltr">09XXXXXXXX</span>
-                    </div>
-                </div>
+            <div>
+                <h3 id="lg-name" class="font-bold text-slate-900 text-sm"></h3>
+                <div class="text-xs text-slate-500 num" dir="ltr" id="lg-sub"></div>
             </div>
-            <button onclick="closeModal('modal-quick-customer-ledger')" class="text-slate-400 hover:text-slate-700 p-1 rounded-lg">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
+            <button type="button" onclick="MM.closeModal('ledger-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
-
-        <!-- 3 Quick KPI Counters -->
-        <div class="grid grid-cols-3 gap-3 p-4 bg-slate-50/70 border-b border-slate-100">
-            <div class="p-3 rounded-xl bg-white border border-slate-200/80">
-                <div class="text-xs text-slate-500">رصيد النقاط الحالي</div>
-                <div id="quick-cust-points" class="text-lg font-bold text-slate-900 num mt-0.5">0</div>
+        <div class="modal-body space-y-4">
+            <div class="grid grid-cols-3 gap-3">
+                <div class="rounded-xl border border-line p-3"><div class="text-xs text-slate-500">النقاط</div><div id="lg-points" class="font-bold num mt-1"></div></div>
+                <div class="rounded-xl border border-line p-3"><div class="text-xs text-slate-500">الإنفاق المعتمد</div><div id="lg-spent" class="font-bold num mt-1"></div></div>
+                <div class="rounded-xl border border-line p-3"><div class="text-xs text-slate-500">الفواتير</div><div id="lg-count" class="font-bold num mt-1"></div></div>
             </div>
-            <div class="p-3 rounded-xl bg-white border border-slate-200/80">
-                <div class="text-xs text-slate-500">إجمالي الإنفاق المعتمد</div>
-                <div id="quick-cust-spent" class="text-lg font-bold text-emerald-600 num mt-0.5">0.00 د.ل</div>
-            </div>
-            <div class="p-3 rounded-xl bg-white border border-slate-200/80">
-                <div class="text-xs text-slate-500">إجمالي الفواتير</div>
-                <div id="quick-cust-invoices-count" class="text-lg font-bold text-slate-900 num mt-0.5">0</div>
+            <div>
+                <div class="text-xs font-bold text-slate-700 mb-2">آخر الفواتير</div>
+                <div id="lg-invoices" class="space-y-2"></div>
             </div>
         </div>
-
-        <!-- Recent Invoices List (Scrollable) -->
-        <div class="modal-body flex-1 overflow-y-auto space-y-3 text-xs">
-            <div class="font-bold text-slate-800 flex items-center justify-between text-xs">
-                <span>سجل الفواتير وعمليات الشراء الأخيرة</span>
-                <span id="quick-cust-invoices-badge" class="text-xs text-slate-500 num">0 عمليات</span>
-            </div>
-            <div id="quick-cust-invoices-list" class="space-y-2">
-                <div class="py-6 text-center text-slate-400 text-xs">جاري جلب بيانات المعاملات...</div>
-            </div>
-
-            <!-- Stores Visited -->
-            <div class="pt-3 border-t border-slate-100">
-                <div class="font-bold text-slate-800 text-xs mb-2">المحلات الأكثر ارتياداً</div>
-                <div id="quick-cust-stores-list" class="flex flex-wrap gap-1.5">
-                    <span class="text-slate-400 text-xs">لا توجد بيانات متاجر.</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
         <div class="modal-footer">
-            <button onclick="closeModal('modal-quick-customer-ledger')" class="btn-secondary">
-                إغلاق
-            </button>
-            <a id="quick-cust-full-link" href="#" class="btn-primary">
-                <span>فتح كشف الحساب الكامل ←</span>
-            </a>
+            <button type="button" onclick="MM.closeModal('ledger-modal')" class="btn-secondary">إغلاق</button>
+            <a id="lg-link" href="#" class="btn-primary">كشف الحساب الكامل</a>
         </div>
     </div>
 </div>
 
 @section Scripts {
 <script>
+    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const rowData = btn => JSON.parse(btn.closest('tr').dataset.customer);
+    let editing = null, pointsFor = null;
+
     document.addEventListener('DOMContentLoaded', () => {
-        const growthEl = document.getElementById('customerGrowthChart');
+        const el = document.getElementById('customerGrowthChart');
         const monthly = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewData["MonthlyRegistrations"]));
-        if (growthEl && window.ApexCharts) {
-            MM.chart(growthEl, () => ({
+        if (el && window.ApexCharts) {
+            MM.chart(el, () => ({
                 series: [{ name: 'عملاء جدد', data: monthly.map(m => m.count) }],
                 chart: { type: 'bar', height: 170, animations: { enabled: false } },
                 colors: [MM.color('chart-primary')],
@@ -454,234 +317,196 @@
         }
     });
 
-    async function submitAddCustomer() {
-        const fullName = document.getElementById('cust-name').value.trim();
-        const phoneNumber = document.getElementById('cust-phone').value.trim();
-        const tier = document.getElementById('cust-tier').value;
-        const initialPoints = parseInt(document.getElementById('cust-init-points').value) || 0;
-
-        if (!fullName || !phoneNumber) {
-            showToast('يرجى كتابة الاسم ورقم الهاتف.', 'error');
-            return;
-        }
-
-        try {
-            const res = await fetch('/api/SuperAdmin/customers', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullName, phoneNumber, tier, initialPoints })
-            });
-            const data = await res.json();
-            if (res.ok) {
-                closeModal('modal-add-customer');
-                showToast('تمت إضافة المتسوق بنجاح في قاعدة البيانات!', 'success');
-                setTimeout(() => location.reload(), 800);
-            } else {
-                showToast(data.message || 'فشلت إضافة العميل.', 'error');
-            }
-        } catch (err) {
-            console.error(err);
-            showToast('حدث خطأ أثناء الاتصال بالخادم.', 'error');
-        }
-    }
-
-    function openEditCustomerModal(id, name, phone, tier, isFrozen) {
-        document.getElementById('edit-cust-id').value = id;
-        document.getElementById('edit-cust-name').value = name;
-        document.getElementById('edit-cust-phone').value = phone;
-        document.getElementById('edit-cust-tier').value = tier.toUpperCase();
-        openModal('modal-edit-customer');
-    }
-
-    async function submitEditCustomer() {
-        const id = document.getElementById('edit-cust-id').value;
-        const fullName = document.getElementById('edit-cust-name').value.trim();
-        const phoneNumber = document.getElementById('edit-cust-phone').value.trim();
-        const tier = document.getElementById('edit-cust-tier').value;
-
-        try {
-            const res = await fetch(`/api/SuperAdmin/customers/${encodeURIComponent(id)}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullName, phoneNumber, tier })
-            });
-            const data = await res.json();
-            if (res.ok) {
-                closeModal('modal-edit-customer');
-                showToast('تم تحديث بيانات العميل بنجاح!', 'success');
-                setTimeout(() => location.reload(), 800);
-            } else {
-                showToast(data.message || 'فشل تعديل البيانات.', 'error');
-            }
-        } catch (err) {
-            console.error(err);
-            showToast('حدث خطأ أثناء الاتصال بالخادم.', 'error');
-        }
-    }
-
-    function openAdjustPointsModal(id, name, currPoints) {
-        document.getElementById('adjust-cust-id').value = id;
-        document.getElementById('adjust-cust-name').innerText = name;
-        document.getElementById('adjust-cust-curr').innerText = Number(currPoints).toLocaleString();
-        document.getElementById('adjust-points-delta').value = '';
-        document.getElementById('adjust-points-reason').value = '';
-        openModal('modal-adjust-points');
-    }
-
-    async function submitAdjustPoints() {
-        const id = document.getElementById('adjust-cust-id').value;
-        const pointsDelta = parseInt(document.getElementById('adjust-points-delta').value);
-        const reason = document.getElementById('adjust-points-reason').value.trim();
-
-        if (isNaN(pointsDelta) || pointsDelta === 0) {
-            showToast('يرجى تحديد عدد النقاط المراد إضافتها أو خصمها.', 'error');
-            return;
-        }
-
-        try {
-            const res = await fetch(`/api/SuperAdmin/customers/${encodeURIComponent(id)}/adjust-points`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pointsDelta, reason: reason || 'تعديل إداري' })
-            });
-            const data = await res.json();
-            if (res.ok) {
-                closeModal('modal-adjust-points');
-                showToast(data.message || 'تم تعديل الرصيد بنجاح!', 'success');
-                setTimeout(() => location.reload(), 800);
-            } else {
-                showToast(data.message || 'فشل تعديل الرصيد.', 'error');
-            }
-        } catch (err) {
-            console.error(err);
-            showToast('حدث خطأ في الاتصال.', 'error');
-        }
-    }
-
-    async function toggleSuspendCustomer(id, name) {
-        const result = await Swal.fire({
-            title: 'حالة الحساب',
-            text: `هل تريد تغيير حالة الحساب للعميل (${name})؟`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'نعم، تابع',
-            cancelButtonText: 'إلغاء'
+    async function api(url, method, body) {
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: body === undefined ? undefined : JSON.stringify(body)
         });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) throw new Error('ليست لديك صلاحية لهذه العملية.');
+        if (!res.ok || data.success === false) throw new Error(data.message || 'تعذّر تنفيذ العملية.');
+        return data;
+    }
 
-        if (!result.isConfirmed) return;
+    function generatePassword() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        return Array.from(crypto.getRandomValues(new Uint32Array(10)), b => chars[b % chars.length]).join('');
+    }
 
+    function openCustomerForm(btn) {
+        editing = btn ? rowData(btn) : null;
+        const c = editing || {};
+        document.getElementById('cf-title').textContent = editing ? 'تعديل بيانات العميل' : 'عميل جديد';
+        document.getElementById('cf-membership-row').classList.toggle('hidden', !editing);
+        document.getElementById('cf-membership').textContent = c.MembershipNumber || '';
+        document.getElementById('cf-name').value = c.FullName || '';
+        document.getElementById('cf-phone').value = c.PhoneNumber || '';
+        document.getElementById('cf-email').value = c.Email || '';
+        document.getElementById('cf-birth').value = c.BirthDate || '';
+        document.getElementById('cf-gender').value = c.Gender || '';
+        document.getElementById('cf-tier').value = c.Tier || 'BRONZE';
+        document.getElementById('cf-points').value = 0;
+        document.getElementById('cf-password').value = '';
+        document.getElementById('cf-points-row').classList.toggle('hidden', !!editing);
+        document.getElementById('cf-password-row').classList.toggle('hidden', !!editing);
+        MM.openModal('customer-modal');
+    }
+
+    async function saveCustomer() {
+        const v = id => document.getElementById(id).value.trim();
+        const body = {
+            fullName: v('cf-name'), phoneNumber: v('cf-phone'), email: v('cf-email') || null,
+            birthDate: v('cf-birth') || null, gender: v('cf-gender') || null, tier: v('cf-tier')
+        };
+        if (body.fullName.length < 3) return showToast('أدخل الاسم الكامل.', 'warning');
+        if (!body.phoneNumber) return showToast('أدخل رقم الهاتف.', 'warning');
+        const btn = document.getElementById('cf-save');
+        btn.disabled = true;
         try {
-            const res = await fetch(`/api/SuperAdmin/customers/${encodeURIComponent(id)}/toggle-suspend`, {
-                method: 'POST'
-            });
-            const data = await res.json();
-            if (res.ok) {
-                showToast(data.message || 'تم تحديث حالة الحساب.', 'success');
-                setTimeout(() => location.reload(), 800);
+            if (editing) {
+                await api(`/api/superadmin/customers/${encodeURIComponent(editing.Id)}`, 'PUT', body);
+                showToast('تم حفظ بيانات العميل.', 'success');
             } else {
-                showToast('فشل تغيير حالة الحساب.', 'error');
+                const password = v('cf-password');
+                if (password && password.length < 8) return showToast('كلمة المرور 8 أحرف على الأقل.', 'warning');
+                const created = await api('/api/superadmin/customers', 'POST', { ...body, initialPoints: Number(v('cf-points')) || 0, password: password || null });
+                MM.closeModal('customer-modal');
+                await Swal.fire({
+                    icon: 'success', title: 'تم إنشاء الحساب', confirmButtonText: 'تم',
+                    html: `رقم العضوية: <b dir="ltr">${MM.esc(created.membershipNumber)}</b>` +
+                          (password ? `<br>كلمة مرور التطبيق: <b dir="ltr">${MM.esc(password)}</b><br><small>سلّمها للعميل؛ لن تظهر مرة أخرى.</small>` : '')
+                });
             }
-        } catch (err) {
-            console.error(err);
-            showToast('حدث خطأ في الاتصال.', 'error');
+            location.reload();
+        } catch (e) {
+            showToast(e.message, 'error');
+        } finally {
+            btn.disabled = false;
         }
     }
 
-    async function confirmArchiveCustomer(id, name) {
-        const result = await Swal.fire({
-            title: 'تحذير أمني ومالي',
-            text: `هل أنت متأكد من أرشفة حساب العميل (${name})؟ لن يتم حذف السجلات والفواتير للحفاظ على سلامة القيود المالية ومنع إعادة استغلال الهواتف.`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'تأكيد الأرشفة',
-            cancelButtonText: 'إلغاء',
+    async function resetPassword(btn) {
+        const c = rowData(btn);
+        const ok = await Swal.fire({
+            title: 'كلمة مرور جديدة للتطبيق؟', text: `ستُلغى كلمة المرور الحالية لـ ${c.FullName} ويُعطى كلمة جديدة.`,
+            icon: 'question', showCancelButton: true, confirmButtonText: 'توليد كلمة مرور', cancelButtonText: 'إلغاء'
+        });
+        if (!ok.isConfirmed) return;
+        try {
+            const d = await api(`/api/superadmin/customers/${encodeURIComponent(c.Id)}/reset-password`, 'POST', {});
+            await Swal.fire({
+                icon: 'success', title: 'تم ضبط كلمة المرور', confirmButtonText: 'تم',
+                html: `العميل يدخل برقم هاتفه <b dir="ltr">${MM.esc(c.PhoneNumber)}</b> وكلمة المرور:<br><br><b dir="ltr" style="font-size:1.25rem">${MM.esc(d.password)}</b><br><br><small>سلّمها للعميل؛ لن تظهر مرة أخرى. يمكنه تغييرها من التطبيق.</small>`
+            });
+            location.reload();
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    function openAdjustPoints(btn) {
+        pointsFor = rowData(btn);
+        document.getElementById('pt-name').textContent = pointsFor.FullName;
+        document.getElementById('pt-current').textContent = Number(pointsFor.CurrentPoints).toLocaleString();
+        document.getElementById('pt-delta').value = '';
+        document.getElementById('pt-reason').value = '';
+        MM.openModal('points-modal');
+    }
+
+    async function savePoints() {
+        const delta = parseInt(document.getElementById('pt-delta').value, 10);
+        const reason = document.getElementById('pt-reason').value.trim();
+        if (!delta) return showToast('أدخل عدد النقاط.', 'warning');
+        if (!reason) return showToast('اكتب سبب التعديل.', 'warning');
+        try {
+            const d = await api(`/api/superadmin/customers/${encodeURIComponent(pointsFor.Id)}/adjust-points`, 'POST', { pointsDelta: delta, reason });
+            showToast(`${d.message} الرصيد الجديد: ${d.newBalance}`, 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    async function toggleSuspend(btn) {
+        const c = rowData(btn);
+        const ok = await Swal.fire({
+            title: c.IsSuspended ? 'تنشيط الحساب؟' : 'تجميد الحساب؟',
+            text: c.IsSuspended ? `سيتمكن ${c.FullName} من استخدام التطبيق مجدداً.` : `لن يتمكن ${c.FullName} من الدخول أو رفع الفواتير حتى تنشّطه.`,
+            icon: 'question', showCancelButton: true, confirmButtonText: 'تأكيد', cancelButtonText: 'إلغاء'
+        });
+        if (!ok.isConfirmed) return;
+        try {
+            const d = await api(`/api/superadmin/customers/${encodeURIComponent(c.Id)}/toggle-suspend`, 'POST');
+            showToast(d.message, 'success');
+            setTimeout(() => location.reload(), 500);
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    async function deleteCustomer(btn) {
+        const c = rowData(btn);
+        const ok = await Swal.fire({
+            title: 'حذف العميل؟',
+            html: `${MM.esc(c.FullName)} (<span dir="ltr">${MM.esc(c.MembershipNumber || '')}</span>)<br><br><small>إن كانت له فواتير أو نقاط تُمسح بياناته الشخصية ويُغلق الحساب، وتبقى السجلات المالية بدون هوية. لا يمكن التراجع.</small>`,
+            icon: 'warning', showCancelButton: true, confirmButtonText: 'حذف', cancelButtonText: 'إلغاء',
             customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
         });
-
-        if (!result.isConfirmed) return;
-
+        if (!ok.isConfirmed) return;
         try {
-            const res = await fetch(`/api/SuperAdmin/customers/${encodeURIComponent(id)}/archive`, {
-                method: 'POST'
-            });
-            const data = await res.json().catch(() => ({}));
-            if (res.ok) {
-                showToast(data.message || 'تمت أرشفة حساب العميل وتجميد عملياته بنجاح!', 'success');
-                setTimeout(() => location.reload(), 800);
-            } else {
-                showToast(data.message || 'فشل أرشفة الحساب.', 'error');
-            }
-        } catch (err) {
-            console.error(err);
-            showToast('حدث خطأ أثناء أرشفة الحساب.', 'error');
+            const d = await api(`/api/superadmin/customers/${encodeURIComponent(c.Id)}`, 'DELETE');
+            showToast(d.message, 'success');
+            setTimeout(() => location.reload(), 700);
+        } catch (e) {
+            showToast(e.message, 'error');
         }
     }
 
-    async function openQuickLedgerModal(customerId) {
-        openModal('modal-quick-customer-ledger');
-        document.getElementById('quick-cust-name').innerText = 'جاري التحميل...';
-        document.getElementById('quick-cust-full-link').href = `/AdminDashboard/CustomerDetails/${customerId}`;
-
+    async function openQuickLedgerModal(btn) {
+        const c = rowData(btn);
+        document.getElementById('lg-name').textContent = c.FullName;
+        document.getElementById('lg-sub').textContent = `${c.MembershipNumber || ''} • ${c.PhoneNumber}`;
+        document.getElementById('lg-link').href = `/AdminDashboard/CustomerDetails/${encodeURIComponent(c.Id)}`;
+        document.getElementById('lg-points').textContent = Number(c.CurrentPoints).toLocaleString();
+        document.getElementById('lg-spent').textContent = Number(c.TotalSpent).toLocaleString(undefined, { minimumFractionDigits: 2 }) + ' د.ل';
+        document.getElementById('lg-count').textContent = c.TotalInvoicesScanned;
+        const list = document.getElementById('lg-invoices');
+        list.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">جارٍ التحميل...</div>';
+        MM.openModal('ledger-modal');
         try {
-            const res = await fetch(`/AdminDashboard/GetCustomerDetailsJson?id=${encodeURIComponent(customerId)}`);
-            if (!res.ok) throw new Error('فشل جلب تفاصيل العميل');
+            const res = await fetch(`/AdminDashboard/GetCustomerDetailsJson?id=${encodeURIComponent(c.Id)}`);
             const data = await res.json();
-
-            document.getElementById('quick-cust-avatar').innerText = data.fullName.charAt(0);
-            document.getElementById('quick-cust-name').innerText = data.fullName;
-            document.getElementById('quick-cust-id').innerText = '#' + data.customerId;
-            document.getElementById('quick-cust-phone').innerText = data.phoneNumber;
-            
-            const tierBadge = document.getElementById('quick-cust-tier');
-            tierBadge.innerText = data.tier === 'Platinum' ? 'بلاتيني VIP' : (data.tier === 'Gold' ? 'ذهبي' : (data.tier === 'Silver' ? 'فضي' : 'برونزي'));
-            tierBadge.className = `badge ${data.tier === 'Platinum' ? 'badge-purple' : (data.tier === 'Gold' ? 'badge-amber' : 'badge-slate')}`;
-
-            document.getElementById('quick-cust-points').innerText = Number(data.pointsBalance).toLocaleString() + ' نقطة';
-            document.getElementById('quick-cust-spent').innerText = Number(data.totalSpent).toLocaleString(undefined, { minimumFractionDigits: 2 }) + ' د.ل';
-            document.getElementById('quick-cust-invoices-count').innerText = data.invoicesCount + ' فاتورة';
-            document.getElementById('quick-cust-invoices-badge').innerText = `${data.invoices.length} فواتير مسجلة`;
-
-            // Invoices list
-            const invContainer = document.getElementById('quick-cust-invoices-list');
-            if (data.invoices.length === 0) {
-                invContainer.innerHTML = '<div class="py-4 text-center text-slate-400 text-xs">لا توجد فواتير مسجلة لهذا العميل حتى الآن.</div>';
-            } else {
-                invContainer.innerHTML = data.invoices.slice(0, 6).map(inv => `
-                    <div class="p-3 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between">
-                        <div>
-                            <div class="font-bold text-slate-800">${inv.merchantName}</div>
-                            <div class="text-xs text-slate-400 num flex items-center gap-1.5 mt-0.5">
-                                <span>#${inv.invoiceNumber}</span>
-                                <span>•</span>
-                                <span>${inv.invoiceDate}</span>
-                            </div>
+            list.innerHTML = data.invoices.length === 0
+                ? '<div class="text-xs text-slate-400 py-4 text-center">لا توجد فواتير بعد.</div>'
+                : data.invoices.slice(0, 6).map(inv => `
+                    <div class="rounded-xl border border-line px-3 py-2 flex items-center justify-between gap-3 text-sm">
+                        <div class="min-w-0">
+                            <div class="font-bold text-slate-800 truncate">${MM.esc(inv.merchantName)}</div>
+                            <div class="text-xs text-slate-500 num">#${MM.esc(inv.invoiceNumber)} • ${MM.esc(inv.invoiceDate)}</div>
                         </div>
-                        <div class="text-left">
-                            <div class="font-bold text-slate-900 num">${Number(inv.totalAmount).toLocaleString(undefined, {minimumFractionDigits: 2})} د.ل</div>
-                            <div class="text-xs font-semibold text-amber-600 num">+${inv.pointsEarned} نقطة</div>
+                        <div class="text-left shrink-0">
+                            <div class="font-bold num">${Number(inv.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} د.ل</div>
+                            <div class="text-xs text-gold-600 num">+${Number(inv.pointsEarned)} نقطة</div>
                         </div>
-                    </div>
-                `).join('');
-            }
-
-            // Stores list
-            const storesContainer = document.getElementById('quick-cust-stores-list');
-            if (data.storeVisits.length === 0) {
-                storesContainer.innerHTML = '<span class="text-slate-400 text-xs">لا توجد بيانات متاجر.</span>';
-            } else {
-                storesContainer.innerHTML = data.storeVisits.map(sv => `
-                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700 font-semibold text-xs">
-                        <span>${sv.storeName}</span>
-                        <span class="text-slate-500 num">(${sv.visitCount} زيارات - ${Number(sv.totalSpent).toLocaleString()} د.ل)</span>
-                    </span>
-                `).join('');
-            }
-
-            if (window.lucide) lucide.createIcons();
-        } catch (err) {
-            console.error(err);
-            showToast('حدث خطأ أثناء تحميل بيانات العميل', 'error');
+                    </div>`).join('');
+        } catch {
+            list.innerHTML = '<div class="text-xs text-rose-600 py-4 text-center">تعذّر تحميل الفواتير.</div>';
         }
+    }
+
+    function exportCsv() {
+        const rows = [...document.querySelectorAll('#customers-body tr[data-customer]')].map(r => JSON.parse(r.dataset.customer));
+        const head = ['رقم العضوية', 'الاسم', 'الهاتف', 'البريد', 'تاريخ الميلاد', 'الجنس', 'الفئة', 'النقاط', 'الفواتير', 'الإنفاق', 'الحالة', 'تاريخ التسجيل'];
+        const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const lines = [head, ...rows.map(c => [c.MembershipNumber, c.FullName, c.PhoneNumber, c.Email, c.BirthDate, c.Gender === 'F' ? 'أنثى' : c.Gender === 'M' ? 'ذكر' : '',
+            c.Tier, c.CurrentPoints, c.TotalInvoicesScanned, c.TotalSpent, c.IsArchived ? 'مؤرشف' : c.IsSuspended ? 'مجمّد' : 'نشط', c.CreatedAt])].map(r => r.map(cell).join(','));
+        const a = Object.assign(document.createElement('a'), {
+            href: URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })),
+            download: `customers-${new Date().toISOString().slice(0, 10)}.csv`
+        });
+        a.click();
+        URL.revokeObjectURL(a.href);
     }
 </script>
 }

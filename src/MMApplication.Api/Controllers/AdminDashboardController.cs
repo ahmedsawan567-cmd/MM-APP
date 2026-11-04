@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MMApplication.Application.Common;
 using MMApplication.Api.ViewModels;
 using MMApplication.Application.DTOs;
 using MMApplication.Application.Interfaces;
@@ -809,294 +810,248 @@ public class AdminDashboardController : Controller
     }
 
     // ----------------------------------------------------
-    // 2.1 🧾 INVOICE TEMPLATES & AI RECOGNITION (Templates View)
+    // 2.1 🧾 نماذج الفواتير: بصمة فاتورة كل متجر (يتعلّمها الذكاء الاصطناعي من صورة نموذجية)
     // ----------------------------------------------------
+    private bool CanManageProfile(string storeId) =>
+        IsDeveloperOrSuperAdmin || IsAuditor || (IsStoreManager && CurrentTenantId == storeId);
+
     [HttpGet]
-    public async Task<IActionResult> InvoiceTemplates([FromQuery] string? storeId)
+    public async Task<IActionResult> InvoiceTemplates([FromServices] IInvoiceProfileAnalyzer? analyzer = null)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
 
-        var query = _context.Tenants
-            .Include(t => t.Aliases)
-            .Include(t => t.Invoices)
-            .Include(t => t.LoyaltyRule)
-            .AsNoTracking();
+        var query = _context.Tenants.AsNoTracking();
+        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId)) query = query.Where(t => t.TenantId == CurrentTenantId);
 
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
-        {
-            query = query.Where(t => t.TenantId == CurrentTenantId);
-        }
-        else if (!string.IsNullOrWhiteSpace(storeId) && storeId != "ALL")
-        {
-            query = query.Where(t => t.TenantId == storeId);
-        }
-
-        var stores = await query.OrderBy(t => t.NameAr).ToListAsync();
-
-        var templates = stores.Select(s =>
-        {
-            var activeAliases = s.Aliases.Where(a => a.IsActive).Select(a => a.AliasName).ToList();
-            if (!activeAliases.Any())
+        var rows = await query
+            .OrderByDescending(t => t.IsActive).ThenBy(t => t.NameAr)
+            .Select(t => new StoreInvoiceProfileRow
             {
-                activeAliases.Add(s.NameAr);
-                if (!string.IsNullOrWhiteSpace(s.NameEn)) activeAliases.Add(s.NameEn);
-            }
-
-            var type = s.Category switch
-            {
-                "مطاعم وكافيهات" => "إيصال كافيه ومطعم حراري (POS Slip)",
-                "سوبرماركت" => "شريط كاشير تفصيلي (POS Thermal)",
-                "أزياء وملابس" => "فاتورة مشتريات تفصيلية (Retail Invoice)",
-                "إلكترونيات وهواتف" => "فاتورة ضريبية رسمية (A4 Tax Invoice)",
-                _ => "فاتورة كاشير إلكترونية (Standard POS)"
-            };
-
-            var totalKeyword = s.Category switch
-            {
-                "مطاعم وكافيهات" => "المجموع الصافي / TOTAL",
-                "سوبرماركت" => "المجموع الكلي",
-                "أزياء وملابس" => "صافي الفاتورة",
-                _ => "المجموع الكلي"
-            };
-
-            var prefix = s.UnitNumber.StartsWith("G") ? "INV-G" : "INV-F1";
-
-            var approvedInvoices = s.Invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).ToList();
-            var accuracy = approvedInvoices.Any()
-                ? Math.Round(approvedInvoices.Average(i => i.ConfidenceScore.GetValueOrDefault(0.96m)) * 100m, 1)
-                : 98.6m;
-
-            return new StoreInvoiceTemplateDto
-            {
-                StoreId = s.TenantId,
-                StoreName = s.NameAr,
-                Category = s.Category,
-                UnitNumber = s.UnitNumber,
-                TemplateType = type,
-                HeaderAliases = activeAliases,
-                TotalAmountKeyword = totalKeyword,
-                InvoiceNumberPrefix = prefix,
-                DateFormatKeyword = "التاريخ / Date",
-                TaxNumber = $"LY-TAX-{Math.Abs(s.TenantId.GetHashCode()) % 900000 + 100000}",
-                SampleImageUrl = s.LogoUrl ?? $"/images/receipts/sample_{s.TenantId}.jpg",
-                RecognitionAccuracy = accuracy,
-                TotalRecognizedInvoices = s.Invoices.Count,
-                IsActive = s.IsActive,
-                Notes = $"نموذج مخصص لمتجر {s.NameAr} متوافق مع نظام كاشير الفرع.",
-                LastUpdated = s.Aliases.Any() ? s.Aliases.Max(a => a.CreatedAt) : s.CreatedAt
-            };
-        }).ToList();
-
-        var allStoresQuery = _context.Tenants.Where(t => t.IsActive).AsNoTracking();
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
-        {
-            allStoresQuery = allStoresQuery.Where(t => t.TenantId == CurrentTenantId);
-        }
-
-        var storeDropdown = await allStoresQuery
-            .OrderBy(t => t.NameAr)
-            .Select(t => new StoreTenantDto
-            {
-                Id = t.TenantId,
-                Name = t.NameAr,
+                StoreId = t.TenantId,
+                StoreName = t.NameAr,
+                StoreNameEn = t.NameEn,
                 Category = t.Category,
-                UnitNumber = t.UnitNumber
+                UnitNumber = t.UnitNumber,
+                StoreActive = t.IsActive,
+                Aliases = t.Aliases.Where(a => a.IsActive).Select(a => a.AliasName).ToList(),
+                InvoicesCount = t.Invoices.Count(),
+                ApprovedCount = t.Invoices.Count(i => i.ProcessingStatus == InvoiceStatus.APPROVED),
+                HasProfile = t.InvoiceProfile != null,
+                ProfileActive = t.InvoiceProfile != null && t.InvoiceProfile.IsActive,
+                SampleImageUrl = t.InvoiceProfile!.SampleImageUrl,
+                PrintedName = t.InvoiceProfile!.PrintedName,
+                TaxNumber = t.InvoiceProfile!.TaxNumber,
+                PhoneOnReceipt = t.InvoiceProfile!.PhoneOnReceipt,
+                InvoiceNumberLabel = t.InvoiceProfile!.InvoiceNumberLabel,
+                InvoiceNumberExample = t.InvoiceProfile!.InvoiceNumberExample,
+                InvoiceNumberPattern = t.InvoiceProfile!.InvoiceNumberPattern,
+                TotalLabel = t.InvoiceProfile!.TotalLabel,
+                DateFormat = t.InvoiceProfile!.DateFormat,
+                Currency = t.InvoiceProfile!.Currency,
+                LayoutNotes = t.InvoiceProfile!.LayoutNotes,
+                UpdatedAt = t.InvoiceProfile != null ? t.InvoiceProfile.UpdatedAt : null,
+                UpdatedBy = t.InvoiceProfile!.UpdatedBy,
             })
             .ToListAsync();
 
-        var viewModel = new InvoiceTemplatesPageViewModel
+        var since = DateTime.UtcNow.AddDays(-30);
+        var vm = new InvoiceTemplatesPageViewModel
         {
-            Templates = templates,
-            Stores = storeDropdown,
-            SelectedStoreId = storeId
+            Stores = rows,
+            AiEnabled = analyzer is not null and not ManualInvoiceProfileAnalyzer,
+            DuplicatesBlocked30d = await _context.AuditLogs.CountAsync(l => l.CreatedAt >= since && l.Action.StartsWith("INVOICE_DUPLICATE")),
         };
 
         ViewData["ActiveTab"] = "invoice_templates";
-        ViewData["Title"] = "نماذج الفواتير والتعرف الذكي (AI OCR Templates)";
-        return View(viewModel);
+        ViewData["Title"] = "نماذج الفواتير";
+        return View(vm);
+    }
+
+    /// <summary>يحفظ صورة فاتورة نموذجية ويحللها بالذكاء الاصطناعي. النتيجة اقتراح يراجعه الموظف قبل الحفظ.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(15 * 1024 * 1024)]
+    public async Task<IActionResult> AnalyzeInvoiceSample(
+        [FromForm] string storeId, IFormFile? file,
+        [FromServices] IInvoiceProfileAnalyzer analyzer, [FromServices] IFileStorageService storage)
+    {
+        if (!CanManageProfile(storeId)) return Forbid();
+        if (file == null || file.Length == 0) return BadRequest(new { success = false, message = "اختر صورة فاتورة من هذا المتجر." });
+        var store = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.TenantId == storeId);
+        if (store == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
+
+        string url;
+        await using (var save = file.OpenReadStream())
+        {
+            url = await storage.SaveFileAsync(save, file.FileName, "invoice-samples");
+        }
+
+        InvoiceProfileSuggestionDto suggestion;
+        await using (var read = file.OpenReadStream())
+        {
+            suggestion = await analyzer.AnalyzeSampleAsync(read, store.NameAr,
+                new ReceiptExtractionContext { ContentType = file.ContentType, FileName = file.FileName });
+        }
+
+        if (!suggestion.IsReceipt)
+        {
+            return BadRequest(new { success = false, message = "الصورة لا تبدو فاتورة شراء. صوّر فاتورة كاملة وواضحة من المتجر." });
+        }
+
+        return Json(new { success = true, sampleImageUrl = url, suggestion });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveInvoiceTemplate([FromBody] SaveInvoiceTemplateRequest request)
+    public async Task<IActionResult> SaveInvoiceProfile([FromBody] SaveInvoiceProfileRequest req)
     {
-        if (IsExplicitlyUnauthenticated) return Unauthorized(new { success = false, message = "غير مصرح" });
+        if (!CanManageProfile(req.StoreId)) return Forbid();
+        var store = await _context.Tenants.Include(t => t.Aliases).Include(t => t.InvoiceProfile)
+            .FirstOrDefaultAsync(t => t.TenantId == req.StoreId);
+        if (store == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
 
-        if (string.IsNullOrWhiteSpace(request.StoreId))
+        static string? Clean(string? v, int max) => string.IsNullOrWhiteSpace(v) ? null : v.Trim()[..Math.Min(v.Trim().Length, max)];
+
+        var example = Clean(req.InvoiceNumberExample, 100);
+        var pattern = Clean(req.InvoiceNumberPattern, 200) ?? InvoiceNumbers.PatternFromExample(example);
+        if (!InvoiceNumbers.IsValidPattern(pattern))
+            return BadRequest(new { success = false, message = "نمط رقم الفاتورة غير صالح. امسحه ليُولَّد تلقائياً من المثال." });
+        if (example != null && InvoiceNumbers.MatchesPattern(example, pattern) == false)
+            return BadRequest(new { success = false, message = "مثال رقم الفاتورة لا يطابق النمط المكتوب." });
+        if (Clean(req.PrintedName, 200) == null && example == null && Clean(req.TaxNumber, 60) == null)
+            return BadRequest(new { success = false, message = "أدخل على الأقل الاسم المطبوع أو مثال رقم الفاتورة أو الرقم الضريبي." });
+
+        var profile = store.InvoiceProfile;
+        var isNew = profile == null;
+        if (profile == null)
         {
-            return BadRequest(new { success = false, message = "معرّف المتجر مطلوب." });
+            profile = new StoreInvoiceProfile { TenantId = store.TenantId };
+            _context.StoreInvoiceProfiles.Add(profile);
         }
 
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId) && request.StoreId != CurrentTenantId)
-        {
-            return Forbid();
-        }
+        profile.SampleImageUrl = Clean(req.SampleImageUrl, 500) ?? profile.SampleImageUrl;
+        profile.PrintedName = Clean(req.PrintedName, 200);
+        profile.TaxNumber = Clean(req.TaxNumber, 60);
+        profile.PhoneOnReceipt = Clean(req.PhoneOnReceipt, 60);
+        profile.InvoiceNumberLabel = Clean(req.InvoiceNumberLabel, 100);
+        profile.InvoiceNumberExample = example;
+        profile.InvoiceNumberPattern = pattern;
+        profile.TotalLabel = Clean(req.TotalLabel, 100);
+        profile.DateFormat = Clean(req.DateFormat, 40);
+        profile.Currency = Clean(req.Currency, 10)?.ToUpperInvariant();
+        profile.LayoutNotes = Clean(req.LayoutNotes, 1000);
+        profile.IsActive = req.IsActive;
+        if (req.Learned) profile.LearnedAt = DateTime.UtcNow;
+        profile.UpdatedAt = DateTime.UtcNow;
+        profile.UpdatedBy = ReviewerName;
 
-        var store = await _context.Tenants
-            .Include(t => t.Aliases)
-            .FirstOrDefaultAsync(t => t.TenantId == request.StoreId);
-
-        if (store == null)
-        {
-            return NotFound(new { success = false, message = "المتجر المحدد غير موجود." });
-        }
-
-        var rawAliases = (request.HeaderAliases ?? "")
-            .Split(new[] { ',', '،', '\n', ';' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(a => a.Trim())
-            .Where(a => !string.IsNullOrWhiteSpace(a))
+        // الأسماء المطبوعة تُضاف كأسماء بديلة للمتجر (يستخدمها محرك المطابقة أيضاً)
+        var names = (req.OtherNames ?? "")
+            .Split([',', '،', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Append(profile.PrintedName ?? "")
+            .Where(n => n.Length >= 2 && n.Length <= 150)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-
-        // Always include main store name if not present
-        if (!rawAliases.Contains(store.NameAr, StringComparer.OrdinalIgnoreCase))
+        foreach (var name in names)
         {
-            rawAliases.Insert(0, store.NameAr);
-        }
-
-        // Deactivate or update existing aliases
-        foreach (var existing in store.Aliases)
-        {
-            if (rawAliases.Contains(existing.AliasName, StringComparer.OrdinalIgnoreCase))
-            {
-                existing.IsActive = request.IsActive;
-                rawAliases.RemoveAll(a => string.Equals(a, existing.AliasName, StringComparison.OrdinalIgnoreCase));
-            }
-            else
-            {
-                existing.IsActive = false;
-            }
-        }
-
-        // Add newly typed aliases
-        foreach (var newAlias in rawAliases)
-        {
-            _context.StoreAliases.Add(new StoreAlias
-            {
-                TenantId = store.TenantId,
-                AliasName = newAlias,
-                MatchType = "CONTAINS",
-                IsActive = request.IsActive,
-                CreatedAt = DateTime.UtcNow
-            });
+            var existing = store.Aliases.FirstOrDefault(a => string.Equals(a.AliasName, name, StringComparison.OrdinalIgnoreCase));
+            if (existing != null) { existing.IsActive = true; continue; }
+            store.Aliases.Add(new StoreAlias { TenantId = store.TenantId, AliasName = name, MatchType = "CONTAINS", IsActive = true, CreatedAt = DateTime.UtcNow });
         }
 
         _context.AuditLogs.Add(new AuditLog
         {
-            Action = "UPDATE_INVOICE_TEMPLATE",
-            EntityName = "StoreTemplate",
+            Action = isNew ? "INVOICE_PROFILE_CREATE" : "INVOICE_PROFILE_UPDATE",
+            EntityName = "StoreInvoiceProfile",
             EntityId = store.TenantId,
-            PerformedBy = CurrentUserId ?? "Admin",
-            Details = $"تحديث نموذج الفاتورة والترويسات للمتجر {store.NameAr} (نمط: {request.TemplateType})",
+            PerformedBy = ReviewerName,
+            Details = $"{(isNew ? "إنشاء" : "تحديث")} بصمة فاتورة متجر {store.NameAr}: رقم الفاتورة مثل {example ?? "—"}، الرقم الضريبي {profile.TaxNumber ?? "—"}",
             CreatedAt = DateTime.UtcNow
         });
-
         await _context.SaveChangesAsync();
-
-        return Json(new { success = true, message = $"تم حفظ وتحديث نموذج فاتورة {store.NameAr} وربط قواعد الـ AI بنجاح." });
+        return Json(new { success = true, message = "تم حفظ نموذج فاتورة المتجر.", pattern });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> TestAiInvoiceScan([FromBody] AiInvoiceScanTestRequest request)
+    public async Task<IActionResult> DeleteInvoiceProfile([FromBody] StoreIdRequest req)
     {
-        if (IsExplicitlyUnauthenticated) return Unauthorized(new { success = false, message = "غير مصرح" });
+        if (!CanManageProfile(req.StoreId)) return Forbid();
+        var profile = await _context.StoreInvoiceProfiles.Include(p => p.Tenant).FirstOrDefaultAsync(p => p.TenantId == req.StoreId);
+        if (profile == null) return NotFound(new { success = false, message = "لا يوجد نموذج لهذا المتجر." });
 
-        Tenant? matchedStore = null;
-
-        if (!string.IsNullOrWhiteSpace(request.StoreId) && request.StoreId != "ALL")
+        _context.StoreInvoiceProfiles.Remove(profile);
+        _context.AuditLogs.Add(new AuditLog
         {
-            matchedStore = await _context.Tenants
-                .Include(t => t.Aliases)
-                .Include(t => t.LoyaltyRule)
-                .FirstOrDefaultAsync(t => t.TenantId == request.StoreId);
+            Action = "INVOICE_PROFILE_DELETE",
+            EntityName = "StoreInvoiceProfile",
+            EntityId = req.StoreId,
+            PerformedBy = ReviewerName,
+            Details = $"حذف بصمة فاتورة متجر {profile.Tenant.NameAr}",
+            CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        return Json(new { success = true, message = "تم حذف نموذج الفاتورة." });
+    }
+
+    /// <summary>
+    /// اختبار: يقرأ فاتورة كما لو صوّرها عميل (بدون حفظ أو نقاط) ويبيّن المتجر المطابق،
+    /// ومطابقة بصمة المتجر، وهل الرقم مستخدم مسبقاً.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(15 * 1024 * 1024)]
+    public async Task<IActionResult> TestInvoiceProfile(IFormFile? file)
+    {
+        if (_ocr == null) return BadRequest(new { success = false, message = "خدمة القراءة الآلية غير متاحة." });
+        if (file == null || file.Length == 0) return BadRequest(new { success = false, message = "اختر صورة فاتورة." });
+
+        ExtractedReceiptDto r;
+        await using (var stream = file.OpenReadStream())
+        {
+            r = await _ocr.ExtractReceiptDataAsync(stream, await ReceiptContextBuilder.BuildAsync(_context, file.ContentType, file.FileName));
         }
 
-        if (matchedStore == null && !string.IsNullOrWhiteSpace(request.ReceiptText))
-        {
-            var text = request.ReceiptText;
-            var allAliases = await _context.StoreAliases
-                .Where(a => a.IsActive)
-                .Include(a => a.Tenant)
-                    .ThenInclude(t => t.LoyaltyRule)
-                .ToListAsync();
+        var store = r.MatchedTenantId == null ? null
+            : await _context.Tenants.AsNoTracking().Include(t => t.InvoiceProfile).FirstOrDefaultAsync(t => t.TenantId == r.MatchedTenantId);
+        var profile = store?.InvoiceProfile is { IsActive: true } p ? p : null;
+        var duplicate = await InvoiceKeys.FindDuplicateAsync(_context, store?.TenantId, InvoiceNumbers.Key(r.InvoiceNumber),
+            r.TotalAmount, r.InvoiceDate, merchantName: r.MerchantName);
 
-            var matchedAlias = allAliases.FirstOrDefault(a => text.Contains(a.AliasName, StringComparison.OrdinalIgnoreCase));
-            if (matchedAlias != null)
+        var checks = new List<object>();
+        void Check(bool ok, string label) => checks.Add(new { ok, label });
+        Check(r.IsReceipt && !r.RequiresManualReview, r.RequiresManualReview ? "تعذّرت القراءة الآلية" : r.IsReceipt ? "الصورة فاتورة شراء" : "الصورة ليست فاتورة");
+        Check(store != null, store != null ? $"تم التعرف على المتجر: {store.NameAr}" : "لم يُتعرّف على متجر من متاجر المول");
+        if (profile != null)
+        {
+            var match = InvoiceNumbers.MatchesPattern(r.InvoiceNumber, profile.InvoiceNumberPattern);
+            if (match.HasValue) Check(match.Value, match.Value ? "رقم الفاتورة يطابق نمط المتجر" : $"رقم الفاتورة لا يطابق نمط المتجر (مثال: {profile.InvoiceNumberExample})");
+            if (profile.TaxNumber != null && r.TaxNumber != null)
             {
-                matchedStore = matchedAlias.Tenant;
-            }
-            else
-            {
-                var stores = await _context.Tenants.Include(t => t.LoyaltyRule).ToListAsync();
-                matchedStore = stores.FirstOrDefault(s => text.Contains(s.NameAr, StringComparison.OrdinalIgnoreCase) || (!string.IsNullOrWhiteSpace(s.NameEn) && text.Contains(s.NameEn, StringComparison.OrdinalIgnoreCase)));
+                var same = InvoiceNumbers.SameIdentifier(profile.TaxNumber, r.TaxNumber);
+                Check(same, same ? "الرقم الضريبي مطابق" : $"الرقم الضريبي مختلف ({r.TaxNumber})");
             }
         }
-
-        if (matchedStore == null)
+        else if (store != null)
         {
-            matchedStore = await _context.Tenants.Include(t => t.LoyaltyRule).FirstOrDefaultAsync();
+            Check(false, "لا يوجد نموذج فاتورة لهذا المتجر بعد");
         }
+        Check(duplicate == null, duplicate == null ? "رقم الفاتورة غير مستخدم من قبل" : $"رقم الفاتورة مستخدم مسبقاً (العميل {duplicate.CustomerId})");
 
-        if (matchedStore == null)
+        return Json(new
         {
-            return BadRequest(new { success = false, message = "لا توجد متاجر مسجلة في المنظومة لاختبار الفاتورة." });
-        }
-
-        // Realistic Extraction Simulation based on store profile
-        var random = new Random();
-        var invoiceNum = $"INV-{DateTime.UtcNow:yyMMdd}-{random.Next(1000, 9999)}";
-        decimal totalAmount;
-        List<ExtractedLineItemDto> items = new();
-
-        switch (matchedStore.Category)
-        {
-            case "مطاعم وكافيهات":
-                items.Add(new ExtractedLineItemDto { Description = "كابتشينو كلاسيك بالحليب", Quantity = 2, UnitPrice = 14.00m, TotalPrice = 28.00m });
-                items.Add(new ExtractedLineItemDto { Description = "كرواسون زبدة فرنسي", Quantity = 1, UnitPrice = 12.50m, TotalPrice = 12.50m });
-                items.Add(new ExtractedLineItemDto { Description = "مياه معدنية طبيعية 500 مل", Quantity = 1, UnitPrice = 3.50m, TotalPrice = 3.50m });
-                totalAmount = 44.00m;
-                break;
-            case "أزياء وملابس":
-                items.Add(new ExtractedLineItemDto { Description = "فستان سهرة كلاسيك مطرز", Quantity = 1, UnitPrice = 185.00m, TotalPrice = 185.00m });
-                items.Add(new ExtractedLineItemDto { Description = "شال حرير طبيعي فاخر", Quantity = 1, UnitPrice = 45.00m, TotalPrice = 45.00m });
-                totalAmount = 230.00m;
-                break;
-            case "سوبرماركت":
-                items.Add(new ExtractedLineItemDto { Description = "زيت زيتون بكر ممتاز 1 لتر", Quantity = 2, UnitPrice = 22.00m, TotalPrice = 44.00m });
-                items.Add(new ExtractedLineItemDto { Description = "أرز بسمتي فاخر 5 كجم", Quantity = 1, UnitPrice = 38.50m, TotalPrice = 38.50m });
-                items.Add(new ExtractedLineItemDto { Description = "حليب كامل الدسم عبوة 1 لتر", Quantity = 4, UnitPrice = 4.50m, TotalPrice = 18.00m });
-                totalAmount = 100.50m;
-                break;
-            default:
-                items.Add(new ExtractedLineItemDto { Description = $"مشتريات متنوعة - {matchedStore.NameAr}", Quantity = 1, UnitPrice = 65.00m, TotalPrice = 65.00m });
-                totalAmount = 65.00m;
-                break;
-        }
-
-        // Calculate loyalty points
-        var pointsRatio = matchedStore.LoyaltyRule?.ConversionRate ?? 1.0m;
-        var points = (int)Math.Floor(totalAmount * (pointsRatio > 0 ? pointsRatio * 10m : 1.0m));
-        var cashback = Math.Round(totalAmount * 0.05m, 2);
-
-        var result = new AiInvoiceScanTestResult
-        {
-            Success = true,
-            Message = $"تم التعرف على نموذج الفاتورة بنجاح ومطابقته مع ترويسات متجر [{matchedStore.NameAr}].",
-            RecognizedStoreId = matchedStore.TenantId,
-            RecognizedStoreName = matchedStore.NameAr,
-            ExtractedInvoiceNumber = invoiceNum,
-            ExtractedTotalAmount = totalAmount,
-            ExtractedDate = DateTime.UtcNow,
-            ConfidencePercentage = 98.7m,
-            MatchedTemplateType = matchedStore.Category == "مطاعم وكافيهات" ? "إيصال كافيه ومطعم حراري (POS Slip)" : "شريط كاشير تفصيلي (POS Thermal)",
-            LineItems = items,
-            CalculatedPoints = points > 0 ? points : 44,
-            CalculatedCashback = cashback,
-            IsFraudRiskDetected = false
-        };
-
-        return Json(result);
+            success = true,
+            provider = r.Provider,
+            merchantName = r.MerchantName,
+            matchedStore = store?.NameAr,
+            invoiceNumber = r.InvoiceNumber,
+            taxNumber = r.TaxNumber,
+            invoiceDate = r.InvoiceDate?.ToString("yyyy-MM-dd"),
+            totalAmount = r.TotalAmount,
+            confidence = r.Confidence,
+            concerns = r.AuthenticityConcerns,
+            checks,
+        });
     }
 
     // ----------------------------------------------------
@@ -1639,13 +1594,19 @@ public class AdminDashboardController : Controller
 
         if (!string.IsNullOrWhiteSpace(tier) && tier != "ALL")
         {
-            query = query.Where(c => c.LoyaltyTier == tier);
+            var t = tier.ToUpperInvariant();
+            query = query.Where(c => c.LoyaltyTier.ToUpper() == t);
         }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
-            query = query.Where(c => c.FullName.Contains(term) || c.PhoneNumber.Contains(term) || c.CustomerId.Contains(term));
+            var phone = MMApplication.Application.Common.PhoneNumbers.Normalize(term) ?? term;
+            var upper = term.ToUpperInvariant();
+            var lower = term.ToLowerInvariant();
+            query = query.Where(c => c.FullName.Contains(term) || c.PhoneNumber.Contains(phone) || c.CustomerId.Contains(term) ||
+                                     (c.MembershipNumber != null && c.MembershipNumber.Contains(upper)) ||
+                                     (c.Email != null && c.Email.Contains(lower)));
         }
 
         var allDevices = await _context.CustomerDevices.AsNoTracking().ToListAsync();
@@ -1655,35 +1616,8 @@ public class AdminDashboardController : Controller
             .ToDictionary(g => g.Key, g => g.Select(x => x.CustomerId).Distinct().Count());
 
         var customers = await query.OrderByDescending(c => c.RegisteredAt).ToListAsync();
-
-        var dtos = customers.Select(c =>
-        {
-            var customerFps = c.Devices.Select(d => d.DeviceFingerprint).ToList();
-            var maxShared = 0;
-            foreach (var fp in customerFps)
-            {
-                if (sharedFingerprints.TryGetValue(fp, out var cnt) && cnt > maxShared)
-                {
-                    maxShared = cnt;
-                }
-            }
-
-            return new SuperAdminCustomerDto
-            {
-                Id = c.CustomerId,
-                FullName = c.FullName,
-                PhoneNumber = c.PhoneNumber,
-                Tier = c.LoyaltyTier,
-                CurrentPoints = (int)(c.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS)?.CurrentBalance ?? 0),
-                TotalInvoicesScanned = c.Invoices.Count,
-                TotalSpent = c.Invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.TotalAmount) ?? 0m,
-                IsSuspended = c.IsFrozen,
-                IsArchived = c.IsArchived,
-                HasMultiAccountDeviceFlag = maxShared > 1,
-                SharedDeviceAccountsCount = maxShared,
-                CreatedAt = c.RegisteredAt
-            };
-        }).ToList();
+        var dtos = customers.Select(c => SuperAdminController.ToCustomerDto(c,
+            c.Devices.Select(d => sharedFingerprints.TryGetValue(d.DeviceFingerprint, out var n) ? n : 0).DefaultIfEmpty(0).Max())).ToList();
 
         // تسجيلات العملاء الجدد في آخر 6 أشهر (بيانات حقيقية)
         var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-5);
@@ -1698,6 +1632,8 @@ public class AdminDashboardController : Controller
             .ToList();
 
         ViewData["ActiveTab"] = "customers";
+        ViewData["CanEditCustomers"] = IsDeveloperOrSuperAdmin || IsAuditor;
+        ViewData["IsSuperAdmin"] = IsDeveloperOrSuperAdmin;
         ViewData["Title"] = "قاعدة بيانات العملاء والمتسوقين (Customer Database)";
         ViewData["TierFilter"] = tier ?? "ALL";
         ViewData["SearchQuery"] = search ?? "";
@@ -1787,6 +1723,9 @@ public class AdminDashboardController : Controller
         var viewModel = new CustomerDetailsPageViewModel
         {
             CustomerId = customer.CustomerId,
+            MembershipNumber = customer.MembershipNumber,
+            Email = customer.Email,
+            BirthDate = customer.BirthDate,
             FullName = customer.FullName,
             PhoneNumber = customer.PhoneNumber,
             Tier = customer.LoyaltyTier,

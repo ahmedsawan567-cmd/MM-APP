@@ -9,7 +9,6 @@ public class RegisterRequestDto
     public string FullName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "رقم الهاتف مطلوب")]
-    [Phone(ErrorMessage = "رقم الهاتف غير صالح")]
     public string PhoneNumber { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "كلمة المرور مطلوبة")]
@@ -34,6 +33,7 @@ public class AuthResponseDto
     public string CustomerId { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public string? MembershipNumber { get; set; }
     public string Role { get; set; } = string.Empty;
     public int PointsBalance { get; set; }
     public DateTime ExpiresAt { get; set; }
@@ -44,7 +44,45 @@ public class UserProfileDto
     public string Id { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public string? MembershipNumber { get; set; }
+    public string? Email { get; set; }
+    public DateTime? BirthDate { get; set; }
+    public string? Gender { get; set; }
+    public string LoyaltyTier { get; set; } = "BRONZE";
     public string Role { get; set; } = string.Empty;
     public int PointsBalance { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+/// <summary>تعديل العميل لبياناته من التطبيق. رقم الهاتف لا يُعدَّل إلا من الإدارة (هو هوية الحساب).</summary>
+public class UpdateProfileRequestDto
+{
+    [Required(ErrorMessage = "الاسم الكامل مطلوب")]
+    [StringLength(150, MinimumLength = 3, ErrorMessage = "الاسم يجب أن يكون بين 3 و 150 حرفاً")]
+    public string FullName { get; set; } = string.Empty;
+
+    [EmailAddress(ErrorMessage = "البريد الإلكتروني غير صالح")]
+    [StringLength(150)]
+    public string? Email { get; set; }
+
+    public DateTime? BirthDate { get; set; }
+
+    [RegularExpression("^[MF]$", ErrorMessage = "قيمة الجنس غير صالحة")]
+    public string? Gender { get; set; }
+}
+
+public class ChangePasswordRequestDto
+{
+    [Required(ErrorMessage = "كلمة المرور الحالية مطلوبة")]
+    public string CurrentPassword { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "كلمة المرور الجديدة مطلوبة")]
+    [MinLength(8, ErrorMessage = "يجب ألا تقل كلمة المرور الجديدة عن 8 أحرف")]
+    public string NewPassword { get; set; } = string.Empty;
+}
+
+public class DeleteAccountRequestDto
+{
+    [Required(ErrorMessage = "كلمة المرور مطلوبة لتأكيد الحذف")]
+    public string Password { get; set; } = string.Empty;
 }

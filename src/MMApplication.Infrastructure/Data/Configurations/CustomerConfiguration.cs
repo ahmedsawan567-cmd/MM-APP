@@ -17,6 +17,13 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.PhoneNumber).IsRequired().HasMaxLength(20);
         builder.HasIndex(c => c.PhoneNumber).IsUnique();
 
+        // رقم العضوية المميز: فريد لكل عميل
+        builder.Property(c => c.MembershipNumber).HasMaxLength(20);
+        builder.HasIndex(c => c.MembershipNumber).IsUnique().HasDatabaseName("UQ_Customers_MembershipNumber");
+        builder.Property(c => c.Email).HasMaxLength(150);
+        builder.HasIndex(c => c.Email).IsUnique().HasDatabaseName("UQ_Customers_Email");
+        builder.Property(c => c.Gender).HasMaxLength(1);
+
         builder.Property(c => c.DeviceFingerprint).HasMaxLength(200);
         builder.Property(c => c.LoyaltyTier).HasMaxLength(20).HasDefaultValue("BRONZE");
         builder.Property(c => c.RegisteredAt).IsRequired();

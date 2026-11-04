@@ -509,6 +509,28 @@ END
             }
         }
 
+        // 3) الفهارس: حذف القديمة المستبدلة، ثم إنشاء الفهارس الناقصة (ومنها الفريدة) على الجداول الموجودة
+        foreach (var obsolete in ObsoleteIndexes)
+        {
+            await ExecuteAsync(context, $"DROP INDEX IF EXISTS \"{obsolete}\"");
+        }
+        var indexes = 0;
+        foreach (var index in statements.Where(x => x.StartsWith("CREATE ", StringComparison.Ordinal) && x.Contains(" INDEX \"", StringComparison.Ordinal)))
+        {
+            if (missingTables.Any(t => index.Contains($" ON \"{t}\"", StringComparison.Ordinal))) continue;
+            var sql = index.Replace(" INDEX \"", " INDEX IF NOT EXISTS \"");
+            try
+            {
+                await ExecuteAsync(context, sql);
+                indexes++;
+            }
+            catch (Exception ex)
+            {
+                // مثلاً بيانات قديمة مكررة تمنع فهرساً فريداً: لا نوقف التشغيل لكن ننبّه
+                logger.LogWarning("PostgreSQL: تعذّر إنشاء الفهرس ({Sql}): {Message}", sql, ex.Message);
+            }
+        }
+
         logger.LogInformation("PostgreSQL: المخطط متوافق ({Tables} جدول جديد، {Columns} عمود جديد).", missingTables.Count, added);
         await LockDownSupabasePublicApiAsync(context, logger);
     }
@@ -559,6 +581,9 @@ END
         }
         logger.LogInformation("Supabase: أُغلقت واجهة البيانات العامة (anon/authenticated) وفُعّلت RLS على {Count} جدول.", tables.Count);
     }
+
+    /// <summary>فهارس استُبدلت بأخرى في نموذج البيانات وتُحذف من القواعد القديمة.</summary>
+    private static readonly string[] ObsoleteIndexes = ["UQ_Tenant_InvoiceNumber"];
 
     private static string? DefaultFor(string type)
     {

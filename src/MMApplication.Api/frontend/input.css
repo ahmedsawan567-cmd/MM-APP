@@ -180,6 +180,7 @@
   .badge { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 ring-inset whitespace-nowrap; }
   .badge-emerald { @apply bg-emerald-50 text-emerald-700 ring-emerald-200; }
   .badge-amber { @apply bg-amber-50 text-amber-700 ring-amber-200; }
+  .badge-orange { @apply bg-orange-50 text-orange-700 ring-orange-200; }
   .badge-rose { @apply bg-rose-50 text-rose-700 ring-rose-200; }
   .badge-blue, .badge-brand { @apply bg-brand-50 text-brand-700 ring-brand-200; }
   .badge-purple { @apply bg-purple-50 text-purple-700 ring-purple-200; }

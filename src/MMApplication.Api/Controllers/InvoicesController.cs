@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MMApplication.Api.DTOs;
+using MMApplication.Application.Common;
 using MMApplication.Application.DTOs;
 using MMApplication.Application.Interfaces;
 using MMApplication.Domain.Entities;
@@ -67,6 +68,20 @@ public class InvoicesController : ControllerBase
         reasons.AddRange(extracted.AuthenticityConcerns.Select(c => $"ملاحظة الذكاء الاصطناعي: {c}"));
         var requireKnownStore = _configuration?.GetValue<bool?>("InvoiceReview:RequireKnownStore") ?? true;
         if (requireKnownStore && string.IsNullOrEmpty(tenantId)) reasons.Add("المتجر غير معروف ضمن متاجر المول");
+
+        // مطابقة بصمة فاتورة المتجر (إن تعلّمها النظام)
+        if (!string.IsNullOrEmpty(tenantId))
+        {
+            var profile = await _context.StoreInvoiceProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.TenantId == tenantId && p.IsActive);
+            if (profile != null)
+            {
+                if (InvoiceNumbers.MatchesPattern(extracted.InvoiceNumber, profile.InvoiceNumberPattern) == false)
+                    reasons.Add($"رقم الفاتورة ({extracted.InvoiceNumber}) لا يطابق نمط فواتير المتجر (مثال: {profile.InvoiceNumberExample})");
+                if (!string.IsNullOrWhiteSpace(profile.TaxNumber) && !string.IsNullOrWhiteSpace(extracted.TaxNumber) &&
+                    !InvoiceNumbers.SameIdentifier(profile.TaxNumber, extracted.TaxNumber))
+                    reasons.Add($"الرقم الضريبي على الفاتورة ({extracted.TaxNumber}) يختلف عن رقم المتجر المسجل");
+            }
+        }
         if (totalAmount > amountThreshold) reasons.Add($"مبلغ مرتفع يتجاوز {amountThreshold:N0} د.ل");
         if (!string.IsNullOrEmpty(extracted.Currency) &&
             !extracted.Currency.Equals("LYD", StringComparison.OrdinalIgnoreCase))
@@ -287,19 +302,12 @@ public class InvoicesController : ControllerBase
             }
         }
 
-        // Deduplication check (including VOIDED/REJECTED invoices to block reuse!)
-        var isDuplicate = !string.IsNullOrEmpty(invoiceNumber) && await _context.Invoices.AnyAsync(i =>
-            (i.TenantId == tenantId || i.ExtractedMerchant == merchantName) && i.InvoiceNumber == invoiceNumber);
-
-        if (isDuplicate)
+        // --- مكافحة الاحتيال: رقم الفاتورة يُستخدم مرة واحدة فقط لكل متجر (بكل الحالات حتى المرفوضة) ---
+        var numberKey = InvoiceNumbers.Key(invoiceNumber);
+        var duplicate = await InvoiceKeys.FindDuplicateAsync(_context, tenantId, numberKey, extractedData.TotalAmount, extractedData.InvoiceDate, merchantName: merchantName);
+        if (duplicate != null)
         {
-            return Conflict(new
-            {
-                success = false,
-                message = $"هذه الفاتورة مسجلة مسبقاً في النظام لنفس المتجر ({merchantName}) ورقم الفاتورة ({invoiceNumber}). لا يمكن استخدام الفاتورة أكثر من مرة.",
-                merchantName,
-                invoiceNumber
-            });
+            return await DuplicateInvoiceResponseAsync(customer, duplicate, merchantName, invoiceNumber);
         }
 
         // --- 3. Flexible Loyalty Earning & Booster Evaluation Engine ---
@@ -329,88 +337,99 @@ public class InvoicesController : ControllerBase
         Invoice invoice = null!;
         int updatedPointsBalance = 0;
 
-        await strategy.ExecuteAsync(async () =>
+        try
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            await strategy.ExecuteAsync(async () =>
             {
-                invoice = new Invoice
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    InvoiceId = Guid.NewGuid(),
-                    CustomerId = customer.CustomerId,
-                    TenantId = tenantId,
-                    ExtractedMerchant = merchantName,
-                    InvoiceNumber = invoiceNumber,
-                    InvoiceDate = invoiceDate,
-                    TotalAmount = totalAmount,
-                    ConfidenceScore = (decimal)extractedData.Confidence,
-                    FraudRiskScore = fraudRiskScore,
-                    ProcessingStatus = initialStatus,
-                    PointsAwarded = initialStatus == InvoiceStatus.APPROVED ? evalResult.TotalPointsAwarded : 0,
-                    BasePointsEarned = initialStatus == InvoiceStatus.APPROVED ? evalResult.BasePointsEarned : 0,
-                    ItemBonusPointsEarned = initialStatus == InvoiceStatus.APPROVED ? evalResult.ItemBonusPointsEarned : 0,
-                    PointsBreakdownJson = evalResult.PointsBreakdownJson,
-                    CashbackAwarded = initialStatus == InvoiceStatus.APPROVED ? evalResult.CashbackAwarded : 0m,
-                    ReceiptImageUrl = imageUrl,
-                    // أسباب المراجعة الداخلية لا تُعرض للعميل؛ تُحفظ مع رد الذكاء الاصطناعي للوحة التحكم
-                    RawAiPayload = ReceiptReviewPayload.Serialize(extractedData, reviewReasons),
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                await _context.Invoices.AddAsync(invoice);
-
-                var wallet = await _context.CustomerWallets
-                    .FirstOrDefaultAsync(w => w.CustomerId == customer.CustomerId && w.BalanceType == BalanceType.POINTS);
-
-                if (wallet == null)
-                {
-                    wallet = new CustomerWallet
+                    invoice = new Invoice
                     {
+                        InvoiceId = Guid.NewGuid(),
                         CustomerId = customer.CustomerId,
                         TenantId = tenantId,
-                        BalanceType = BalanceType.POINTS,
-                        CurrentBalance = invoice.PointsAwarded
-                    };
-                    await _context.CustomerWallets.AddAsync(wallet);
-                }
-                else if (initialStatus == InvoiceStatus.APPROVED)
-                {
-                    wallet.CurrentBalance += pointsEarned;
-                }
-
-                if (initialStatus == InvoiceStatus.APPROVED && pointsEarned > 0)
-                {
-                    var remarks = $"كسب نقاط من فاتورة: {merchantName} (#{invoiceNumber})";
-                    if (evalResult.Remarks.Any())
-                    {
-                        remarks += $" [{string.Join("، ", evalResult.Remarks)}]";
-                    }
-
-                    var ledgerEntry = new WalletLedger
-                    {
-                        Wallet = wallet,
-                        InvoiceId = invoice.InvoiceId,
-                        AmountChanged = pointsEarned,
-                        BalanceAfter = wallet.CurrentBalance,
-                        TransactionType = WalletTransactionType.EARN_RECEIPT,
-                        ReferenceRemarks = remarks,
+                        ExtractedMerchant = merchantName,
+                        InvoiceNumber = invoiceNumber,
+                        InvoiceDate = invoiceDate,
+                        TotalAmount = totalAmount,
+                        ConfidenceScore = (decimal)extractedData.Confidence,
+                        FraudRiskScore = fraudRiskScore,
+                        ProcessingStatus = initialStatus,
+                        PointsAwarded = initialStatus == InvoiceStatus.APPROVED ? evalResult.TotalPointsAwarded : 0,
+                        BasePointsEarned = initialStatus == InvoiceStatus.APPROVED ? evalResult.BasePointsEarned : 0,
+                        ItemBonusPointsEarned = initialStatus == InvoiceStatus.APPROVED ? evalResult.ItemBonusPointsEarned : 0,
+                        PointsBreakdownJson = evalResult.PointsBreakdownJson,
+                        CashbackAwarded = initialStatus == InvoiceStatus.APPROVED ? evalResult.CashbackAwarded : 0m,
+                        ReceiptImageUrl = imageUrl,
+                        // أسباب المراجعة الداخلية لا تُعرض للعميل؛ تُحفظ مع رد الذكاء الاصطناعي للوحة التحكم
+                        RawAiPayload = ReceiptReviewPayload.Serialize(extractedData, reviewReasons),
                         CreatedAt = DateTime.UtcNow
                     };
-                    await _context.WalletLedger.AddAsync(ledgerEntry);
+
+                    await _context.Invoices.AddAsync(invoice);
+
+                    var wallet = await _context.CustomerWallets
+                        .FirstOrDefaultAsync(w => w.CustomerId == customer.CustomerId && w.BalanceType == BalanceType.POINTS);
+
+                    if (wallet == null)
+                    {
+                        wallet = new CustomerWallet
+                        {
+                            CustomerId = customer.CustomerId,
+                            TenantId = tenantId,
+                            BalanceType = BalanceType.POINTS,
+                            CurrentBalance = invoice.PointsAwarded
+                        };
+                        await _context.CustomerWallets.AddAsync(wallet);
+                    }
+                    else if (initialStatus == InvoiceStatus.APPROVED)
+                    {
+                        wallet.CurrentBalance += pointsEarned;
+                    }
+
+                    if (initialStatus == InvoiceStatus.APPROVED && pointsEarned > 0)
+                    {
+                        var remarks = $"كسب نقاط من فاتورة: {merchantName} (#{invoiceNumber})";
+                        if (evalResult.Remarks.Any())
+                        {
+                            remarks += $" [{string.Join("، ", evalResult.Remarks)}]";
+                        }
+
+                        var ledgerEntry = new WalletLedger
+                        {
+                            Wallet = wallet,
+                            InvoiceId = invoice.InvoiceId,
+                            AmountChanged = pointsEarned,
+                            BalanceAfter = wallet.CurrentBalance,
+                            TransactionType = WalletTransactionType.EARN_RECEIPT,
+                            ReferenceRemarks = remarks,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _context.WalletLedger.AddAsync(ledgerEntry);
+                    }
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    updatedPointsBalance = (int)wallet.CurrentBalance;
                 }
-
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                updatedPointsBalance = (int)wallet.CurrentBalance;
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "حدث خطأ أثناء معالجة الفاتورة داخل المعاملة (Transaction failed).");
-                throw;
-            }
-        });
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "حدث خطأ أثناء معالجة الفاتورة داخل المعاملة (Transaction failed).");
+                    throw;
+                }
+            });
+        }
+        catch (DbUpdateException) when (numberKey != null)
+        {
+            // سباق نادر: نفس الفاتورة رُفعت في نفس اللحظة من جهازين — الفهرس الفريد منع التكرار
+            _context.ChangeTracker.Clear();
+            var existing = await InvoiceKeys.FindDuplicateAsync(_context, tenantId, numberKey, extractedData.TotalAmount, extractedData.InvoiceDate, merchantName: merchantName);
+            if (existing != null) return await DuplicateInvoiceResponseAsync(customer, existing, merchantName, invoiceNumber);
+            throw;
+        }
 
         _logger.LogInformation(
             "تمت معالجة الفاتورة بنجاح: {InvoiceId}, العميل: {CustomerId}, الحالة: {Status}, النقاط: +{Points}, الرصيد الحالي: {Balance}",
@@ -442,6 +461,44 @@ public class InvoicesController : ControllerBase
         };
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// رد موحّد عند محاولة استخدام فاتورة مسجلة مسبقاً. محاولة من حساب آخر تُسجَّل في سجل العمليات
+    /// وترفع درجة الخطر على العميل لتظهر للمدققين.
+    /// </summary>
+    private async Task<IActionResult> DuplicateInvoiceResponseAsync(Customer customer, Invoice existing, string merchantName, string invoiceNumber)
+    {
+        var sameCustomer = existing.CustomerId == customer.CustomerId;
+        _context.AuditLogs.Add(new AuditLog
+        {
+            Action = sameCustomer ? "INVOICE_DUPLICATE_SELF" : "INVOICE_DUPLICATE_OTHER_ACCOUNT",
+            EntityName = "Invoice",
+            EntityId = existing.InvoiceId.ToString(),
+            PerformedBy = $"{customer.FullName} ({customer.MembershipNumber ?? customer.CustomerId})",
+            Details = sameCustomer
+                ? $"محاولة إعادة رفع فاتورة مسجلة مسبقاً لنفس العميل: {merchantName} #{invoiceNumber}"
+                : $"محاولة استخدام فاتورة مسجلة باسم عميل آخر ({existing.CustomerId}): {merchantName} #{invoiceNumber}",
+            CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        if (!sameCustomer)
+        {
+            _logger.LogWarning("محاولة استخدام فاتورة عميل آخر: العميل {Customer} حاول رفع الفاتورة {Invoice} الخاصة بـ {Owner}",
+                customer.CustomerId, existing.InvoiceId, existing.CustomerId);
+        }
+
+        return Conflict(new
+        {
+            success = false,
+            code = sameCustomer ? "DUPLICATE_SELF" : "DUPLICATE_OTHER",
+            message = sameCustomer
+                ? $"سبق أن سجّلت هذه الفاتورة ({merchantName} رقم {invoiceNumber}). كل فاتورة تُحتسب مرة واحدة فقط."
+                : $"هذه الفاتورة ({merchantName} رقم {invoiceNumber}) مسجلة مسبقاً في المنظومة ولا يمكن استخدامها مرة أخرى.",
+            merchantName,
+            invoiceNumber
+        });
     }
 
     /// <summary>

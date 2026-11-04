@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MMApplication.Application.Common;
 using MMApplication.Application.DTOs;
 using MMApplication.Application.Interfaces;
 using MMApplication.Domain.Entities;
@@ -1647,7 +1648,10 @@ public class SuperAdminController : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
-            query = query.Where(c => c.FullName.Contains(s) || c.PhoneNumber.Contains(s) || c.CustomerId.Contains(s));
+            var phone = PhoneNumbers.Normalize(s) ?? s;
+            query = query.Where(c => c.FullName.Contains(s) || c.PhoneNumber.Contains(phone) || c.CustomerId.Contains(s) ||
+                                     (c.MembershipNumber != null && c.MembershipNumber.Contains(s.ToUpper())) ||
+                                     (c.Email != null && c.Email.Contains(s.ToLower())));
         }
 
         if (!string.IsNullOrWhiteSpace(tier) && tier != "ALL")
@@ -1661,86 +1665,100 @@ public class SuperAdminController : ControllerBase
             .Where(g => g.Select(x => x.CustomerId).Distinct().Count() > 1)
             .ToDictionary(g => g.Key, g => g.Select(x => x.CustomerId).Distinct().Count());
 
-        var customers = await query
-            .OrderByDescending(c => c.RegisteredAt)
-            .ToListAsync();
+        var customers = await query.OrderByDescending(c => c.RegisteredAt).ToListAsync();
 
-        var dtos = customers.Select(c =>
+        return Ok(customers.Select(c =>
         {
-            var customerFps = c.Devices.Select(d => d.DeviceFingerprint).ToList();
-            var maxShared = 0;
-            foreach (var fp in customerFps)
-            {
-                if (sharedFingerprints.TryGetValue(fp, out var cnt) && cnt > maxShared)
-                {
-                    maxShared = cnt;
-                }
-            }
-
-            return new SuperAdminCustomerDto
-            {
-                Id = c.CustomerId,
-                FullName = c.FullName,
-                PhoneNumber = c.PhoneNumber,
-                Tier = c.LoyaltyTier,
-                CurrentPoints = (int)(c.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS) != null ? c.Wallets.First(w => w.BalanceType == BalanceType.POINTS).CurrentBalance : 0),
-                TotalInvoicesScanned = c.Invoices.Count,
-                TotalSpent = c.Invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.TotalAmount) ?? 0m,
-                IsSuspended = c.IsFrozen,
-                IsArchived = c.IsArchived,
-                HasMultiAccountDeviceFlag = maxShared > 1,
-                SharedDeviceAccountsCount = maxShared,
-                CreatedAt = c.RegisteredAt
-            };
-        }).ToList();
-
-        return Ok(dtos);
+            var maxShared = c.Devices.Select(d => sharedFingerprints.TryGetValue(d.DeviceFingerprint, out var n) ? n : 0).DefaultIfEmpty(0).Max();
+            return ToCustomerDto(c, maxShared);
+        }).ToList());
     }
 
+    public static SuperAdminCustomerDto ToCustomerDto(Customer c, int sharedDevices = 0) => new()
+    {
+        Id = c.CustomerId,
+        MembershipNumber = c.MembershipNumber,
+        FullName = c.FullName,
+        PhoneNumber = c.PhoneNumber,
+        Email = c.Email,
+        BirthDate = c.BirthDate,
+        Gender = c.Gender,
+        HasAppAccess = !string.IsNullOrEmpty(c.PasswordHash),
+        Tier = c.LoyaltyTier,
+        CurrentPoints = (int)(c.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS)?.CurrentBalance ?? 0),
+        TotalInvoicesScanned = c.Invoices.Count,
+        TotalSpent = c.Invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.TotalAmount) ?? 0m,
+        IsSuspended = c.IsFrozen,
+        IsArchived = c.IsArchived,
+        HasMultiAccountDeviceFlag = sharedDevices > 1,
+        SharedDeviceAccountsCount = sharedDevices,
+        CreatedAt = c.RegisteredAt
+    };
+
+    private static readonly string[] AllowedTiers = ["BRONZE", "SILVER", "GOLD", "VIP"];
+
+    /// <summary>يتحقق من بيانات العميل المشتركة بين الإضافة والتعديل ويرجع رسالة الخطأ أو null.</summary>
+    private async Task<string?> ValidateCustomerFieldsAsync(string? excludeId, string fullName, string? phone, string? email, DateTime? birthDate, string? gender, string? tier)
+    {
+        if (fullName.Trim().Length < 3) return "الاسم الكامل مطلوب (3 أحرف على الأقل).";
+        if (phone == null) return PhoneNumbers.InvalidMessage;
+        if (await _context.Customers.AnyAsync(c => c.PhoneNumber == phone && c.CustomerId != excludeId))
+            return "رقم الهاتف مسجل لعميل آخر.";
+        if (email != null)
+        {
+            if (!new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(email)) return "البريد الإلكتروني غير صالح.";
+            if (await _context.Customers.AnyAsync(c => c.Email == email && c.CustomerId != excludeId)) return "البريد الإلكتروني مستخدم لعميل آخر.";
+        }
+        if (birthDate is { } b && (b.Date > DateTime.UtcNow.Date.AddYears(-5) || b.Year < 1900)) return "تاريخ الميلاد غير صالح.";
+        if (gender is not (null or "M" or "F")) return "قيمة الجنس غير صالحة.";
+        if (tier != null && !AllowedTiers.Contains(tier)) return "فئة العضوية غير صالحة.";
+        return null;
+    }
+
+    private static string? CleanEmail(string? email) => string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLowerInvariant();
+    private static string? CleanGender(string? gender) => string.IsNullOrWhiteSpace(gender) ? null : gender.Trim().ToUpperInvariant();
+    private static string NewRandomPassword() =>
+        Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(9)).Replace('/', 'x').Replace('+', 'y');
+
     [HttpPost("customers")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     [ProducesResponseType(typeof(SuperAdminCustomerDto), StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateCustomer([FromBody] CreateCustomerRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.FullName) || string.IsNullOrWhiteSpace(req.PhoneNumber))
-        {
-            return BadRequest(new { success = false, message = "الاسم ورقم الهاتف حقول مطلوبة." });
-        }
+        var phone = PhoneNumbers.Normalize(req.PhoneNumber);
+        var email = CleanEmail(req.Email);
+        var gender = CleanGender(req.Gender);
+        var tier = string.IsNullOrWhiteSpace(req.Tier) ? "BRONZE" : req.Tier.Trim().ToUpperInvariant();
+        if (await ValidateCustomerFieldsAsync(null, req.FullName ?? "", phone, email, req.BirthDate, gender, tier) is { } error)
+            return BadRequest(new { success = false, message = error });
+        if (!string.IsNullOrEmpty(req.Password) && req.Password.Length < 8)
+            return BadRequest(new { success = false, message = "كلمة المرور يجب ألا تقل عن 8 أحرف." });
 
-        var exists = await _context.Customers.AnyAsync(c => c.PhoneNumber == req.PhoneNumber.Trim());
-        if (exists)
-        {
-            return BadRequest(new { success = false, message = "رقم الهاتف مسجل مسبقاً لعميل آخر." });
-        }
-
-        var customerId = $"CUST-{Guid.NewGuid().ToString()[..6].ToUpper()}";
+        var customerId = $"CUST-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
         var customer = new Customer
         {
             CustomerId = customerId,
-            FullName = req.FullName.Trim(),
-            PhoneNumber = req.PhoneNumber.Trim(),
-            LoyaltyTier = string.IsNullOrWhiteSpace(req.Tier) ? "BRONZE" : req.Tier.Trim().ToUpper(),
-            IsFrozen = false,
-            IsArchived = false,
+            FullName = req.FullName!.Trim(),
+            PhoneNumber = phone!,
+            Email = email,
+            BirthDate = req.BirthDate?.Date,
+            Gender = gender,
+            PasswordHash = string.IsNullOrEmpty(req.Password) ? null : _passwordHasher.HashPassword(req.Password),
+            LoyaltyTier = tier,
             RegisteredAt = DateTime.UtcNow
         };
-
         await _context.Customers.AddAsync(customer);
 
-        var wallet = new CustomerWallet
-        {
-            CustomerId = customerId,
-            BalanceType = BalanceType.POINTS,
-            CurrentBalance = req.InitialPoints > 0 ? req.InitialPoints : 0
-        };
+        var initial = Math.Max(0, req.InitialPoints);
+        var wallet = new CustomerWallet { CustomerId = customerId, BalanceType = BalanceType.POINTS, CurrentBalance = initial };
         await _context.CustomerWallets.AddAsync(wallet);
-
-        if (req.InitialPoints > 0)
+        if (initial > 0)
         {
             await _context.WalletLedger.AddAsync(new WalletLedger
             {
                 Wallet = wallet,
-                AmountChanged = req.InitialPoints,
-                BalanceAfter = req.InitialPoints,
+                AmountChanged = initial,
+                BalanceAfter = initial,
                 TransactionType = WalletTransactionType.MANUAL_ADJUSTMENT,
                 ReferenceRemarks = "رصيد ترحيبي عند إنشاء الحساب من لوحة الإدارة",
                 CreatedAt = DateTime.UtcNow
@@ -1759,63 +1777,105 @@ public class SuperAdminController : ControllerBase
             });
         }
 
+        await CustomerAccounts.SaveNewCustomerAsync(_context, customer);
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "CUSTOMER_CREATE",
             EntityName = "Customer",
             EntityId = customer.CustomerId,
-            Details = $"إضافة عميل جديد: {customer.FullName} ({customer.PhoneNumber}) - فئة {customer.LoyaltyTier} برصيد ابتدائي {req.InitialPoints} نقطة",
+            Details = $"إضافة عميل: {customer.FullName} ({customer.MembershipNumber} / {customer.PhoneNumber}) - فئة {customer.LoyaltyTier}، رصيد ابتدائي {initial} نقطة",
             CreatedAt = DateTime.UtcNow
         });
-
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetCustomers), new { id = customer.CustomerId }, new SuperAdminCustomerDto
-        {
-            Id = customer.CustomerId,
-            FullName = customer.FullName,
-            PhoneNumber = customer.PhoneNumber,
-            Tier = customer.LoyaltyTier,
-            CurrentPoints = req.InitialPoints,
-            TotalInvoicesScanned = 0,
-            TotalSpent = 0m,
-            IsSuspended = false,
-            IsArchived = false,
-            CreatedAt = customer.RegisteredAt
-        });
+        var dto = ToCustomerDto(customer);
+        dto.CurrentPoints = initial;
+        return CreatedAtAction(nameof(GetCustomers), new { id = customer.CustomerId }, dto);
     }
 
     [HttpPut("customers/{id}")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> UpdateCustomer(string id, [FromBody] UpdateCustomerRequest req)
     {
         var customer = await _context.Customers.FirstOrDefaultAsync(c => c.CustomerId == id);
         if (customer == null) return NotFound(new { success = false, message = "العميل غير موجود." });
 
-        if (!string.IsNullOrWhiteSpace(req.FullName)) customer.FullName = req.FullName.Trim();
-        if (!string.IsNullOrWhiteSpace(req.PhoneNumber)) customer.PhoneNumber = req.PhoneNumber.Trim();
-        if (!string.IsNullOrWhiteSpace(req.Tier)) customer.LoyaltyTier = req.Tier.Trim().ToUpper();
-        if (req.IsFrozen.HasValue) customer.IsFrozen = req.IsFrozen.Value;
-        if (req.IsArchived.HasValue) customer.IsArchived = req.IsArchived.Value;
+        var name = string.IsNullOrWhiteSpace(req.FullName) ? customer.FullName : req.FullName.Trim();
+        var phone = string.IsNullOrWhiteSpace(req.PhoneNumber) ? customer.PhoneNumber : PhoneNumbers.Normalize(req.PhoneNumber);
+        var email = CleanEmail(req.Email);
+        var gender = CleanGender(req.Gender);
+        var tier = string.IsNullOrWhiteSpace(req.Tier) ? customer.LoyaltyTier : req.Tier.Trim().ToUpperInvariant();
+        if (await ValidateCustomerFieldsAsync(customer.CustomerId, name, phone, email, req.BirthDate, gender, tier) is { } error)
+            return BadRequest(new { success = false, message = error });
+
+        var changes = new List<string>();
+        void Track(string label, object? before, object? after)
+        {
+            if (!Equals(before, after)) changes.Add($"{label}: {before ?? "—"} ← {after ?? "—"}");
+        }
+        Track("الاسم", customer.FullName, name);
+        Track("الهاتف", customer.PhoneNumber, phone);
+        Track("البريد", customer.Email, email);
+        Track("الميلاد", customer.BirthDate?.ToString("yyyy-MM-dd"), req.BirthDate?.Date.ToString("yyyy-MM-dd"));
+        Track("الجنس", customer.Gender, gender);
+        Track("الفئة", customer.LoyaltyTier, tier);
+
+        customer.FullName = name;
+        customer.PhoneNumber = phone!;
+        customer.Email = email;
+        customer.BirthDate = req.BirthDate?.Date;
+        customer.Gender = gender;
+        customer.LoyaltyTier = tier;
+        if (req.IsFrozen.HasValue) { Track("مجمّد", customer.IsFrozen, req.IsFrozen.Value); customer.IsFrozen = req.IsFrozen.Value; }
+        if (req.IsArchived.HasValue) { Track("مؤرشف", customer.IsArchived, req.IsArchived.Value); customer.IsArchived = req.IsArchived.Value; }
+        customer.UpdatedAt = DateTime.UtcNow;
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "CUSTOMER_UPDATE",
             EntityName = "Customer",
             EntityId = customer.CustomerId,
-            Details = $"تحديث بيانات العميل: {customer.FullName} ({customer.PhoneNumber}) - فئة {customer.LoyaltyTier}",
+            Details = $"تعديل بيانات العميل {customer.MembershipNumber}: " + (changes.Count == 0 ? "بدون تغييرات" : string.Join("، ", changes)),
             CreatedAt = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, message = "تم تحديث بيانات العميل بنجاح." });
+        return Ok(new { success = true, message = "تم حفظ بيانات العميل." });
+    }
+
+    /// <summary>إعادة ضبط كلمة مرور العميل للتطبيق (مثلاً عند نسيانها). كلمة المرور الجديدة تُعرض مرة واحدة.</summary>
+    [HttpPost("customers/{id}/reset-password")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
+    public async Task<IActionResult> ResetCustomerPassword(string id, [FromBody] ResetCustomerPasswordRequest? req)
+    {
+        var customer = await _context.Customers.FirstOrDefaultAsync(c => c.CustomerId == id && !c.IsArchived);
+        if (customer == null) return NotFound(new { success = false, message = "العميل غير موجود." });
+
+        var password = string.IsNullOrWhiteSpace(req?.NewPassword) ? NewRandomPassword() : req!.NewPassword!.Trim();
+        if (password.Length < 8) return BadRequest(new { success = false, message = "كلمة المرور يجب ألا تقل عن 8 أحرف." });
+
+        customer.PasswordHash = _passwordHasher.HashPassword(password);
+        customer.UpdatedAt = DateTime.UtcNow;
+        await _context.AuditLogs.AddAsync(new AuditLog
+        {
+            PerformedBy = ActorName,
+            Action = "CUSTOMER_PASSWORD_RESET",
+            EntityName = "Customer",
+            EntityId = customer.CustomerId,
+            Details = $"إعادة ضبط كلمة مرور التطبيق للعميل {customer.MembershipNumber} ({customer.FullName})",
+            CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, message = "تم ضبط كلمة المرور الجديدة.", password });
     }
 
     /// <summary>
     /// الأرشفة والتعطيل الإداري لحساب العميل بدلاً من الحذف الفيزيائي للحفاظ على دفتر الأستاذ والتسويات (Customer Soft Archiving).
     /// </summary>
     [HttpPost("customers/{id}/archive")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> ArchiveCustomer(string id)
     {
         var customer = await _context.Customers.FirstOrDefaultAsync(c => c.CustomerId == id);
@@ -1826,27 +1886,72 @@ public class SuperAdminController : ControllerBase
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "CUSTOMER_ARCHIVE",
             EntityName = "Customer",
             EntityId = customer.CustomerId,
-            Details = $"أرشفة وتعطيل حساب العميل: {customer.FullName} ({customer.PhoneNumber}) مع الحفاظ على سجل المحفظة والتسويات التاريخية",
+            Details = $"أرشفة وتعطيل حساب العميل: {customer.FullName} ({customer.MembershipNumber}) مع الحفاظ على سجله",
             CreatedAt = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, message = "تم أرشفة وتعطيل حساب العميل بنجاح مع الحفاظ على سجلاته المالية." });
+        return Ok(new { success = true, message = "تمت أرشفة الحساب وتعطيله مع الحفاظ على سجلاته." });
     }
 
+    /// <summary>
+    /// حذف العميل: إن لم تكن له أي حركة (فواتير، نقاط، قسائم) يُحذف نهائياً،
+    /// وإلا تُمسح بياناته الشخصية ويُغلق الحساب مع بقاء السجلات المالية بلا هوية.
+    /// </summary>
     [HttpDelete("customers/{id}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> DeleteCustomer(string id)
     {
-        return await ArchiveCustomer(id);
+        var customer = await _context.Customers
+            .Include(c => c.Wallets)
+            .Include(c => c.Devices)
+            .FirstOrDefaultAsync(c => c.CustomerId == id);
+        if (customer == null) return NotFound(new { success = false, message = "العميل غير موجود." });
+
+        var walletIds = customer.Wallets.Select(w => w.WalletId).ToList();
+        var hasActivity = await _context.Invoices.AnyAsync(i => i.CustomerId == id)
+                          || await _context.Redemptions.AnyAsync(r => r.CustomerId == id)
+                          || await _context.WalletLedger.AnyAsync(l => walletIds.Contains(l.WalletId));
+
+        var label = $"{customer.FullName} ({customer.MembershipNumber})";
+        string message;
+        if (hasActivity)
+        {
+            CustomerAccounts.Anonymize(customer);
+            message = "للعميل حركات مسجلة، فمُسحت بياناته الشخصية وأُغلق الحساب نهائياً مع بقاء السجلات المالية.";
+        }
+        else
+        {
+            _context.CustomerDevices.RemoveRange(customer.Devices);
+            _context.CustomerWallets.RemoveRange(customer.Wallets);
+            _context.Customers.Remove(customer);
+            message = "تم حذف العميل نهائياً.";
+        }
+
+        await _context.AuditLogs.AddAsync(new AuditLog
+        {
+            PerformedBy = ActorName,
+            Action = hasActivity ? "CUSTOMER_ANONYMIZE" : "CUSTOMER_DELETE",
+            EntityName = "Customer",
+            EntityId = id,
+            Details = $"حذف العميل {label}",
+            CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, message, anonymized = hasActivity });
     }
 
     [HttpPost("customers/{id}/adjust-points")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> AdjustCustomerPoints(string id, [FromBody] AdjustCustomerPointsRequest req)
     {
+        if (req.PointsDelta == 0) return BadRequest(new { success = false, message = "أدخل عدد النقاط (موجب للإضافة، سالب للخصم)." });
+        if (string.IsNullOrWhiteSpace(req.Reason)) return BadRequest(new { success = false, message = "سبب التعديل مطلوب." });
+
         var customer = await _context.Customers
             .Include(c => c.Wallets)
             .FirstOrDefaultAsync(c => c.CustomerId == id);
@@ -1865,8 +1970,10 @@ public class SuperAdminController : ControllerBase
             await _context.CustomerWallets.AddAsync(wallet);
         }
 
+        if (wallet.CurrentBalance + req.PointsDelta < 0)
+            return BadRequest(new { success = false, message = $"لا يمكن خصم أكثر من رصيد العميل الحالي ({wallet.CurrentBalance} نقطة)." });
+
         wallet.CurrentBalance += req.PointsDelta;
-        if (wallet.CurrentBalance < 0) wallet.CurrentBalance = 0;
 
         await _context.WalletLedger.AddAsync(new WalletLedger
         {
@@ -1880,38 +1987,39 @@ public class SuperAdminController : ControllerBase
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "CUSTOMER_POINTS_ADJUST",
             EntityName = "Customer",
             EntityId = customer.CustomerId,
-            Details = $"تعديل نقاط العميل {customer.FullName} بمقدار ({req.PointsDelta}). الرصيد الجديد: {wallet.CurrentBalance}. السبب: {req.Reason}",
+            Details = $"تعديل نقاط العميل {customer.FullName} ({customer.MembershipNumber}) بمقدار ({req.PointsDelta}). الرصيد الجديد: {wallet.CurrentBalance}. السبب: {req.Reason}",
             CreatedAt = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, message = "تم تعديل رصيد النقاط بنجاح.", newBalance = wallet.CurrentBalance });
+        return Ok(new { success = true, message = "تم تعديل رصيد النقاط.", newBalance = wallet.CurrentBalance });
     }
 
     [HttpPost("customers/{id}/toggle-suspend")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> ToggleCustomerSuspension(string id)
     {
         var customer = await _context.Customers.FirstOrDefaultAsync(c => c.CustomerId == id);
-        if (customer == null) return NotFound();
+        if (customer == null) return NotFound(new { success = false, message = "العميل غير موجود." });
 
         customer.IsFrozen = !customer.IsFrozen;
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = customer.IsFrozen ? "CUSTOMER_SUSPEND" : "CUSTOMER_UNSUSPEND",
             EntityName = "Customer",
             EntityId = customer.CustomerId,
-            Details = $"تغيير حالة تجميد حساب المتسوق ({customer.FullName}) إلى: {(customer.IsFrozen ? "مجمد" : "نشط")}",
+            Details = $"تغيير حالة حساب العميل ({customer.FullName} / {customer.MembershipNumber}) إلى: {(customer.IsFrozen ? "مجمّد" : "نشط")}",
             CreatedAt = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, isSuspended = customer.IsFrozen, message = customer.IsFrozen ? "تم تجميد الحساب بنجاح." : "تم فك تجميد الحساب وتنشيطه." });
+        return Ok(new { success = true, isSuspended = customer.IsFrozen, message = customer.IsFrozen ? "تم تجميد الحساب." : "تم تنشيط الحساب." });
     }
 
     // ==========================================

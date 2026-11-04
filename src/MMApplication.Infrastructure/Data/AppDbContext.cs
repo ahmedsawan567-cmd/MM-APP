@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
 
     // Advanced Mall Engine Tables
     public DbSet<StoreAlias> StoreAliases => Set<StoreAlias>();
+    public DbSet<StoreInvoiceProfile> StoreInvoiceProfiles => Set<StoreInvoiceProfile>();
     public DbSet<CustomerDevice> CustomerDevices => Set<CustomerDevice>();
     public DbSet<ProductBoosterRule> ProductBoosterRules => Set<ProductBoosterRule>();
     public DbSet<LoyaltyEarningRule> LoyaltyEarningRules => Set<LoyaltyEarningRule>();
@@ -39,6 +40,34 @@ public class AppDbContext : DbContext
     public DbSet<Tenant> StoreTenants => Set<Tenant>();
     public DbSet<TenantSettlement> StoreSettlements => Set<TenantSettlement>();
     public DbSet<WalletLedger> PointTransactions => Set<WalletLedger>();
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ApplyInvoiceNumberKeys();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        ApplyInvoiceNumberKeys();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// أي فاتورة جديدة أو عُدّل رقمها تأخذ الصيغة الموحّدة لرقمها تلقائياً،
+    /// فيمنع الفهرس الفريد (المتجر + الرقم الموحّد) تكرارها من أي مسار في النظام.
+    /// </summary>
+    private void ApplyInvoiceNumberKeys()
+    {
+        foreach (var entry in ChangeTracker.Entries<Invoice>())
+        {
+            if (entry.State == EntityState.Added ||
+                (entry.State == EntityState.Modified && entry.Property(i => i.InvoiceNumber).IsModified))
+            {
+                entry.Entity.InvoiceNumberKey = MMApplication.Application.Common.InvoiceNumbers.Key(entry.Entity.InvoiceNumber);
+            }
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

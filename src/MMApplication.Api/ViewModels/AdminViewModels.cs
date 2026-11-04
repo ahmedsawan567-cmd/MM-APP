@@ -56,6 +56,9 @@ public class LoyaltyPageViewModel
 public class CustomerDetailsPageViewModel
 {
     public string CustomerId { get; set; } = string.Empty;
+    public string? MembershipNumber { get; set; }
+    public string? Email { get; set; }
+    public DateTime? BirthDate { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string Tier { get; set; } = "Bronze";
@@ -129,88 +132,67 @@ public class LoginViewModel
     public string? ErrorMessage { get; set; }
 }
 
-/// <summary>
-/// نموذج عرض صفحة نماذج الفواتير والتعرف الذكي بالذكاء الاصطناعي
-/// </summary>
+/// <summary>صفحة نماذج الفواتير: بصمة فاتورة كل متجر كما تعلّمها النظام.</summary>
 public class InvoiceTemplatesPageViewModel
 {
-    public List<StoreInvoiceTemplateDto> Templates { get; set; } = new();
-    public List<StoreTenantDto> Stores { get; set; } = new();
-    public int TotalTemplatesCount => Templates.Count;
-    public int ActiveTemplatesCount => Templates.Count(t => t.IsActive);
-    public decimal AverageOcrAccuracy => Templates.Any() ? Math.Round(Templates.Average(t => t.RecognitionAccuracy), 1) : 98.5m;
-    public string? SelectedStoreId { get; set; }
+    public List<StoreInvoiceProfileRow> Stores { get; set; } = new();
+    public bool AiEnabled { get; set; }
+    public int WithProfile => Stores.Count(s => s.HasProfile);
+    public int DuplicatesBlocked30d { get; set; }
 }
 
-/// <summary>
-/// بيانات نموذج فاتورة المتجر للتعرف الذكي
-/// </summary>
-public class StoreInvoiceTemplateDto
+public class StoreInvoiceProfileRow
 {
     public string StoreId { get; set; } = string.Empty;
     public string StoreName { get; set; } = string.Empty;
+    public string? StoreNameEn { get; set; }
     public string Category { get; set; } = string.Empty;
     public string UnitNumber { get; set; } = string.Empty;
-    public string TemplateType { get; set; } = "شريط كاشير حراري POS";
-    public List<string> HeaderAliases { get; set; } = new();
-    public string TotalAmountKeyword { get; set; } = "المجموع الكلي";
-    public string InvoiceNumberPrefix { get; set; } = "INV-";
-    public string DateFormatKeyword { get; set; } = "التاريخ";
-    public string TaxNumber { get; set; } = string.Empty;
+    public bool StoreActive { get; set; }
+    public List<string> Aliases { get; set; } = new();
+    public int InvoicesCount { get; set; }
+    public int ApprovedCount { get; set; }
+
+    public bool HasProfile { get; set; }
+    public bool ProfileActive { get; set; }
     public string? SampleImageUrl { get; set; }
-    public decimal RecognitionAccuracy { get; set; } = 98.5m;
-    public int TotalRecognizedInvoices { get; set; }
-    public bool IsActive { get; set; } = true;
-    public string Notes { get; set; } = string.Empty;
-    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+    public string? PrintedName { get; set; }
+    public string? TaxNumber { get; set; }
+    public string? PhoneOnReceipt { get; set; }
+    public string? InvoiceNumberLabel { get; set; }
+    public string? InvoiceNumberExample { get; set; }
+    public string? InvoiceNumberPattern { get; set; }
+    public string? TotalLabel { get; set; }
+    public string? DateFormat { get; set; }
+    public string? Currency { get; set; }
+    public string? LayoutNotes { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
 }
 
-/// <summary>
-/// طلب حفظ أو تحديث نموذج فاتورة لمتجر
-/// </summary>
-public class SaveInvoiceTemplateRequest
+public class SaveInvoiceProfileRequest
 {
     public string StoreId { get; set; } = string.Empty;
-    public string TemplateType { get; set; } = "شريط كاشير حراري POS";
-    public string HeaderAliases { get; set; } = string.Empty; // أسماء مفصولة بفواصل
-    public string TotalAmountKeyword { get; set; } = "المجموع الكلي";
-    public string InvoiceNumberPrefix { get; set; } = "INV-";
-    public string DateFormatKeyword { get; set; } = "التاريخ";
-    public string TaxNumber { get; set; } = string.Empty;
     public string? SampleImageUrl { get; set; }
-    public string? Notes { get; set; }
+    public string? PrintedName { get; set; }
+    /// <summary>أسماء أخرى تظهر على الفواتير، مفصولة بفواصل أو أسطر.</summary>
+    public string? OtherNames { get; set; }
+    public string? TaxNumber { get; set; }
+    public string? PhoneOnReceipt { get; set; }
+    public string? InvoiceNumberLabel { get; set; }
+    public string? InvoiceNumberExample { get; set; }
+    public string? InvoiceNumberPattern { get; set; }
+    public string? TotalLabel { get; set; }
+    public string? DateFormat { get; set; }
+    public string? Currency { get; set; }
+    public string? LayoutNotes { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool Learned { get; set; }
 }
 
-/// <summary>
-/// طلب اختبار فحص فاتورة بالذكاء الاصطناعي
-/// </summary>
-public class AiInvoiceScanTestRequest
+public class StoreIdRequest
 {
-    public string? StoreId { get; set; }
-    public string? ReceiptText { get; set; }
-    public string? ImageUrl { get; set; }
-}
-
-/// <summary>
-/// نتيجة اختبار فحص فاتورة بالذكاء الاصطناعي
-/// </summary>
-public class AiInvoiceScanTestResult
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public string? RecognizedStoreId { get; set; }
-    public string RecognizedStoreName { get; set; } = string.Empty;
-    public string ExtractedInvoiceNumber { get; set; } = string.Empty;
-    public decimal ExtractedTotalAmount { get; set; }
-    public DateTime ExtractedDate { get; set; }
-    public decimal ConfidencePercentage { get; set; }
-    public string MatchedTemplateType { get; set; } = string.Empty;
-    public List<ExtractedLineItemDto> LineItems { get; set; } = new();
-    public int CalculatedPoints { get; set; }
-    public decimal CalculatedCashback { get; set; }
-    public bool IsFraudRiskDetected { get; set; }
-    public string? FraudRiskReason { get; set; }
+    public string StoreId { get; set; } = string.Empty;
 }
 
 public class ExtractedLineItemDto

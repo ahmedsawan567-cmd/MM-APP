@@ -34,19 +34,25 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
         _logger = logger;
         _model = configuration["Claude:Model"] is { Length: > 0 } m ? m : DefaultModel;
 
-        var apiKey = configuration["Claude:ApiKey"];
-        // بدون مفتاح صريح يقرأ الـ SDK متغير البيئة ANTHROPIC_API_KEY تلقائياً
-        _client = string.IsNullOrWhiteSpace(apiKey)
-            ? new AnthropicClient()
-            : new AnthropicClient { ApiKey = apiKey };
+        _client = CreateClient(configuration);
+    }
 
-        // اختياري: عنوان بديل (بروكسي الشركة أو خادم اختبار)
-        if (configuration["Claude:BaseUrl"] is { Length: > 0 } baseUrl)
+    public static string ModelFrom(IConfiguration configuration) =>
+        configuration["Claude:Model"] is { Length: > 0 } m ? m : DefaultModel;
+
+    public static AnthropicClient CreateClient(IConfiguration configuration)
+    {
+        var apiKey = configuration["Claude:ApiKey"];
+        var baseUrl = configuration["Claude:BaseUrl"];
+        // بدون مفتاح صريح يقرأ الـ SDK متغير البيئة ANTHROPIC_API_KEY تلقائياً
+        // Claude:BaseUrl اختياري: عنوان بديل (بروكسي الشركة أو خادم اختبار)
+        return (string.IsNullOrWhiteSpace(apiKey), string.IsNullOrWhiteSpace(baseUrl)) switch
         {
-            _client = string.IsNullOrWhiteSpace(apiKey)
-                ? new AnthropicClient { BaseUrl = baseUrl }
-                : new AnthropicClient { ApiKey = apiKey, BaseUrl = baseUrl };
-        }
+            (true, true) => new AnthropicClient(),
+            (false, true) => new AnthropicClient { ApiKey = apiKey! },
+            (true, false) => new AnthropicClient { BaseUrl = baseUrl! },
+            _ => new AnthropicClient { ApiKey = apiKey!, BaseUrl = baseUrl! },
+        };
     }
 
     /// <summary>هل يوجد مفتاح Claude مضبوط؟ يُستخدم في Program.cs لاختيار المحرك.</summary>
@@ -155,6 +161,12 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
         - invoice_date: the date printed on the receipt, as YYYY-MM-DD.
         - currency: ISO code if shown or obvious (Libyan dinar = LYD, written as د.ل or LD).
         - matched_store_id: only when the merchant clearly matches one of the mall stores provided; otherwise null.
+          Stores may come with their receipt fingerprint (tax number, the label printed next to the invoice number,
+          an example invoice number, layout notes). Use it to recognise the store and to read the invoice number
+          from the right place. A receipt whose tax number differs from the store's known tax number is suspicious:
+          mention it in authenticity_concerns.
+        - invoice_number: the receipt / bill number exactly as printed (not the date, table, order or cashier number).
+        - tax_number: the tax / commercial registration number printed on the receipt, or null.
         - is_receipt: false if the image is not a purchase receipt or invoice.
         - authenticity_concerns: short notes in Arabic about anything suspicious, for example a photo of a screen,
           digitally edited or overwritten numbers, a total that does not match the items, a receipt that is
@@ -172,13 +184,21 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
             {
                 sb.Append(s.TenantId).Append(" | ").Append(s.NameAr).Append(" | ").Append(s.NameEn);
                 if (s.Aliases.Count > 0) sb.Append(" | ").Append(string.Join(", ", s.Aliases));
+                if (s.TaxNumber != null) sb.Append(" | tax no: ").Append(s.TaxNumber);
+                if (s.InvoiceNumberLabel != null || s.InvoiceNumberExample != null)
+                {
+                    sb.Append(" | invoice no");
+                    if (s.InvoiceNumberLabel != null) sb.Append(" labelled \"").Append(s.InvoiceNumberLabel).Append('"');
+                    if (s.InvoiceNumberExample != null) sb.Append(", e.g. ").Append(s.InvoiceNumberExample);
+                }
+                if (s.LayoutNotes != null) sb.Append(" | layout: ").Append(s.LayoutNotes);
                 sb.AppendLine();
             }
         }
         return sb.ToString();
     }
 
-    private static BetaContentBlockParam? BuildFileBlock(byte[] bytes, ReceiptExtractionContext context)
+    public static BetaContentBlockParam? BuildFileBlock(byte[] bytes, ReceiptExtractionContext context)
     {
         var base64 = Convert.ToBase64String(bytes);
         var kind = DetectKind(bytes, context);
@@ -216,7 +236,7 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
             additionalProperties = false,
             required = new[]
             {
-                "is_receipt", "merchant_name", "matched_store_id", "invoice_number", "invoice_date",
+                "is_receipt", "merchant_name", "matched_store_id", "invoice_number", "tax_number", "invoice_date",
                 "total_amount", "currency", "items", "authenticity_concerns", "confidence",
             },
             properties = new Dictionary<string, object>
@@ -225,6 +245,7 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
                 ["merchant_name"] = NullableString("Store name as printed"),
                 ["matched_store_id"] = NullableString("Id from the mall store list, or null"),
                 ["invoice_number"] = NullableString("Receipt / invoice number"),
+                ["tax_number"] = NullableString("Tax / commercial registration number, or null"),
                 ["invoice_date"] = NullableString("YYYY-MM-DD"),
                 ["total_amount"] = NullableNumber("Final amount paid"),
                 ["currency"] = NullableString("ISO currency code"),
@@ -311,6 +332,7 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
             MerchantName = Str("merchant_name"),
             MatchedTenantId = storeId,
             InvoiceNumber = Str("invoice_number"),
+            TaxNumber = Str("tax_number"),
             InvoiceDate = date,
             TotalAmount = Num(r, "total_amount"),
             Currency = Str("currency"),

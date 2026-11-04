@@ -45,11 +45,15 @@
                         <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i>
                         <span dir="ltr">@Model.PhoneNumber</span>
                     </span>
+                    @if (!string.IsNullOrEmpty(Model.Email))
+                    {
+                        <span class="text-xs text-slate-500 num flex items-center gap-1"><i data-lucide="mail" class="w-3.5 h-3.5 text-slate-400"></i><span dir="ltr">@Model.Email</span></span>
+                    }
                 </div>
 
                 <h1 class="text-base font-bold text-slate-900 flex items-center gap-2">
                     <span>@Model.FullName</span>
-                    <span class="text-xs font-bold text-slate-400 num">#@Model.CustomerId</span>
+                    <span class="text-xs font-bold text-brand-700 num" dir="ltr">@(Model.MembershipNumber ?? Model.CustomerId)</span>
                 </h1>
 
                 <p class="text-xs text-slate-500 mt-1">
@@ -67,9 +71,13 @@
                     <i data-lucide="@(Model.IsSuspended ? "unlock" : "lock")" class="w-4 h-4"></i>
                     <span>@(Model.IsSuspended ? "فك التجميد" : "تجميد الحساب")</span>
                 </button>
-                <button onclick="showToast('جاري تصدير كشف الحساب المفصل...', 'info')" class="btn-secondary">
-                    <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
-                    <span>تصدير كشف الحساب</span>
+                <a asp-action="Customers" asp-route-search="@(Model.MembershipNumber ?? Model.PhoneNumber)" class="btn-secondary">
+                    <i data-lucide="pencil" class="w-4 h-4 text-slate-500"></i>
+                    <span>تعديل البيانات</span>
+                </a>
+                <button type="button" onclick="window.print()" class="btn-secondary">
+                    <i data-lucide="printer" class="w-4 h-4 text-slate-500"></i>
+                    <span>طباعة كشف الحساب</span>
                 </button>
             </div>
         </div>

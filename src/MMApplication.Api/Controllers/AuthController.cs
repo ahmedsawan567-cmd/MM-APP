@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MMApplication.Application.Common;
 using MMApplication.Application.DTOs;
 using MMApplication.Application.Interfaces;
 using MMApplication.Domain.Entities;
@@ -46,15 +47,19 @@ public class AuthController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var normalizedPhone = request.PhoneNumber.Trim();
+        var normalizedPhone = PhoneNumbers.Normalize(request.PhoneNumber);
+        if (normalizedPhone == null)
+        {
+            return BadRequest(new { success = false, message = PhoneNumbers.InvalidMessage });
+        }
 
-        var phoneExists = await _context.Customers.AnyAsync(c => c.PhoneNumber == normalizedPhone);
+        var phoneExists = await _context.Customers.AnyAsync(c => c.PhoneNumber == normalizedPhone || c.PhoneNumber == request.PhoneNumber.Trim());
         if (phoneExists)
         {
             return Conflict(new
             {
                 success = false,
-                message = "رقم الهاتف مسجل مسبقاً في النظام (Phone number already registered)."
+                message = "رقم الهاتف مسجل مسبقاً. إذا كان رقمك، سجّل الدخول أو تواصل مع خدمة العملاء."
             });
         }
 
@@ -80,7 +85,7 @@ public class AuthController : ControllerBase
 
         await _context.Customers.AddAsync(customer);
         await _context.CustomerWallets.AddAsync(wallet);
-        await _context.SaveChangesAsync();
+        await CustomerAccounts.SaveNewCustomerAsync(_context, customer);
 
         var token = _jwtService.GenerateToken(customer, out var expiresAt);
 
@@ -94,6 +99,7 @@ public class AuthController : ControllerBase
             CustomerId = customer.CustomerId,
             FullName = customer.FullName,
             PhoneNumber = customer.PhoneNumber,
+            MembershipNumber = customer.MembershipNumber,
             Role = "CUSTOMER",
             PointsBalance = 0,
             ExpiresAt = expiresAt
@@ -114,11 +120,12 @@ public class AuthController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var normalizedPhone = request.PhoneNumber.Trim();
+        var rawLogin = request.PhoneNumber.Trim();
+        var normalizedPhone = PhoneNumbers.Normalize(rawLogin) ?? rawLogin;
 
         // 1. أولاً فحص إذا كان موظف/مسؤول نظام في SystemUsers
         var staffUser = await _context.SystemUsers
-            .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone || u.Email == normalizedPhone);
+            .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone || u.PhoneNumber == rawLogin || u.Email == rawLogin);
 
         if (staffUser != null)
         {
@@ -144,9 +151,9 @@ public class AuthController : ControllerBase
         // 2. إذا لم يكن موظفاً، فحص جدول المتسوقين Customers
         var customer = await _context.Customers
             .Include(c => c.Wallets)
-            .FirstOrDefaultAsync(c => c.PhoneNumber == normalizedPhone);
+            .FirstOrDefaultAsync(c => c.PhoneNumber == normalizedPhone || c.PhoneNumber == rawLogin);
 
-        if (customer == null || customer.IsFrozen)
+        if (customer == null || customer.IsFrozen || customer.IsArchived)
         {
             return Unauthorized(new
             {
@@ -187,6 +194,7 @@ public class AuthController : ControllerBase
             CustomerId = customer.CustomerId,
             FullName = customer.FullName,
             PhoneNumber = customer.PhoneNumber,
+            MembershipNumber = customer.MembershipNumber,
             Role = "CUSTOMER",
             PointsBalance = (int)(customer.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS)?.CurrentBalance ?? 0),
             ExpiresAt = expiresAt
@@ -221,16 +229,115 @@ public class AuthController : ControllerBase
             return NotFound(new { success = false, message = "حساب المستخدم غير موجود." });
         }
 
-        var profile = new UserProfileDto
-        {
-            Id = customer.CustomerId,
-            FullName = customer.FullName,
-            PhoneNumber = customer.PhoneNumber,
-            Role = "CUSTOMER",
-            PointsBalance = (int)(customer.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS)?.CurrentBalance ?? 0),
-            CreatedAt = customer.RegisteredAt
-        };
-
-        return Ok(profile);
+        return Ok(ToProfile(customer));
     }
+
+    private static UserProfileDto ToProfile(Customer customer) => new()
+    {
+        Id = customer.CustomerId,
+        FullName = customer.FullName,
+        PhoneNumber = customer.PhoneNumber,
+        MembershipNumber = customer.MembershipNumber,
+        Email = customer.Email,
+        BirthDate = customer.BirthDate,
+        Gender = customer.Gender,
+        LoyaltyTier = customer.LoyaltyTier,
+        Role = "CUSTOMER",
+        PointsBalance = (int)(customer.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS)?.CurrentBalance ?? 0),
+        CreatedAt = customer.RegisteredAt
+    };
+
+    private string? CurrentUserId => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+
+    private async Task<Customer?> CurrentCustomerAsync() =>
+        CurrentUserId is { Length: > 0 } id
+            ? await _context.Customers.Include(c => c.Wallets).FirstOrDefaultAsync(c => c.CustomerId == id && !c.IsArchived)
+            : null;
+
+    /// <summary>تعديل العميل لبياناته الشخصية (الاسم، البريد، تاريخ الميلاد، الجنس).</summary>
+    [HttpPut("me")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequestDto request)
+    {
+        if (!ModelState.IsValid) return BadRequest(new { success = false, message = FirstError() });
+        var customer = await CurrentCustomerAsync();
+        if (customer == null) return NotFound(new { success = false, message = "حساب المستخدم غير موجود." });
+
+        var email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant();
+        if (email != null && await _context.Customers.AnyAsync(c => c.Email == email && c.CustomerId != customer.CustomerId))
+        {
+            return Conflict(new { success = false, message = "البريد الإلكتروني مستخدم في حساب آخر." });
+        }
+        if (request.BirthDate is { } birth && (birth.Date > DateTime.UtcNow.Date.AddYears(-5) || birth.Year < 1900))
+        {
+            return BadRequest(new { success = false, message = "تاريخ الميلاد غير صالح." });
+        }
+
+        customer.FullName = request.FullName.Trim();
+        customer.Email = email;
+        customer.BirthDate = request.BirthDate?.Date;
+        customer.Gender = request.Gender;
+        customer.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { success = true, message = "تم حفظ بياناتك.", profile = ToProfile(customer) });
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request)
+    {
+        if (!ModelState.IsValid) return BadRequest(new { success = false, message = FirstError() });
+        var customer = await CurrentCustomerAsync();
+        if (customer == null) return NotFound(new { success = false, message = "حساب المستخدم غير موجود." });
+
+        if (string.IsNullOrEmpty(customer.PasswordHash) || !_passwordHasher.VerifyPassword(request.CurrentPassword, customer.PasswordHash))
+        {
+            return BadRequest(new { success = false, message = "كلمة المرور الحالية غير صحيحة." });
+        }
+        if (request.NewPassword == request.CurrentPassword)
+        {
+            return BadRequest(new { success = false, message = "اختر كلمة مرور مختلفة عن الحالية." });
+        }
+
+        customer.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+        customer.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, message = "تم تغيير كلمة المرور." });
+    }
+
+    /// <summary>
+    /// حذف الحساب بطلب العميل: تُمسح بياناته الشخصية ويُغلق الحساب نهائياً،
+    /// وتبقى سجلات الفواتير والنقاط (بدون هوية) لأغراض المحاسبة ومكافحة الاحتيال.
+    /// </summary>
+    [HttpPost("delete-account")]
+    [Authorize]
+    public async Task<IActionResult> DeleteAccount([FromBody] DeleteAccountRequestDto request)
+    {
+        if (!ModelState.IsValid) return BadRequest(new { success = false, message = FirstError() });
+        var customer = await CurrentCustomerAsync();
+        if (customer == null) return NotFound(new { success = false, message = "حساب المستخدم غير موجود." });
+
+        if (string.IsNullOrEmpty(customer.PasswordHash) || !_passwordHasher.VerifyPassword(request.Password, customer.PasswordHash))
+        {
+            return BadRequest(new { success = false, message = "كلمة المرور غير صحيحة." });
+        }
+
+        CustomerAccounts.Anonymize(customer);
+        _context.AuditLogs.Add(new AuditLog
+        {
+            Action = "CUSTOMER_SELF_DELETE",
+            EntityName = "Customer",
+            EntityId = customer.CustomerId,
+            PerformedBy = "العميل (من التطبيق)",
+            Details = $"حذف العميل حسابه ({customer.MembershipNumber}).",
+            CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, message = "تم حذف حسابك." });
+    }
+
+    private string FirstError() =>
+        ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).FirstOrDefault(m => !string.IsNullOrWhiteSpace(m))
+        ?? "البيانات المدخلة غير صالحة.";
 }

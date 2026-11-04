@@ -49,12 +49,13 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Ignore(i => i.PointsEarned);
         builder.Ignore(i => i.FraudFlagReason);
 
-        // Unique constraint: UQ_Tenant_InvoiceNumber
-        builder.HasIndex(i => new { i.TenantId, i.InvoiceNumber })
+        // مكافحة الاحتيال: رقم الفاتورة (بصيغته الموحّدة) لا يتكرر لنفس المتجر أبداً
+        // (PostgreSQL يسمح بتكرار القيم الفارغة في الفهرس الفريد: الفواتير غير المقروءة بعد)
+        builder.Property(i => i.InvoiceNumberKey).HasMaxLength(100);
+        builder.HasIndex(i => new { i.TenantId, i.InvoiceNumberKey })
             .IsUnique()
-            // بدون HasFilter بصيغة SQL Server: EF يضيف الفلتر تلقائياً على SQL Server،
-            // وPostgreSQL يسمح أصلاً بتكرار القيم الفارغة في الفهرس الفريد
-            .HasDatabaseName("UQ_Tenant_InvoiceNumber");
+            .HasDatabaseName("UQ_Invoices_Tenant_InvoiceKey");
+        builder.HasIndex(i => i.InvoiceNumberKey);
 
         // Indexes
         builder.HasIndex(i => new { i.CustomerId, i.CreatedAt })

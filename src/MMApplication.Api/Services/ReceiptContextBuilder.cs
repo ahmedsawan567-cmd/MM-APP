@@ -19,7 +19,11 @@ public static class ReceiptContextBuilder
                 TenantId = t.TenantId,
                 NameAr = t.NameAr,
                 NameEn = t.NameEn,
-                Aliases = t.Aliases.Where(a => a.IsActive).Select(a => a.AliasName).ToList()
+                Aliases = t.Aliases.Where(a => a.IsActive).Select(a => a.AliasName).ToList(),
+                TaxNumber = t.InvoiceProfile != null && t.InvoiceProfile.IsActive ? t.InvoiceProfile.TaxNumber : null,
+                InvoiceNumberLabel = t.InvoiceProfile != null && t.InvoiceProfile.IsActive ? t.InvoiceProfile.InvoiceNumberLabel : null,
+                InvoiceNumberExample = t.InvoiceProfile != null && t.InvoiceProfile.IsActive ? t.InvoiceProfile.InvoiceNumberExample : null,
+                LayoutNotes = t.InvoiceProfile != null && t.InvoiceProfile.IsActive ? t.InvoiceProfile.LayoutNotes : null,
             })
             .ToListAsync()
     };
