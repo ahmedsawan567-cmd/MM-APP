@@ -1918,6 +1918,7 @@ public class SuperAdminController : ControllerBase
     // 8. 👥 طاقم العمل والصلاحيات (Staff & Role Management)
     // ==========================================
     [HttpGet("staff")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     [ProducesResponseType(typeof(IEnumerable<StaffUserDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStaff()
     {
@@ -1957,38 +1958,62 @@ public class SuperAdminController : ControllerBase
         return Ok(staff);
     }
 
+    private const int MinStaffPasswordLength = 8;
+
+    private string ActorName => User?.Identity?.Name is { Length: > 0 } n ? n : "المدير العام";
+    private string? ActorId => User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+    private static SystemUserRole MapStaffRole(StaffRole role) => role switch
+    {
+        StaffRole.SuperAdmin => SystemUserRole.SUPER_ADMIN,
+        StaffRole.StoreManager => SystemUserRole.STORE_MANAGER,
+        StaffRole.Cashier => SystemUserRole.CASHIER,
+        _ => SystemUserRole.FRAUD_AUDITOR
+    };
+
+    /// <summary>هل سيبقى في النظام مدير عام نشط واحد على الأقل بعد استثناء هذا الحساب؟</summary>
+    private Task<bool> AnotherActiveSuperAdminExistsAsync(string excludingUserId) =>
+        _context.SystemUsers.AnyAsync(u => u.UserId != excludingUserId && u.IsActive && u.Role == SystemUserRole.SUPER_ADMIN);
+
+    private static IActionResult Fail(string message) => new BadRequestObjectResult(new { success = false, message });
+
+    private async Task<string?> ValidateStoreAsync(SystemUserRole role, string? storeId)
+    {
+        var needsStore = role is SystemUserRole.STORE_MANAGER or SystemUserRole.CASHIER;
+        if (needsStore && string.IsNullOrWhiteSpace(storeId)) return "مدير المتجر والكاشير يجب ربطهما بمتجر.";
+        if (!string.IsNullOrWhiteSpace(storeId) && !await _context.Tenants.AnyAsync(t => t.TenantId == storeId))
+            return "المتجر المحدد غير موجود.";
+        return null;
+    }
+
     [HttpPost("staff")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> CreateStaff([FromBody] CreateStaffUserRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.PhoneNumber) || string.IsNullOrWhiteSpace(req.FullName) || string.IsNullOrWhiteSpace(req.Password))
-        {
-            return BadRequest(new { success = false, message = "رقم الهاتف والاسم الكامل وكلمة المرور حقول مطلوبة." });
-        }
+        var name = req.FullName?.Trim() ?? "";
+        var phone = req.PhoneNumber?.Trim() ?? "";
+        if (name.Length < 3 || phone.Length < 6)
+            return Fail("أدخل الاسم الكامل ورقم الهاتف بشكل صحيح.");
+        if (string.IsNullOrEmpty(req.Password) || req.Password.Length < MinStaffPasswordLength)
+            return Fail($"كلمة المرور يجب ألا تقل عن {MinStaffPasswordLength} أحرف.");
 
-        var exists = await _context.SystemUsers.AnyAsync(u => u.PhoneNumber == req.PhoneNumber.Trim() || u.Email == $"{req.PhoneNumber.Trim()}@mall.ly");
-        if (exists)
-        {
-            return BadRequest(new { success = false, message = "رقم الهاتف مسجل مسبقاً في النظام." });
-        }
+        var email = $"{phone.Replace("+", "")}@mall.ly";
+        if (await _context.SystemUsers.AnyAsync(u => u.PhoneNumber == phone || u.Email == email || u.UserId == phone))
+            return Fail("رقم الهاتف مسجل مسبقاً لموظف آخر.");
 
-        var roleEnum = req.StaffRole switch
-        {
-            StaffRole.SuperAdmin => SystemUserRole.SUPER_ADMIN,
-            StaffRole.Auditor => SystemUserRole.FRAUD_AUDITOR,
-            StaffRole.StoreManager => SystemUserRole.STORE_MANAGER,
-            StaffRole.Cashier => SystemUserRole.CASHIER,
-            _ => SystemUserRole.SUPER_ADMIN
-        };
+        var role = MapStaffRole(req.StaffRole);
+        var storeId = role is SystemUserRole.STORE_MANAGER or SystemUserRole.CASHIER ? req.StoreTenantId : null;
+        if (await ValidateStoreAsync(role, storeId) is { } storeError) return Fail(storeError);
 
         var staff = new SystemUser
         {
-            UserId = $"STAFF-{Guid.NewGuid().ToString()[..8].ToUpper()}",
-            FullName = req.FullName.Trim(),
-            PhoneNumber = req.PhoneNumber.Trim(),
-            Email = $"{req.PhoneNumber.Trim().Replace("+", "")}@mall.ly",
+            UserId = $"STAFF-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}",
+            FullName = name,
+            PhoneNumber = phone,
+            Email = email,
             PasswordHash = _passwordHasher.HashPassword(req.Password),
-            Role = roleEnum,
-            TenantId = req.StoreTenantId,
+            Role = role,
+            TenantId = storeId,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -1996,11 +2021,11 @@ public class SuperAdminController : ControllerBase
         await _context.SystemUsers.AddAsync(staff);
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "STAFF_CREATE",
             EntityName = "SystemUser",
             EntityId = staff.UserId,
-            Details = $"إنشاء حساب موظف جديد: {staff.FullName}، دور: {staff.Role}",
+            Details = $"إنشاء حساب موظف: {staff.FullName} ({staff.Role})",
             CreatedAt = DateTime.UtcNow
         });
 
@@ -2009,33 +2034,50 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPut("staff/{id}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> UpdateStaff(string id, [FromBody] UpdateStaffUserRequest req)
     {
         var staff = await _context.SystemUsers.FirstOrDefaultAsync(u => u.UserId == id);
         if (staff == null) return NotFound(new { success = false, message = "الموظف غير موجود." });
 
-        if (!string.IsNullOrWhiteSpace(req.FullName)) staff.FullName = req.FullName.Trim();
-        if (!string.IsNullOrWhiteSpace(req.PhoneNumber)) staff.PhoneNumber = req.PhoneNumber.Trim();
-        if (!string.IsNullOrWhiteSpace(req.StoreTenantId)) staff.TenantId = req.StoreTenantId;
-        if (!string.IsNullOrWhiteSpace(req.Password)) staff.PasswordHash = _passwordHasher.HashPassword(req.Password);
-        if (req.IsActive.HasValue) staff.IsActive = req.IsActive.Value;
+        var newRole = MapStaffRole(req.StaffRole);
+        var losesSuperAdmin = staff.Role == SystemUserRole.SUPER_ADMIN &&
+                              (newRole != SystemUserRole.SUPER_ADMIN || req.IsActive == false);
+        if (losesSuperAdmin && staff.UserId == ActorId)
+            return Fail("لا يمكنك سحب صلاحية المدير العام من حسابك أو تعطيله.");
+        if (losesSuperAdmin && !await AnotherActiveSuperAdminExistsAsync(staff.UserId))
+            return Fail("يجب أن يبقى مدير عام نشط واحد على الأقل.");
 
-        staff.Role = req.StaffRole switch
+        if (!string.IsNullOrWhiteSpace(req.PhoneNumber))
         {
-            StaffRole.SuperAdmin => SystemUserRole.SUPER_ADMIN,
-            StaffRole.Auditor => SystemUserRole.FRAUD_AUDITOR,
-            StaffRole.StoreManager => SystemUserRole.STORE_MANAGER,
-            StaffRole.Cashier => SystemUserRole.CASHIER,
-            _ => staff.Role
-        };
+            var phone = req.PhoneNumber.Trim();
+            if (phone != staff.PhoneNumber &&
+                await _context.SystemUsers.AnyAsync(u => u.UserId != staff.UserId && u.PhoneNumber == phone))
+                return Fail("رقم الهاتف مسجل مسبقاً لموظف آخر.");
+            staff.PhoneNumber = phone;
+        }
+        if (!string.IsNullOrEmpty(req.Password))
+        {
+            if (req.Password.Length < MinStaffPasswordLength)
+                return Fail($"كلمة المرور يجب ألا تقل عن {MinStaffPasswordLength} أحرف.");
+            staff.PasswordHash = _passwordHasher.HashPassword(req.Password);
+        }
+
+        var storeId = newRole is SystemUserRole.STORE_MANAGER or SystemUserRole.CASHIER ? req.StoreTenantId : null;
+        if (await ValidateStoreAsync(newRole, storeId) is { } storeError) return Fail(storeError);
+
+        if (!string.IsNullOrWhiteSpace(req.FullName)) staff.FullName = req.FullName.Trim();
+        staff.Role = newRole;
+        staff.TenantId = storeId;
+        if (req.IsActive.HasValue) staff.IsActive = req.IsActive.Value;
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "STAFF_UPDATE",
             EntityName = "SystemUser",
             EntityId = staff.UserId,
-            Details = $"تحديث بيانات الموظف: {staff.FullName} ({staff.Role})",
+            Details = $"تحديث بيانات الموظف: {staff.FullName} ({staff.Role})" + (string.IsNullOrEmpty(req.Password) ? "" : " مع تغيير كلمة المرور"),
             CreatedAt = DateTime.UtcNow
         });
 
@@ -2044,16 +2086,22 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("staff/{id}/toggle-active")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> ToggleStaffActive(string id)
     {
         var staff = await _context.SystemUsers.FirstOrDefaultAsync(u => u.UserId == id);
         if (staff == null) return NotFound(new { success = false, message = "الموظف غير موجود." });
 
+        if (staff.IsActive && staff.UserId == ActorId)
+            return Fail("لا يمكنك تعطيل حسابك الحالي.");
+        if (staff.IsActive && staff.Role == SystemUserRole.SUPER_ADMIN && !await AnotherActiveSuperAdminExistsAsync(staff.UserId))
+            return Fail("يجب أن يبقى مدير عام نشط واحد على الأقل.");
+
         staff.IsActive = !staff.IsActive;
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = staff.IsActive ? "STAFF_ACTIVATE" : "STAFF_DEACTIVATE",
             EntityName = "SystemUser",
             EntityId = staff.UserId,
@@ -2062,18 +2110,39 @@ public class SuperAdminController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, isActive = staff.IsActive, message = staff.IsActive ? "تم تفعيل حساب الموظف بنجاح." : "تم تعطيل حساب الموظف بنجاح." });
+        return Ok(new { success = true, isActive = staff.IsActive, message = staff.IsActive ? "تم تفعيل حساب الموظف." : "تم تعطيل حساب الموظف." });
     }
 
     [HttpDelete("staff/{id}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> DeleteStaff(string id)
     {
         var staff = await _context.SystemUsers.FirstOrDefaultAsync(u => u.UserId == id);
-        if (staff == null) return NotFound();
+        if (staff == null) return NotFound(new { success = false, message = "الموظف غير موجود." });
+
+        if (staff.UserId == ActorId) return Fail("لا يمكنك حذف حسابك الحالي.");
+        if (staff.Role == SystemUserRole.SUPER_ADMIN && !await AnotherActiveSuperAdminExistsAsync(staff.UserId))
+            return Fail("لا يمكن حذف آخر مدير عام في النظام.");
 
         _context.SystemUsers.Remove(staff);
-        await _context.SaveChangesAsync();
-        return Ok(new { success = true, message = "تم حذف حساب الموظف بنجاح." });
+        await _context.AuditLogs.AddAsync(new AuditLog
+        {
+            PerformedBy = ActorName,
+            Action = "STAFF_DELETE",
+            EntityName = "SystemUser",
+            EntityId = staff.UserId,
+            Details = $"حذف حساب الموظف: {staff.FullName} ({staff.Role})",
+            CreatedAt = DateTime.UtcNow
+        });
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Fail("لا يمكن حذف هذا الحساب لارتباطه بسجلات في النظام. عطّله بدلاً من ذلك.");
+        }
+        return Ok(new { success = true, message = "تم حذف حساب الموظف." });
     }
 
     // ==========================================

@@ -2,7 +2,7 @@
 @{
     var activeTab = ViewData["ActiveTab"] as string ?? "";
     var currentRole = User.FindFirst("SystemRole")?.Value ?? (User.IsInRole("superadmin") ? "SUPER_ADMIN" : (User.IsInRole("auditor") ? "FRAUD_AUDITOR" : (User.IsInRole("storemanager") ? "STORE_MANAGER" : "SUPER_ADMIN")));
-    var isDevOrSuperAdmin = User.IsInRole("superadmin") || currentRole == "SUPER_ADMIN" || User.Identity?.Name?.Contains("programer") == true;
+    var isDevOrSuperAdmin = User.IsInRole("superadmin") || currentRole == "SUPER_ADMIN";
     var isAuditor = User.IsInRole("auditor") || currentRole == "FRAUD_AUDITOR";
     var isStoreManager = User.IsInRole("storemanager") || currentRole == "STORE_MANAGER";
     var tenantName = User.FindFirst("TenantName")?.Value;
@@ -19,7 +19,7 @@
 
     var currentUserName = User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(User.Identity.Name) ? User.Identity.Name : "المسؤول";
     var userInitial = currentUserName.Trim().Length > 0 ? currentUserName.Trim()[..1] : "م";
-    var roleDisplayName = isDevOrSuperAdmin ? (currentUserName.Contains("programer") ? "المطور التقني" : "المدير العام")
+    var roleDisplayName = isDevOrSuperAdmin ? "المدير العام"
         : isAuditor ? "مدقق الفواتير والاحتيال"
         : isStoreManager ? (!string.IsNullOrEmpty(tenantName) ? $"مدير متجر: {tenantName}" : "مدير متجر")
         : "طاقم العمل";

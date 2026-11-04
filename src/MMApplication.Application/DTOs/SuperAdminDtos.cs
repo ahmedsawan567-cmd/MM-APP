@@ -365,6 +365,8 @@ public class StaffUserDto
     public string StaffRoleLabel { get; set; } = string.Empty;
     public string? StoreTenantId { get; set; }
     public string? StoreName { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool IsCurrentUser { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 

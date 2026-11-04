@@ -7,6 +7,9 @@ on:
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -46,3 +49,20 @@ jobs:
           name: almaraa-mall-apk
           path: almaraa_mall_flutter/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+
+      # نسخة جاهزة للتحميل المباشر من صفحة Releases (تُستبدل مع كل بناء جديد)
+      - name: Publish APK to the "android-latest" release
+        if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'feature/flutter-api-integration'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          cp build/app/outputs/flutter-apk/app-release.apk "AlmaraaMall-$VERSION.apk"
+          NOTES="تطبيق المرأة مول للعملاء — الإصدار $VERSION (من ${GITHUB_SHA::7}). بعد التثبيت: شاشة الدخول ← إعدادات الخادم ← اكتب عنوان جهاز الخادم."
+          if gh release view android-latest >/dev/null 2>&1; then
+            for a in $(gh release view android-latest --json assets -q '.assets[].name'); do gh release delete-asset android-latest "$a" -y; done
+            gh release edit android-latest --title "المرأة مول — Android $VERSION" --notes "$NOTES" --target "$GITHUB_SHA"
+          else
+            gh release create android-latest --title "المرأة مول — Android $VERSION" --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
+          fi
+          gh release upload android-latest "AlmaraaMall-$VERSION.apk" --clobber

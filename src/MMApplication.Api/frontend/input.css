@@ -210,7 +210,7 @@
   .tab-active { @apply bg-surface text-ink shadow-sm; }
 
   /* النوافذ المنبثقة */
-  .modal-overlay { @apply bg-slate-950/50 backdrop-blur-sm; }
+  .modal-overlay { @apply fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm; }
   [data-theme="dark"] .modal-overlay { background-color: rgb(0 0 0 / .6); }
   .modal-box { @apply relative w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col rounded-2xl bg-surface border border-line shadow-pop animate-fade-in; }
   .modal-header { @apply flex items-center justify-between gap-3 px-5 py-4 border-b border-line; }

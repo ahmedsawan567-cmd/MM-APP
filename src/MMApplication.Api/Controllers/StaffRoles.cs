@@ -15,4 +15,7 @@ public static class StaffRoles
     public const string Management =
         "superadmin,auditor,storemanager," +
         "SUPER_ADMIN,FRAUD_AUDITOR,STORE_MANAGER,Admin";
+
+    /// <summary>المدير العام فقط (إدارة حسابات طاقم العمل والصلاحيات).</summary>
+    public const string SuperAdmin = "superadmin,SUPER_ADMIN";
 }

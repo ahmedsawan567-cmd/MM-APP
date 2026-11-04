@@ -144,10 +144,33 @@
   });
 
   document.addEventListener('DOMContentLoaded', () => {
+    // نقل نوافذ الحوار إلى body حتى تغطي الشريط الجانبي والعلوي (خارج سياق تكديس المحتوى).
+    document.querySelectorAll('.modal-overlay').forEach(m => document.body.appendChild(m));
     window.lucide && lucide.createIcons();
     setupQuickNav();
   });
 
+  // نوافذ الحوار (modal-overlay): فتح/إغلاق موحّد لكل الصفحات، مع الإغلاق بـ Esc أو بالنقر خارج النافذة.
+  MM.openModal = id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('hidden');
+    window.lucide && lucide.createIcons();
+    setTimeout(() => el.querySelector('input:not([type=hidden]):not([disabled]), select, textarea')?.focus(), 30);
+  };
+  MM.closeModal = id => document.getElementById(id)?.classList.add('hidden');
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')].pop();
+    open && open.classList.add('hidden');
+  });
+  document.addEventListener('mousedown', e => {
+    if (e.target.classList?.contains('modal-overlay')) e.target.classList.add('hidden');
+  });
+
   window.MM = MM;
   window.showToast = MM.toast; // توافق مع الصفحات القديمة
+  window.openModal = window.openModal || MM.openModal;
+  window.closeModal = window.closeModal || MM.closeModal;
 })();

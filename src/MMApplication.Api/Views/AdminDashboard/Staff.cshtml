@@ -5,7 +5,7 @@
     ViewData["Title"] = "إدارة طاقم العمل والصلاحيات (RBAC)";
     ViewData["ActiveTab"] = "staff";
     var totalStaff = Model.StaffMembers.Count;
-    var adminCount = Model.StaffMembers.Count(s => s.StaffRole == StaffRole.SuperAdmin || s.Role == CustomerRole.Admin);
+    var adminCount = Model.StaffMembers.Count(s => s.StaffRole == StaffRole.SuperAdmin);
     var auditorCount = Model.StaffMembers.Count(s => s.StaffRole == StaffRole.Auditor);
     var merchantCount = Model.StaffMembers.Count(s => s.StaffRole == StaffRole.StoreManager || s.StaffRole == StaffRole.Cashier);
 }
@@ -27,7 +27,7 @@
         </div>
 
         <div class="flex items-center gap-2.5">
-            <button onclick="showToast('جاري تصدير قائمة طاقم العمل بصيغة CSV...', 'info')" class="btn-secondary">
+            <button onclick="exportStaffCsv()" class="btn-secondary" @(totalStaff == 0 ? "disabled" : "")>
                 <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
                 <span>تصدير القائمة</span>
             </button>
@@ -46,7 +46,7 @@
                 <i data-lucide="users" class="w-4 h-4 text-slate-500"></i>
             </div>
             <div class="text-xl font-bold text-slate-900 num">@totalStaff</div>
-            <div class="text-[11px] text-emerald-700 mt-1 font-medium">حسابات نشطة ومسجلة</div>
+            <div class="text-[11px] text-emerald-700 mt-1 font-medium">@Model.StaffMembers.Count(x => x.IsActive) نشط</div>
         </div>
 
         <div class="stat-card">
@@ -99,15 +99,16 @@
                         <th>الهاتف المسجل</th>
                         <th>المسمى الوظيفي والدور</th>
                         <th>المتجر المرتبط</th>
+                        <th>الحالة</th>
                         <th>تاريخ الإنشاء</th>
                         <th class="text-left">الإجراءات</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="staff-tbody">
                     @if (Model.StaffMembers.Count == 0)
                     {
                         <tr>
-                            <td colspan="6" class="text-center py-12 text-slate-400">
+                            <td colspan="7" class="text-center py-12 text-slate-400">
                                 <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
                                     <i data-lucide="user-x" class="w-6 h-6"></i>
                                 </div>
@@ -118,14 +119,14 @@
                     }
                     @foreach (var s in Model.StaffMembers)
                     {
-                        <tr>
+                        <tr data-name="@s.FullName" data-phone="@s.PhoneNumber" data-role="@s.StaffRoleLabel" data-store="@(s.StoreName ?? "إدارة المول المركزية")" data-active="@(s.IsActive ? "نشط" : "معطل")" data-created="@s.CreatedAt.ToString("yyyy-MM-dd")" class="@(s.IsActive ? "" : "opacity-60")">
                             <td>
                                 <div class="flex items-center gap-2.5">
                                     <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center font-bold text-xs shrink-0">
                                         @(string.IsNullOrWhiteSpace(s.FullName) ? "م" : s.FullName.Substring(0, 1))
                                     </div>
                                     <div>
-                                        <div class="font-bold text-slate-900">@s.FullName</div>
+                                        <div class="font-bold text-slate-900">@s.FullName @if (s.IsCurrentUser) { <span class="badge badge-slate mr-1">أنت</span> }</div>
                                         <div class="text-[11px] text-slate-400 num">#@s.Id.Substring(0, Math.Min(8, s.Id.Length))</div>
                                     </div>
                                 </div>
@@ -165,18 +166,33 @@
                                     <span>@(s.StoreName ?? "إدارة المول المركزية")</span>
                                 </div>
                             </td>
+                            <td>
+                                @if (s.IsActive)
+                                {
+                                    <span class="badge badge-emerald">نشط</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-rose">معطل</span>
+                                }
+                            </td>
                             <td class="text-slate-500 text-xs num">@s.CreatedAt.ToString("yyyy/MM/dd")</td>
                             <td class="text-left">
                                 <div class="flex items-center gap-1 justify-end">
-                                    <button onclick="openEditStaffModal('@s.Id', '@s.FullName', '@s.PhoneNumber', '@(s.StaffRole.HasValue ? s.StaffRole.Value.ToString() : "Auditor")', '@(s.StoreTenantId ?? "")')" title="تعديل بيانات الموظف" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                    <button type="button" onclick="openEditStaffModal(this)"
+                                            data-id="@s.Id" data-name="@s.FullName" data-phone="@s.PhoneNumber"
+                                            data-role="@(s.StaffRole?.ToString() ?? "Auditor")" data-store="@(s.StoreTenantId ?? "")"
+                                            title="تعديل البيانات أو كلمة المرور" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
                                         <i data-lucide="edit-3" class="w-4 h-4"></i>
                                     </button>
-                                    <button onclick="toggleActiveStaff('@s.Id', '@s.FullName')" title="تفعيل/تعطيل الحساب" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
-                                        <i data-lucide="power" class="w-4 h-4"></i>
-                                    </button>
-                                    @if (s.StaffRole != StaffRole.SuperAdmin)
+                                    @if (!s.IsCurrentUser)
                                     {
-                                        <button onclick="deleteStaff('@s.Id', '@s.FullName')" title="حذف الحساب" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
+                                        <button type="button" onclick="toggleActiveStaff(this)" data-id="@s.Id" data-name="@s.FullName" data-active="@(s.IsActive ? "1" : "0")"
+                                                title="@(s.IsActive ? "تعطيل الحساب" : "تفعيل الحساب")" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+                                            <i data-lucide="@(s.IsActive ? "power-off" : "power")" class="w-4 h-4"></i>
+                                        </button>
+                                        <button type="button" onclick="deleteStaff(this)" data-id="@s.Id" data-name="@s.FullName"
+                                                title="حذف الحساب" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
                                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                                         </button>
                                     }
@@ -217,12 +233,18 @@
             </div>
             <div>
                 <label class="form-label">كلمة المرور:</label>
-                <input type="password" id="staff-pass" value="Staff123!" class="form-input">
+                <div class="flex gap-2">
+                    <input type="text" id="staff-pass" dir="ltr" autocomplete="new-password" placeholder="8 أحرف على الأقل" class="form-input num flex-1">
+                    <button type="button" onclick="fillPassword('staff-pass')" class="btn-secondary shrink-0" title="توليد كلمة مرور قوية">
+                        <i data-lucide="wand-sparkles" class="w-4 h-4"></i><span>توليد</span>
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">انسخها وسلّمها للموظف؛ لن تظهر مرة أخرى.</p>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="form-label">الدور الوظيفي:</label>
-                    <select id="staff-role" class="form-select">
+                    <select id="staff-role" class="form-select" onchange="syncStoreField('staff')">
                         <option value="Auditor">مدقق فواتير (Auditor)</option>
                         <option value="StoreManager">مدير متجر (Store Manager)</option>
                         <option value="Cashier">كاشير متجر (Cashier)</option>
@@ -272,13 +294,18 @@
                 <input type="text" id="edit-staff-phone" class="form-input num">
             </div>
             <div>
-                <label class="form-label">كلمة مرور جديدة (اتركه فارغاً للإبقاء على الحالية):</label>
-                <input type="password" id="edit-staff-pass" placeholder="••••••••" class="form-input">
+                <label class="form-label">كلمة مرور جديدة:</label>
+                <div class="flex gap-2">
+                    <input type="text" id="edit-staff-pass" dir="ltr" autocomplete="new-password" placeholder="اتركه فارغاً للإبقاء على الحالية" class="form-input num flex-1">
+                    <button type="button" onclick="fillPassword('edit-staff-pass')" class="btn-secondary shrink-0" title="توليد كلمة مرور قوية">
+                        <i data-lucide="wand-sparkles" class="w-4 h-4"></i><span>توليد</span>
+                    </button>
+                </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="form-label">الدور الوظيفي:</label>
-                    <select id="edit-staff-role" class="form-select">
+                    <select id="edit-staff-role" class="form-select" onchange="syncStoreField('edit-staff')">
                         <option value="Auditor">مدقق فواتير (Auditor)</option>
                         <option value="StoreManager">مدير متجر (Store Manager)</option>
                         <option value="Cashier">كاشير متجر (Cashier)</option>
@@ -307,121 +334,162 @@
 
 @section Scripts {
 <script>
+    const NEEDS_STORE = ['StoreManager', 'Cashier'];
+    const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function syncStoreField(prefix) {
+        const role = document.getElementById(prefix + '-role').value;
+        const store = document.getElementById(prefix + '-store');
+        const needs = NEEDS_STORE.includes(role);
+        store.disabled = !needs;
+        if (!needs) store.value = '';
+    }
+
+    function generatePassword() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        const bytes = crypto.getRandomValues(new Uint32Array(10));
+        let out = '';
+        bytes.forEach(b => out += chars[b % chars.length]);
+        return out.slice(0, 5) + '-' + out.slice(5);
+    }
+
+    function fillPassword(inputId) {
+        const input = document.getElementById(inputId);
+        input.value = generatePassword();
+        input.select();
+        navigator.clipboard?.writeText(input.value).then(() => showToast('تم توليد كلمة المرور ونسخها.', 'success')).catch(() => {});
+    }
+
+    async function staffRequest(url, method, body) {
+        const res = await fetch(url, {
+            method,
+            headers: body ? { 'Content-Type': 'application/json' } : {},
+            body: body ? JSON.stringify(body) : undefined
+        });
+        let data = {};
+        try { data = await res.json(); } catch { }
+        if (res.status === 403) throw new Error('هذه العملية متاحة للمدير العام فقط.');
+        if (!res.ok || data.success === false) throw new Error(data.message || 'تعذّر تنفيذ العملية.');
+        return data;
+    }
+
+    function readForm(prefix) {
+        return {
+            fullName: document.getElementById(prefix + '-name').value.trim(),
+            phoneNumber: document.getElementById(prefix + '-phone').value.trim(),
+            password: document.getElementById(prefix + '-pass').value.trim(),
+            staffRole: document.getElementById(prefix + '-role').value,
+            storeTenantId: document.getElementById(prefix + '-store').value || null
+        };
+    }
+
+    function validateForm(f, passwordRequired) {
+        if (f.fullName.length < 3 || f.phoneNumber.length < 6) return 'أدخل الاسم الكامل ورقم الهاتف بشكل صحيح.';
+        if ((passwordRequired || f.password) && f.password.length < 8) return 'كلمة المرور يجب ألا تقل عن 8 أحرف.';
+        if (NEEDS_STORE.includes(f.staffRole) && !f.storeTenantId) return 'اختر المتجر الذي يتبع له الموظف.';
+        return null;
+    }
+
     async function submitCreateStaff() {
-        const fullName = document.getElementById('staff-name').value.trim();
-        const phoneNumber = document.getElementById('staff-phone').value.trim();
-        const password = document.getElementById('staff-pass').value.trim() || 'Staff123!';
-        const staffRole = document.getElementById('staff-role').value;
-        const storeTenantId = document.getElementById('staff-store').value || null;
-
-        const role = (staffRole === 'StoreManager' || staffRole === 'Cashier') ? 'Merchant' : 'Admin';
-
-        if (!fullName || !phoneNumber) {
-            showToast('يرجى ملء كافة بيانات الموظف.', 'warning');
-            return;
-        }
-
+        const f = readForm('staff');
+        const error = validateForm(f, true);
+        if (error) { showToast(error, 'warning'); return; }
         try {
-            const res = await fetch('/api/superadmin/staff', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullName, phoneNumber, password, role, staffRole, storeTenantId })
-            });
-
-            if (!res.ok) throw new Error('فشل إنشاء حساب الموظف');
-            showToast(`تم إنشاء حساب (${fullName}) بنجاح!`, 'success');
+            await staffRequest('/api/superadmin/staff', 'POST', f);
             closeModal('modal-add-staff');
+            await Swal.fire({
+                icon: 'success',
+                title: 'تم إنشاء الحساب',
+                html: `سلّم الموظف بيانات الدخول:<br><br>رقم الهاتف: <b dir="ltr">${esc(f.phoneNumber)}</b><br>كلمة المرور: <b dir="ltr">${esc(f.password)}</b><br><br><small>رابط الدخول: ${location.origin}/AdminDashboard/Login</small>`,
+                confirmButtonText: 'تم'
+            });
+            location.reload();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    function openEditStaffModal(btn) {
+        const d = btn.dataset;
+        document.getElementById('edit-staff-id').value = d.id;
+        document.getElementById('edit-staff-name').value = d.name;
+        document.getElementById('edit-staff-phone').value = d.phone === '-' ? '' : d.phone;
+        document.getElementById('edit-staff-role').value = d.role;
+        document.getElementById('edit-staff-store').value = d.store || '';
+        document.getElementById('edit-staff-pass').value = '';
+        syncStoreField('edit-staff');
+        openModal('modal-edit-staff');
+    }
+
+    async function submitEditStaff() {
+        const id = document.getElementById('edit-staff-id').value;
+        const f = readForm('edit-staff');
+        const error = validateForm(f, false);
+        if (error) { showToast(error, 'warning'); return; }
+        try {
+            await staffRequest(`/api/superadmin/staff/${encodeURIComponent(id)}`, 'PUT', { ...f, password: f.password || null });
+            showToast('تم تحديث بيانات الموظف.', 'success');
+            closeModal('modal-edit-staff');
             setTimeout(() => location.reload(), 600);
         } catch (err) {
             showToast(err.message, 'error');
         }
     }
 
-    function openEditStaffModal(id, name, phone, role, storeId) {
-        document.getElementById('edit-staff-id').value = id;
-        document.getElementById('edit-staff-name').value = name;
-        document.getElementById('edit-staff-phone').value = phone;
-        document.getElementById('edit-staff-role').value = role;
-        document.getElementById('edit-staff-store').value = storeId || '';
-        document.getElementById('edit-staff-pass').value = '';
-        openModal('modal-edit-staff');
-    }
-
-    async function submitEditStaff() {
-        const id = document.getElementById('edit-staff-id').value;
-        const fullName = document.getElementById('edit-staff-name').value.trim();
-        const phoneNumber = document.getElementById('edit-staff-phone').value.trim();
-        const staffRole = document.getElementById('edit-staff-role').value;
-        const storeTenantId = document.getElementById('edit-staff-store').value || null;
-        const password = document.getElementById('edit-staff-pass').value.trim() || null;
-
-        try {
-            const res = await fetch(`/api/superadmin/staff/${encodeURIComponent(id)}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullName, phoneNumber, staffRole, storeTenantId, password })
-            });
-
-            const data = await res.json();
-            if (res.ok) {
-                showToast('تم تحديث بيانات الموظف بنجاح!', 'success');
-                closeModal('modal-edit-staff');
-                setTimeout(() => location.reload(), 600);
-            } else {
-                showToast(data.message || 'فشل التعديل.', 'error');
-            }
-        } catch (err) {
-            showToast('حدث خطأ أثناء الاتصال.', 'error');
-        }
-    }
-
-    async function toggleActiveStaff(id, name) {
+    async function toggleActiveStaff(btn) {
+        const { id, name, active } = btn.dataset;
+        const disabling = active === '1';
         const result = await Swal.fire({
-            title: 'حالة الحساب',
-            text: `هل تريد تغيير حالة تفعيل/تعطيل حساب (${name})؟`,
+            title: disabling ? 'تعطيل الحساب' : 'تفعيل الحساب',
+            text: disabling ? `لن يتمكن (${name}) من دخول المنصة حتى تعيد تفعيله.` : `سيتمكن (${name}) من دخول المنصة مجدداً.`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'نعم، تابع',
+            confirmButtonText: disabling ? 'تعطيل' : 'تفعيل',
             cancelButtonText: 'إلغاء'
         });
-
         if (!result.isConfirmed) return;
-
         try {
-            const res = await fetch(`/api/superadmin/staff/${encodeURIComponent(id)}/toggle-active`, { method: 'POST' });
-            const data = await res.json();
-            if (res.ok) {
-                showToast(data.message || 'تم تحديث حالة الحساب.', 'success');
-                setTimeout(() => location.reload(), 600);
-            } else {
-                showToast('فشل تعديل الحالة.', 'error');
-            }
+            const data = await staffRequest(`/api/superadmin/staff/${encodeURIComponent(id)}/toggle-active`, 'POST');
+            showToast(data.message, 'success');
+            setTimeout(() => location.reload(), 600);
         } catch (err) {
-            showToast('حدث خطأ أثناء الاتصال.', 'error');
+            showToast(err.message, 'error');
         }
     }
 
-    async function deleteStaff(id, name) {
+    async function deleteStaff(btn) {
+        const { id, name } = btn.dataset;
         const result = await Swal.fire({
             title: 'حذف الحساب',
-            text: `هل تريد حذف حساب الموظف (${name}) نهائياً؟`,
+            text: `حذف حساب (${name}) نهائياً؟ يمكنك تعطيله بدلاً من الحذف.`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'نعم، احذف',
             cancelButtonText: 'إلغاء',
             customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
         });
-
         if (!result.isConfirmed) return;
-
         try {
-            const res = await fetch(`/api/superadmin/staff/${encodeURIComponent(id)}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('فشل حذف الحساب');
-            showToast('تم حذف الحساب بنجاح.', 'info');
+            await staffRequest(`/api/superadmin/staff/${encodeURIComponent(id)}`, 'DELETE');
+            showToast('تم حذف الحساب.', 'info');
             setTimeout(() => location.reload(), 600);
         } catch (err) {
             showToast(err.message, 'error');
         }
     }
+
+    function exportStaffCsv() {
+        const rows = [...document.querySelectorAll('#staff-tbody tr[data-name]')];
+        const header = ['الاسم', 'الهاتف', 'الدور', 'المتجر', 'الحالة', 'تاريخ الإنشاء'];
+        const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const lines = [header, ...rows.map(r => [r.dataset.name, r.dataset.phone, r.dataset.role, r.dataset.store, r.dataset.active, r.dataset.created])]
+            .map(cols => cols.map(cell).join(','));
+        const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `staff-${new Date().toISOString().slice(0, 10)}.csv` });
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    syncStoreField('staff');
 </script>
 }

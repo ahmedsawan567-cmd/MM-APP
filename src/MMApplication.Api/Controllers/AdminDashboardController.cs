@@ -523,15 +523,13 @@ public class AdminDashboardController : Controller
     
     // ملاحظة أمنية: المستخدم غير المسجّل لا يُعامل أبداً كمدير عام.
     // (User == null يحدث فقط في اختبارات الوحدة التي تنشئ الـ Controller مباشرة بدون HttpContext)
-    private bool IsDeveloperOrSuperAdmin => User == null || 
-                                           User.IsInRole("superadmin") || 
-                                           CurrentSystemRole == "SUPER_ADMIN" || 
-                                           CurrentUserId == "programer" || 
-                                           CurrentUserId == "USR-MOSTAFA" || 
-                                           CurrentUserId == "USR-SUPERADMIN";
+    // الصلاحيات تُحدد من الدور فقط (لا استثناءات بأسماء حسابات).
+    private bool IsDeveloperOrSuperAdmin => User == null ||
+                                           User.IsInRole("superadmin") ||
+                                           CurrentSystemRole == "SUPER_ADMIN";
 
-    private bool IsAuditor => User != null && 
-                             (User.IsInRole("auditor") || CurrentSystemRole == "FRAUD_AUDITOR" || CurrentUserId == "USR-MOURAD");
+    private bool IsAuditor => User != null &&
+                             (User.IsInRole("auditor") || CurrentSystemRole == "FRAUD_AUDITOR");
 
     private bool IsStoreManager => User != null && 
                                   User.Identity?.IsAuthenticated == true && 
@@ -1926,7 +1924,7 @@ public class AdminDashboardController : Controller
             },
             StaffRoleLabel = s.Role switch
             {
-                SystemUserRole.SUPER_ADMIN => s.UserId == "programer" ? "المطور التقني (Developer / Root)" : "المدير العام (Super Admin)",
+                SystemUserRole.SUPER_ADMIN => "المدير العام (Super Admin)",
                 SystemUserRole.FRAUD_AUDITOR => "مدقق فواتير (Fraud Auditor)",
                 SystemUserRole.STORE_MANAGER => "مدير فرع (Store Manager)",
                 SystemUserRole.CASHIER => "كاشير ونقاط بيع (Cashier)",
@@ -1934,6 +1932,8 @@ public class AdminDashboardController : Controller
             },
             StoreTenantId = s.TenantId,
             StoreName = s.Tenant != null ? s.Tenant.NameAr : "إدارة المول المركزية",
+            IsActive = s.IsActive,
+            IsCurrentUser = s.UserId == CurrentUserId,
             CreatedAt = s.CreatedAt
         }).ToList();
 
