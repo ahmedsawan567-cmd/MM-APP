@@ -2,157 +2,152 @@
 @model MMApplication.Api.ViewModels.LoginViewModel
 @{
     Layout = null;
-    ViewData["Title"] = "تسجيل الدخول - منظومة المرأة مول";
 }
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تسجيل الدخول المركزي - منظومة المرأة مول</title>
-    <!-- مكتبات الواجهة تُخدم محلياً من wwwroot/lib (تُبنى من مجلد frontend) -->
+    <meta name="color-scheme" content="light dark">
+    <title>تسجيل الدخول — المرأة مول</title>
+    <script>
+        (function () {
+            var t = null;
+            try { t = localStorage.getItem('mm-theme'); } catch (e) { }
+            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     <link rel="stylesheet" href="~/lib/tailwind.css" asp-append-version="true">
-    <link rel="stylesheet" href="~/lib/apexcharts.css" asp-append-version="true">
     <script src="~/lib/lucide.min.js" asp-append-version="true"></script>
-    <script src="~/lib/apexcharts.min.js" asp-append-version="true"></script>
-    <script src="~/lib/sweetalert2.all.min.js" asp-append-version="true"></script>
 </head>
-<body class="min-h-screen bg-[#090d16] text-slate-100 flex items-center justify-center p-4 font-sans antialiased relative overflow-hidden">
+<body class="min-h-screen">
+    <div class="grid min-h-screen lg:grid-cols-2">
 
-    <!-- Subtle Background Ambient Glows -->
-    <div class="absolute -top-32 -right-32 w-96 h-96 bg-brand-600/10 rounded-full blur-[140px] pointer-events-none"></div>
-    <div class="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-600/10 rounded-full blur-[140px] pointer-events-none"></div>
+        <!-- لوحة الهوية -->
+        <section class="relative hidden overflow-hidden bg-[#064e3b] text-white lg:flex lg:flex-col lg:justify-between p-12">
+            <div class="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-emerald-400/20 blur-3xl"></div>
+            <div class="pointer-events-none absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-amber-400/10 blur-3xl"></div>
+            <svg class="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]" aria-hidden="true">
+                <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="white" stroke-width="1" /></pattern></defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+            </svg>
 
-    <div class="w-full max-w-md relative z-10 space-y-6">
-        
-        <!-- Brand Header -->
-        <div class="text-center space-y-2">
-            <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 shadow-xl shadow-brand-500/20 mb-1">
-                <i data-lucide="store" class="w-7 h-7 text-white"></i>
-            </div>
-            <h1 class="text-xl font-bold text-white tracking-tight">المرأة مول | لوحة التحكم المركزية</h1>
-            <p class="text-xs text-slate-400">إدارة المتاجر، نماذج الفواتير بالـ AI، ومكافآت الولاء</p>
-        </div>
-
-        <!-- Authentication Card -->
-        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl space-y-5">
-            
-            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-                <span class="text-xs font-bold text-slate-200">تسجيل الدخول للمنظومة</span>
-            </div>
-
-            <!-- Error Banner -->
-            @if (!string.IsNullOrEmpty(Model?.ErrorMessage))
-            {
-                <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5">
-                    <i data-lucide="alert-circle" class="w-4 h-4 text-rose-400 shrink-0"></i>
-                    <span>@Model.ErrorMessage</span>
+            <div class="relative flex items-center gap-3">
+                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
+                    <i data-lucide="crown" class="h-6 w-6 text-amber-300"></i>
                 </div>
-            }
-
-            <!-- Form -->
-            <form asp-controller="AdminDashboard" asp-action="Login" asp-route-returnUrl="@Model?.ReturnUrl" method="post" class="space-y-4">
-                @Html.AntiForgeryToken()
-
                 <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">اسم المستخدم أو البريد أو الهاتف</label>
-                    <div class="relative">
-                        <input type="text" 
-                               id="usernameField"
-                               name="Username" 
-                               value="@Model?.Username" 
-                               placeholder="أدخل اسم المستخدم..."
-                               required
-                               class="w-full pr-10 pl-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:bg-slate-800 transition">
-                        <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute right-3 top-3"></i>
+                    <div class="text-lg font-extrabold">المرأة مول</div>
+                    <div class="text-xs text-white/70">منظومة الولاء والفواتير</div>
+                </div>
+            </div>
+
+            <div class="relative max-w-md">
+                <h1 class="text-4xl font-extrabold leading-tight">إدارة الولاء والفواتير<br />في مكان واحد</h1>
+                <p class="mt-4 text-white/75 leading-relaxed">تابع المبيعات وراجع الفواتير التي قرأها الذكاء الاصطناعي، وأدر المكافآت والمتاجر بسهولة.</p>
+                <ul class="mt-8 space-y-3 text-sm text-white/85">
+                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="sparkles" class="h-4 w-4 text-amber-300"></i></span> قراءة الفواتير بالذكاء الاصطناعي</li>
+                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="shield-check" class="h-4 w-4 text-amber-300"></i></span> مراجعة الفواتير المشبوهة قبل منح النقاط</li>
+                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="chart-no-axes-combined" class="h-4 w-4 text-amber-300"></i></span> تقارير المبيعات والنقاط مع تصدير Excel</li>
+                </ul>
+            </div>
+
+            <div class="relative text-xs text-white/50">© @DateTime.UtcNow.Year المرأة مول</div>
+        </section>
+
+        <!-- نموذج الدخول -->
+        <main class="flex items-center justify-center bg-canvas p-6 sm:p-10">
+            <div class="w-full max-w-sm animate-fade-in">
+                <div class="mb-8 flex items-center gap-3 lg:hidden">
+                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-800 text-amber-300"><i data-lucide="crown" class="h-6 w-6"></i></div>
+                    <div>
+                        <div class="text-lg font-extrabold text-ink">المرأة مول</div>
+                        <div class="text-xs text-ink-3">منظومة الولاء والفواتير</div>
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">كلمة المرور</label>
-                    <div class="relative">
-                        <input type="password" 
-                               id="passwordField"
-                               name="Password" 
-                               placeholder="••••••••"
-                               required
-                               class="w-full pr-10 pl-10 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:bg-slate-800 transition font-mono">
-                        <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute right-3 top-3"></i>
-                        <button type="button" onclick="togglePasswordVisibility()" class="absolute left-3 top-3 text-slate-400 hover:text-white">
-                            <i data-lucide="eye" id="pwdToggleIcon" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                </div>
+                <h2 class="text-2xl font-extrabold text-ink">تسجيل الدخول</h2>
+                <p class="mt-1 text-sm text-ink-3">ادخل بحساب طاقم العمل للوصول إلى لوحة التحكم</p>
 
-                <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="RememberMe" value="true" checked class="w-4 h-4 rounded bg-slate-800 border-slate-700 text-brand-600 focus:ring-0">
-                        <span>تذكر هذا الجهاز</span>
+                @if (!string.IsNullOrEmpty(Model?.ErrorMessage))
+                {
+                    <div class="mt-6 flex items-start gap-2.5 rounded-xl bg-rose-50 p-3.5 text-sm text-rose-700 ring-1 ring-inset ring-rose-200" role="alert">
+                        <i data-lucide="circle-alert" class="mt-0.5 h-4 w-4 shrink-0"></i>
+                        <span>@Model.ErrorMessage</span>
+                    </div>
+                }
+
+                <form asp-controller="AdminDashboard" asp-action="Login" asp-route-returnUrl="@Model?.ReturnUrl" method="post" class="mt-6 space-y-4">
+                    @Html.AntiForgeryToken()
+
+                    <div>
+                        <label for="usernameField" class="form-label">اسم المستخدم أو البريد أو الهاتف</label>
+                        <div class="relative">
+                            <i data-lucide="user" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"></i>
+                            <input type="text" id="usernameField" name="Username" value="@Model?.Username" required autocomplete="username" autofocus
+                                   class="form-input py-2.5 pr-10" placeholder="مثال: USR-MOSTAFA" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="passwordField" class="form-label">كلمة المرور</label>
+                        <div class="relative">
+                            <i data-lucide="lock" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"></i>
+                            <input type="password" id="passwordField" name="Password" required autocomplete="current-password"
+                                   class="form-input py-2.5 pl-10 pr-10" placeholder="••••••••" />
+                            <button type="button" onclick="togglePassword()" class="absolute left-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-ink-3 hover:text-ink" aria-label="إظهار كلمة المرور">
+                                <i data-lucide="eye" id="pwdIcon" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <label class="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
+                        <input type="checkbox" name="RememberMe" value="true" checked class="form-check" />
+                        تذكرني على هذا الجهاز
                     </label>
-                    <span class="text-[11px] text-slate-500 font-mono">Session 12h</span>
-                </div>
 
-                <button type="submit" class="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 shadow-lg shadow-brand-600/30 transition flex items-center justify-center gap-2 mt-2">
-                    <i data-lucide="log-in" class="w-4 h-4"></i>
-                    <span>دخول المنظومة</span>
-                </button>
-            </form>
+                    <button type="submit" class="btn-primary btn-lg w-full">
+                        دخول
+                        <i data-lucide="arrow-left" class="h-4 w-4"></i>
+                    </button>
+                </form>
 
-            <!-- حسابات التجربة تظهر في بيئة التطوير فقط (لا تُرسل كلمات المرور للمتصفح في الإنتاج) -->
-            @if (Env.IsDevelopment())
-            {
-            
-            <div class="pt-4 border-t border-slate-800 space-y-2">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">حسابات تجريبية سريعة للاختبار:</span>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <button type="button" onclick="quickFill('programer', 'Programmer123!')" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-right transition">
-                        <div class="font-bold text-white text-[11px]">المطور التقني</div>
-                        <div class="text-[10px] text-brand-400 font-mono">programer</div>
-                    </button>
-                    <button type="button" onclick="quickFill('USR-MOSTAFA', 'Admin123!')" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-right transition">
-                        <div class="font-bold text-white text-[11px]">المدير العام</div>
-                        <div class="text-[10px] text-indigo-400 font-mono">USR-MOSTAFA</div>
-                    </button>
-                    <button type="button" onclick="quickFill('USR-KADI-MGR', 'Manager123!')" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-right transition">
-                        <div class="font-bold text-white text-[11px]">مدير كافيه كادي</div>
-                        <div class="text-[10px] text-emerald-400 font-mono">USR-KADI-MGR</div>
-                    </button>
-                    <button type="button" onclick="quickFill('USR-MOURAD', 'Auditor123!')" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-right transition">
-                        <div class="font-bold text-white text-[11px]">مدقق الاحتيال</div>
-                        <div class="text-[10px] text-amber-400 font-mono">USR-MOURAD</div>
-                    </button>
-                </div>
+                @* حسابات التجربة تظهر في بيئة التطوير فقط (لا تُرسل كلمات المرور للمتصفح في الإنتاج) *@
+                @if (Env.IsDevelopment())
+                {
+                    <div class="mt-8 rounded-2xl border border-dashed border-line p-4">
+                        <div class="mb-3 flex items-center gap-2 text-xs font-bold text-ink-3">
+                            <i data-lucide="flask-conical" class="h-3.5 w-3.5"></i> حسابات تجريبية (بيئة التطوير فقط)
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            @foreach (var (label, user, pwd) in new[] { ("المدير العام", "USR-MOSTAFA", "Admin123!"), ("المطور التقني", "programer", "Programmer123!"), ("مدقق الاحتيال", "USR-MOURAD", "Auditor123!"), ("مدير متجر", "USR-KADI-MGR", "Manager123!") })
+                            {
+                                <button type="button" onclick="quickFill('@user', '@pwd')" class="rounded-xl bg-surface p-2.5 text-right ring-1 ring-line transition hover:ring-brand-600">
+                                    <div class="text-xs font-bold text-ink">@label</div>
+                                    <div class="text-[11px] text-ink-3" dir="ltr">@user</div>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
-
-            }
-
-        </div>
-
+        </main>
     </div>
 
     <script>
-        function togglePasswordVisibility() {
+        function togglePassword() {
             const input = document.getElementById('passwordField');
-            const icon = document.getElementById('pwdToggleIcon');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.setAttribute('data-lucide', 'eye-off');
-            } else {
-                input.type = 'password';
-                icon.setAttribute('data-lucide', 'eye');
-            }
-            if (window.lucide) lucide.createIcons();
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            document.getElementById('pwdIcon').outerHTML = `<i data-lucide="${show ? 'eye-off' : 'eye'}" id="pwdIcon" class="h-4 w-4"></i>`;
+            lucide.createIcons();
         }
-
         function quickFill(user, pwd) {
             document.getElementById('usernameField').value = user;
             document.getElementById('passwordField').value = pwd;
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.lucide) lucide.createIcons();
-        });
+        document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
     </script>
 </body>
 </html>

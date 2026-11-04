@@ -87,7 +87,7 @@
         <div class="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white">
             <!-- Tier Filter Pills -->
             <div class="flex items-center gap-1.5 flex-wrap">
-                <a asp-action="Customers" asp-route-tier="ALL" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "ALL" || ViewData["TierFilter"] == null ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")">
+                <a asp-action="Customers" asp-route-tier="ALL" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "ALL" || ViewData["TierFilter"] == null ? "bg-ink text-surface" : "bg-slate-100 text-slate-600 hover:bg-slate-200")">
                     الكل (@Model.Count)
                 </a>
                 <a asp-action="Customers" asp-route-tier="Platinum" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(ViewData["TierFilter"]?.ToString() == "Platinum" ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100")">
@@ -441,17 +441,16 @@
         const growthEl = document.getElementById('customerGrowthChart');
         const monthly = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewData["MonthlyRegistrations"]));
         if (growthEl && window.ApexCharts) {
-            new ApexCharts(growthEl, {
+            MM.chart(growthEl, () => ({
                 series: [{ name: 'عملاء جدد', data: monthly.map(m => m.count) }],
-                chart: { type: 'bar', height: 170, fontFamily: 'Cairo, sans-serif', toolbar: { show: false }, animations: { enabled: false } },
-                colors: ['#047857'],
+                chart: { type: 'bar', height: 170, animations: { enabled: false } },
+                colors: [MM.color('chart-primary')],
                 plotOptions: { bar: { borderRadius: 4, borderRadiusApplication: 'end', columnWidth: '45%' } },
                 dataLabels: { enabled: false },
-                xaxis: { categories: monthly.map(m => m.label), labels: { style: { colors: '#64748b', fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
-                yaxis: { forceNiceScale: true, labels: { style: { colors: '#64748b', fontSize: '11px' }, formatter: v => Math.round(v) } },
-                grid: { borderColor: '#f1f5f9' },
+                xaxis: { categories: monthly.map(m => m.label) },
+                yaxis: { forceNiceScale: true, labels: { formatter: v => Math.round(v) } },
                 tooltip: { y: { formatter: v => v + ' عميل' } }
-            }).render();
+            }));
         }
     });
 

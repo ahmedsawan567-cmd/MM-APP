@@ -42,7 +42,7 @@
                 <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                 @(aiIsReal ? "القراءة بواسطة Claude" : "القراءة الآلية تجريبية (أضف مفتاح Claude)")
             </span>
-            <button type="button" onclick="openAiLab()" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800">
+            <button type="button" onclick="openAiLab()" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-ink text-surface hover:opacity-90">
                 <i data-lucide="flask-conical" class="w-4 h-4"></i>
                 مختبر قراءة الفواتير
             </button>
@@ -139,7 +139,7 @@
                             </a>
                         </div>
                     </div>
-                    <div class="bg-slate-900 rounded-xl overflow-auto h-[60vh] flex items-start justify-center">
+                    <div class="bg-[#0b1220] rounded-xl overflow-auto h-[60vh] flex items-start justify-center">
                         <img id="d-image" alt="صورة الفاتورة" class="origin-top transition-transform max-w-full"
                              onerror="this.classList.add('hidden'); document.getElementById('d-noimage').classList.remove('hidden')" />
                         <div id="d-noimage" class="hidden self-center text-center text-slate-400 text-sm p-6">
@@ -234,7 +234,7 @@
 </div>
 
 <!-- نافذة مختبر قراءة الفواتير -->
-<div id="ai-lab" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" onclick="if(event.target===this) closeAiLab()">
+<div id="ai-lab" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4" onclick="if(event.target===this) closeAiLab()">
     <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between p-5 border-b border-slate-100">
             <div>

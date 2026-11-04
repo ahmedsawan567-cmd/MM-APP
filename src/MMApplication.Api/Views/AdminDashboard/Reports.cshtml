@@ -36,7 +36,7 @@
             <div class="flex flex-wrap gap-1.5">
                 @foreach (var (key, label) in presets)
                 {
-                    <a href="?range=@key&storeId=@f.TenantId" class="px-3 py-2 rounded-xl text-xs font-semibold border @(range == key ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")">@label</a>
+                    <a href="?range=@key&storeId=@f.TenantId" class="px-3 py-2 rounded-xl text-xs font-semibold border @(range == key ? "bg-ink text-surface border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")">@label</a>
                 }
             </div>
             <input type="hidden" name="range" value="custom" />
@@ -237,24 +237,19 @@
     (function () {
         const daily = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Daily.Select(d => new { date = d.Date.ToString("MM/dd"), sales = d.Sales, invoices = d.Invoices, approved = d.Approved, points = d.Points })));
         const fmt = (v) => Number(v).toLocaleString('en', { maximumFractionDigits: 2 });
-        const chart = new ApexCharts(document.getElementById('daily-chart'), {
-            chart: { type: 'bar', height: 288, toolbar: { show: false }, fontFamily: 'Cairo, sans-serif', animations: { enabled: false } },
+        MM.chart(document.getElementById('daily-chart'), () => ({
+            chart: { type: 'bar', height: 288, animations: { enabled: false } },
             series: [{ name: 'المبيعات المعتمدة', data: daily.map(d => d.sales) }],
-            xaxis: {
-                categories: daily.map(d => d.date),
-                labels: { rotate: 0, hideOverlappingLabels: true, style: { colors: '#64748b', fontSize: '11px' } },
-                axisBorder: { show: false }, axisTicks: { show: false }
-            },
-            yaxis: { labels: { formatter: fmt, style: { colors: '#64748b', fontSize: '11px' } } },
-            colors: ['#047857'],
+            xaxis: { categories: daily.map(d => d.date), labels: { rotate: 0, hideOverlappingLabels: true } },
+            yaxis: { labels: { formatter: fmt } },
+            colors: [MM.color('chart-primary')],
             plotOptions: { bar: { borderRadius: 4, borderRadiusApplication: 'end', columnWidth: daily.length > 40 ? '80%' : '55%' } },
             dataLabels: { enabled: false },
-            grid: { borderColor: '#f1f5f9', strokeDashArray: 0, yaxis: { lines: { show: true } } },
             states: { hover: { filter: { type: 'darken', value: 0.85 } } },
             tooltip: {
                 custom: ({ dataPointIndex }) => {
                     const d = daily[dataPointIndex];
-                    return `<div style="padding:8px 12px;font-family:Cairo;direction:rtl;font-size:12px;color:#0f172a">
+                    return `<div style="padding:8px 12px;direction:rtl;font-size:12px">
                         <div style="font-weight:700;margin-bottom:4px">${d.date}</div>
                         <div>المبيعات المعتمدة: <b dir="ltr">${fmt(d.sales)}</b> د.ل</div>
                         <div>الفواتير: <b>${d.invoices}</b> (معتمدة ${d.approved})</div>
@@ -262,8 +257,7 @@
                 }
             },
             noData: { text: 'لا توجد بيانات' }
-        });
-        chart.render();
+        }));
     })();
 </script>
 }
