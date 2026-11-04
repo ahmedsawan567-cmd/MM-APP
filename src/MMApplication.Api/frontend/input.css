@@ -31,11 +31,13 @@
     --slate-400: 148 163 184; --slate-500: 100 116 139; --slate-600: 71 85 105; --slate-700: 51 65 85;
     --slate-800: 30 41 59; --slate-900: 15 23 42; --slate-950: 2 6 23;
 
-    --brand-50: 236 253 245; --brand-100: 209 250 229; --brand-200: 167 243 208; --brand-300: 110 231 183;
-    --brand-600: 4 120 87; --brand-700: 6 95 70; --brand-800: 6 78 59;
+    /* هوية المرأة مول: بنفسجي الشعار #B607BC */
+    --brand-50: 252 243 253; --brand-100: 248 228 250; --brand-200: 240 200 244; --brand-300: 227 155 234;
+    --brand-600: 182 7 188; --brand-700: 148 6 160; --brand-800: 117 8 128;
     --emerald-50: 236 253 245; --emerald-100: 209 250 229; --emerald-200: 167 243 208; --emerald-300: 110 231 183;
     --amber-50: 255 251 235; --amber-100: 254 243 199; --amber-200: 253 230 138; --amber-300: 252 211 77;
-    --gold-50: 255 251 235; --gold-100: 254 243 199; --gold-200: 253 230 138; --gold-300: 252 211 77;
+    /* لون الإبراز (النقاط والمكافآت): فوشي الشعار #FC03BA */
+    --gold-50: 255 240 250; --gold-100: 255 224 245; --gold-200: 255 194 236; --gold-300: 255 143 219;
     --rose-50: 255 241 242; --rose-100: 255 228 230; --rose-200: 254 205 211; --rose-300: 253 164 175;
     --purple-50: 250 245 255; --purple-100: 243 232 255; --purple-200: 233 213 255; --purple-300: 216 180 254;
     --indigo-50: 238 242 255; --indigo-100: 224 231 255; --indigo-200: 199 210 254; --indigo-300: 165 180 252;
@@ -44,7 +46,7 @@
     /* ألوان المخططات (تقرؤها السكربتات عبر MM.color) */
     --chart-axis: 100 116 139;
     --chart-grid: 241 245 249;
-    --chart-primary: 4 120 87;
+    --chart-primary: 182 7 188;
   }
 
   [data-theme="dark"] {
@@ -61,11 +63,11 @@
     --slate-400: 100 116 139; --slate-500: 148 163 184; --slate-600: 178 190 206; --slate-700: 203 213 225;
     --slate-800: 226 232 240; --slate-900: 241 245 249; --slate-950: 248 250 252;
 
-    --brand-50: 17 43 50; --brand-100: 17 56 57; --brand-200: 17 76 68; --brand-300: 16 104 84;
-    --brand-600: 52 211 153; --brand-700: 5 150 105; --brand-800: 4 120 87;
+    --brand-50: 38 20 46; --brand-100: 52 24 62; --brand-200: 74 30 88; --brand-300: 104 38 122;
+    --brand-600: 224 128 232; --brand-700: 182 7 188; --brand-800: 148 6 160;
     --emerald-50: 17 43 50; --emerald-100: 17 56 57; --emerald-200: 17 76 68; --emerald-300: 16 104 84;
     --amber-50: 44 40 36; --amber-100: 63 51 33; --amber-200: 90 67 30; --amber-300: 131 91 25;
-    --gold-50: 44 40 36; --gold-100: 63 51 33; --gold-200: 90 67 30; --gold-300: 131 91 25;
+    --gold-50: 48 18 40; --gold-100: 66 22 54; --gold-200: 96 26 76; --gold-300: 140 30 108;
     --rose-50: 44 29 46; --rose-100: 62 32 50; --rose-200: 90 36 57; --rose-300: 130 44 66;
     --purple-50: 35 31 64; --purple-100: 47 36 81; --purple-200: 65 44 106; --purple-300: 92 54 143;
     --indigo-50: 27 33 63; --indigo-100: 33 40 79; --indigo-200: 43 49 104; --indigo-300: 58 63 140;
@@ -73,7 +75,7 @@
 
     --chart-axis: 148 163 184;
     --chart-grid: 36 48 71;
-    --chart-primary: 52 211 153;
+    --chart-primary: 224 128 232;
   }
 
   html { font-size: 14px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -111,10 +113,10 @@
   [data-theme="dark"] .text-amber-700, [data-theme="dark"] .hover\:text-amber-700:hover { color: rgb(252 211 77); }
   [data-theme="dark"] .text-amber-800, [data-theme="dark"] .hover\:text-amber-800:hover { color: rgb(253 230 138); }
   [data-theme="dark"] .text-amber-900, [data-theme="dark"] .hover\:text-amber-900:hover { color: rgb(254 243 199); }
-  [data-theme="dark"] .text-gold-600, [data-theme="dark"] .hover\:text-gold-600:hover { color: rgb(251 191 36); }
-  [data-theme="dark"] .text-gold-700, [data-theme="dark"] .hover\:text-gold-700:hover { color: rgb(252 211 77); }
-  [data-theme="dark"] .text-gold-800, [data-theme="dark"] .hover\:text-gold-800:hover { color: rgb(253 230 138); }
-  [data-theme="dark"] .text-gold-900, [data-theme="dark"] .hover\:text-gold-900:hover { color: rgb(254 243 199); }
+  [data-theme="dark"] .text-gold-600, [data-theme="dark"] .hover\:text-gold-600:hover { color: rgb(255 111 214); }
+  [data-theme="dark"] .text-gold-700, [data-theme="dark"] .hover\:text-gold-700:hover { color: rgb(255 143 219); }
+  [data-theme="dark"] .text-gold-800, [data-theme="dark"] .hover\:text-gold-800:hover { color: rgb(255 194 236); }
+  [data-theme="dark"] .text-gold-900, [data-theme="dark"] .hover\:text-gold-900:hover { color: rgb(255 224 245); }
   [data-theme="dark"] .text-rose-600, [data-theme="dark"] .hover\:text-rose-600:hover { color: rgb(251 113 133); }
   [data-theme="dark"] .text-rose-700, [data-theme="dark"] .hover\:text-rose-700:hover { color: rgb(253 164 175); }
   [data-theme="dark"] .text-rose-800, [data-theme="dark"] .hover\:text-rose-800:hover { color: rgb(254 205 211); }

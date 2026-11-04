@@ -10,6 +10,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
     <title>تسجيل الدخول — المرأة مول</title>
+    <link rel="icon" type="image/svg+xml" href="~/img/brand/mark.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="~/img/brand/icon-192.png">
+    <link rel="apple-touch-icon" href="~/img/brand/apple-touch-icon.png">
+    <meta name="theme-color" content="#B607BC">
     <script>
         (function () {
             var t = null;
@@ -25,17 +29,17 @@
     <div class="grid min-h-screen lg:grid-cols-2">
 
         <!-- لوحة الهوية -->
-        <section class="relative hidden overflow-hidden bg-[#064e3b] text-white lg:flex lg:flex-col lg:justify-between p-12">
-            <div class="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-emerald-400/20 blur-3xl"></div>
-            <div class="pointer-events-none absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-amber-400/10 blur-3xl"></div>
+        <section class="relative hidden overflow-hidden bg-gradient-to-br from-brand-950 via-brand-800 to-brand-600 text-white lg:flex lg:flex-col lg:justify-between p-12">
+            <div class="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-gold-500/30 blur-3xl"></div>
+            <div class="pointer-events-none absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-gold-300/15 blur-3xl"></div>
             <svg class="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]" aria-hidden="true">
                 <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="white" stroke-width="1" /></pattern></defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />
             </svg>
 
             <div class="relative flex items-center gap-3">
-                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
-                    <i data-lucide="crown" class="h-6 w-6 text-amber-300"></i>
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white p-2 shadow-lg shadow-black/20">
+                    <img src="~/img/brand/mark.svg" alt="" class="h-full w-full" />
                 </div>
                 <div>
                     <div class="text-lg font-extrabold">المرأة مول</div>
@@ -47,9 +51,9 @@
                 <h1 class="text-4xl font-extrabold leading-tight">إدارة الولاء والفواتير<br />في مكان واحد</h1>
                 <p class="mt-4 text-white/75 leading-relaxed">تابع المبيعات وراجع الفواتير التي قرأها الذكاء الاصطناعي، وأدر المكافآت والمتاجر بسهولة.</p>
                 <ul class="mt-8 space-y-3 text-sm text-white/85">
-                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="sparkles" class="h-4 w-4 text-amber-300"></i></span> قراءة الفواتير بالذكاء الاصطناعي</li>
-                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="shield-check" class="h-4 w-4 text-amber-300"></i></span> مراجعة الفواتير المشبوهة قبل منح النقاط</li>
-                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="chart-no-axes-combined" class="h-4 w-4 text-amber-300"></i></span> تقارير المبيعات والنقاط مع تصدير Excel</li>
+                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="sparkles" class="h-4 w-4 text-gold-200"></i></span> قراءة الفواتير بالذكاء الاصطناعي</li>
+                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="shield-check" class="h-4 w-4 text-gold-200"></i></span> مراجعة الفواتير المشبوهة قبل منح النقاط</li>
+                    <li class="flex items-center gap-3"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><i data-lucide="chart-no-axes-combined" class="h-4 w-4 text-gold-200"></i></span> تقارير المبيعات والنقاط مع تصدير Excel</li>
                 </ul>
             </div>
 
@@ -59,11 +63,9 @@
         <!-- نموذج الدخول -->
         <main class="flex items-center justify-center bg-canvas p-6 sm:p-10">
             <div class="w-full max-w-sm animate-fade-in">
-                <div class="mb-8 flex items-center gap-3 lg:hidden">
-                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-800 text-amber-300"><i data-lucide="crown" class="h-6 w-6"></i></div>
-                    <div>
-                        <div class="text-lg font-extrabold text-ink">المرأة مول</div>
-                        <div class="text-xs text-ink-3">منظومة الولاء والفواتير</div>
+                <div class="mb-8 flex justify-center lg:hidden">
+                    <div class="rounded-3xl bg-white p-4 ring-1 ring-line">
+                        <img src="~/img/brand/logo.svg" alt="المرأة مول" class="h-28 w-28" />
                     </div>
                 </div>
 

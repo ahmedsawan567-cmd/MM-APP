@@ -70,10 +70,7 @@ class ProfileTab extends StatelessWidget {
                         Container(
                           width: 64,
                           height: 64,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(colors: [Color(0xFF064E3B), Color(0xFF047857)]),
-                          ),
+                          decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Brand.vividGradient),
                           alignment: Alignment.center,
                           child: Text(user.fullName.isNotEmpty ? user.fullName.characters.first : '?',
                               style: const TextStyle(fontSize: 26, color: Colors.white, fontWeight: FontWeight.w800)),

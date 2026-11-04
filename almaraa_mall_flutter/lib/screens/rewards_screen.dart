@@ -137,7 +137,7 @@ class _BalanceStrip extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        gradient: const LinearGradient(colors: [Color(0xFF064E3B), Color(0xFF047857)]),
+        gradient: Brand.gradient,
       ),
       child: Row(
         children: [
@@ -145,13 +145,13 @@ class _BalanceStrip extends StatelessWidget {
             width: 46,
             height: 46,
             decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
-            child: const Icon(LucideIcons.coins, color: Color(0xFFFBBF24)),
+            child: const Icon(LucideIcons.coins, color: Brand.glow),
           ),
           const SizedBox(width: 14),
           Expanded(child: Text('رصيدك الحالي', style: TextStyle(color: Colors.white.withValues(alpha: 0.8)))),
           AnimatedCount(value: balance, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
           const SizedBox(width: 6),
-          const Text('نقطة', style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w700)),
+          const Text('نقطة', style: TextStyle(color: Brand.glow, fontWeight: FontWeight.w700)),
         ],
       ),
     );

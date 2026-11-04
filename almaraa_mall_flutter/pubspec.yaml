@@ -1,7 +1,7 @@
 name: almaraa_mall
 description: "تطبيق المرأة مول - منظومة التسوق والولاء الفاخرة (Almaraa Mall)"
 publish_to: 'none'
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -34,6 +34,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/OFL.txt
+    - assets/brand/
 
   # خط تجوال (رخصة SIL Open Font License — انظر assets/fonts/OFL.txt)
   fonts:

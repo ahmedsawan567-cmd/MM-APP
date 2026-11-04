@@ -110,14 +110,14 @@ class _BalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const gold = Color(0xFFFBBF24);
+    const gold = Brand.glow;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.xl),
         gradient: const LinearGradient(
-          colors: [Color(0xFF0B1220), Color(0xFF1E293B)],
+          colors: [Brand.navy, Brand.night],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -155,7 +155,7 @@ class _BalanceCard extends StatelessWidget {
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: gold,
-                foregroundColor: const Color(0xFF3B2600),
+                foregroundColor: Brand.night,
                 minimumSize: const Size(0, 48),
               ),
               onPressed: () => pushPage(context, const RewardsScreen()),
@@ -310,7 +310,7 @@ class VoucherCard extends StatelessWidget {
                       width: 86,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: active ? [const Color(0xFF064E3B), const Color(0xFF047857)] : [p.surfaceAlt, p.surfaceAlt],
+                          colors: active ? [Brand.plum, Brand.purple] : [p.surfaceAlt, p.surfaceAlt],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),
@@ -318,7 +318,7 @@ class VoucherCard extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(LucideIcons.ticket, color: active ? const Color(0xFFFBBF24) : p.muted),
+                          Icon(LucideIcons.ticket, color: active ? Brand.glow : p.muted),
                           const SizedBox(height: 6),
                           if (v.discountValue > 0)
                             Text(v.discountValue.toStringAsFixed(v.discountValue % 1 == 0 ? 0 : 1),

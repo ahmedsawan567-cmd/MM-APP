@@ -66,17 +66,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           width: 180,
                           height: 180,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF064E3B), Color(0xFF047857)],
-                              begin: Alignment.topRight,
-                              end: Alignment.bottomLeft,
-                            ),
+                            gradient: Brand.vividGradient,
                             borderRadius: BorderRadius.circular(56),
                             boxShadow: [
-                              BoxShadow(color: const Color(0xFF064E3B).withValues(alpha: 0.3), blurRadius: 40, offset: const Offset(0, 16)),
+                              BoxShadow(color: Brand.purple.withValues(alpha: 0.3), blurRadius: 40, offset: const Offset(0, 16)),
                             ],
                           ),
-                          child: Icon(icon, size: 76, color: const Color(0xFFFBBF24)),
+                          child: Icon(icon, size: 76, color: Colors.white),
                         ),
                         const SizedBox(height: 48),
                         Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),

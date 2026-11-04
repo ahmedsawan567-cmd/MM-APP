@@ -226,7 +226,7 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
   }
 
   Widget _viewfinder(AppPalette p) {
-    const gold = Color(0xFFFBBF24);
+    const gold = Brand.magenta;
     return AspectRatio(
       aspectRatio: 4 / 5,
       child: ClipRRect(
@@ -237,7 +237,7 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF0B1220), Color(0xFF111C30)],
+                  colors: [Brand.navy, Brand.night],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -276,8 +276,8 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
                     height: 3,
                     margin: const EdgeInsets.symmetric(horizontal: 28),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF34D399),
-                      boxShadow: [BoxShadow(color: const Color(0xFF34D399).withValues(alpha: 0.7), blurRadius: 16, spreadRadius: 2)],
+                      color: Brand.magenta,
+                      boxShadow: [BoxShadow(color: Brand.magenta.withValues(alpha: 0.7), blurRadius: 16, spreadRadius: 2)],
                     ),
                   ),
                 ),

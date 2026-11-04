@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 import '../services/server_config.dart';
 
 class AppConstants {
@@ -29,21 +27,7 @@ class AppConstants {
     return '$serverBaseUrl${url.startsWith('/') ? '' : '/'}$url';
   }
 
-  // ----------------------------------------------------
-  // 2. ENTERPRISE LUXURY PALETTE (المرأة مول)
-  // ----------------------------------------------------
-  static const Color primaryGreen = Color(0xFF064E3B);     // زمردي ملكي داكن
-  static const Color primaryGreenLight = Color(0xFF047857);
-  static const Color accentGold = Color(0xFFD97706);       // ذهبي فاخر
-  static const Color accentGoldLight = Color(0xFFFBBF24);
-  static const Color bgDark = Color(0xFF0F172A);           // كحلي داكن فاخر
-  static const Color bgLight = Color(0xFFF8FAFC);          // أبيض عاجي ناعم
-  static const Color surfaceCard = Color(0xFFFFFFFF);
-  static const Color textPrimary = Color(0xFF0F172A);
-  static const Color textMuted = Color(0xFF64748B);
-  static const Color successColor = Color(0xFF10B981);
-  static const Color warningColor = Color(0xFFF59E0B);
-  static const Color dangerColor = Color(0xFFEF4444);
+  // ألوان الهوية في core/theme/app_theme.dart (Brand و AppPalette).
 
   // ----------------------------------------------------
   // 3. MALL INFORMATION

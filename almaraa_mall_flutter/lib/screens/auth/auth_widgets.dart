@@ -37,18 +37,12 @@ class AuthScaffold extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(36)),
               child: Container(
                 padding: EdgeInsets.fromLTRB(24, top + 12, 24, 36),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF064E3B), Color(0xFF065F46), Color(0xFF047857)],
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                  ),
-                ),
+                decoration: const BoxDecoration(gradient: Brand.gradient),
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Positioned(left: -60, top: -40, child: _glow(180, const Color(0xFF34D399), 0.18)),
-                    Positioned(right: -40, bottom: -70, child: _glow(160, const Color(0xFFFBBF24), 0.12)),
+                    Positioned(left: -60, top: -40, child: _glow(180, Brand.magenta, 0.35)),
+                    Positioned(right: -40, bottom: -70, child: _glow(160, Brand.glow, 0.18)),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -63,14 +57,15 @@ class AuthScaffold extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Container(
-                          width: 64,
-                          height: 64,
+                          width: 68,
+                          height: 68,
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(22),
+                            boxShadow: [BoxShadow(color: Brand.night.withValues(alpha: 0.35), blurRadius: 18, offset: const Offset(0, 8))],
                           ),
-                          child: const Icon(LucideIcons.crown, color: Color(0xFFFBBF24), size: 32),
+                          child: Image.asset(Brand.mark, semanticLabel: 'المرأة مول'),
                         ),
                         const SizedBox(height: 18),
                         const Text(AppConstants.appNameAr,

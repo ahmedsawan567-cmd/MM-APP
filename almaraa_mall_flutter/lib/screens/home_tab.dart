@@ -86,7 +86,17 @@ class _HomeTabState extends State<HomeTab> {
                         ],
                       ),
                     ),
-                    IconBadge(LucideIcons.crown, tone: Tone.gold),
+                    Container(
+                      width: 46,
+                      height: 46,
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: p.border),
+                      ),
+                      child: Image.asset(Brand.mark, semanticLabel: 'المرأة مول'),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 18),
@@ -146,19 +156,15 @@ class MembershipCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final u = user;
     final progress = ((u?.tierProgress ?? 0) / 100).clamp(0.0, 1.0);
-    const gold = Color(0xFFFBBF24);
+    const gold = Brand.glow;
 
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF022C22), Color(0xFF064E3B), Color(0xFF047857)],
-          begin: Alignment.bottomLeft,
-          end: Alignment.topRight,
-        ),
+        gradient: Brand.gradient,
         boxShadow: [
-          BoxShadow(color: const Color(0xFF064E3B).withValues(alpha: 0.35), blurRadius: 28, offset: const Offset(0, 14)),
+          BoxShadow(color: Brand.plum.withValues(alpha: 0.35), blurRadius: 28, offset: const Offset(0, 14)),
         ],
       ),
       child: Stack(
@@ -181,7 +187,7 @@ class MembershipCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(LucideIcons.crown, color: gold, size: 20),
+                    Image.asset(Brand.markLight, width: 24, height: 24),
                     const SizedBox(width: 8),
                     const Text(AppConstants.appNameAr,
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
@@ -355,7 +361,7 @@ class _BannersCarouselState extends State<_BannersCarousel> {
                     children: [
                       const DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
+                          gradient: Brand.gradient,
                         ),
                       ),
                       if (url != null) Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox()),

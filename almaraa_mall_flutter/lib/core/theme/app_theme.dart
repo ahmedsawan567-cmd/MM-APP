@@ -54,11 +54,11 @@ class AppPalette extends ThemeExtension<AppPalette> {
     border: Color(0xFFE2E8F0),
     ink: Color(0xFF0F172A),
     muted: Color(0xFF64748B),
-    brand: Color(0xFF047857),
-    brandStrong: Color(0xFF064E3B),
-    brandSoft: Color(0xFFECFDF5),
-    gold: Color(0xFFB45309),
-    goldSoft: Color(0xFFFFFBEB),
+    brand: Color(0xFFB607BC),
+    brandStrong: Color(0xFF750880),
+    brandSoft: Color(0xFFFCF3FD),
+    gold: Color(0xFFC4008F),
+    goldSoft: Color(0xFFFFF0FA),
     success: Color(0xFF047857),
     successSoft: Color(0xFFECFDF5),
     warning: Color(0xFFB45309),
@@ -76,11 +76,11 @@ class AppPalette extends ThemeExtension<AppPalette> {
     border: Color(0xFF243047),
     ink: Color(0xFFF1F5F9),
     muted: Color(0xFF94A3B8),
-    brand: Color(0xFF34D399),
-    brandStrong: Color(0xFF064E3B),
-    brandSoft: Color(0xFF112B32),
-    gold: Color(0xFFFBBF24),
-    goldSoft: Color(0xFF2C2824),
+    brand: Color(0xFFE080E8),
+    brandStrong: Color(0xFF750880),
+    brandSoft: Color(0xFF2A1430),
+    gold: Color(0xFFFF6FD6),
+    goldSoft: Color(0xFF331328),
     success: Color(0xFF34D399),
     successSoft: Color(0xFF112B32),
     warning: Color(0xFFFBBF24),
@@ -135,6 +135,36 @@ class AppRadius {
   static const xl = 28.0;
 }
 
+/// هوية المرأة مول (من الشعار): بنفسجي + وردي فوشي مع كحلي داكن.
+/// تُستخدم للأسطح المميزة (البطاقة الرئيسية، شاشة البداية، الشارات) بنفس اللون في الوضعين.
+class Brand {
+  static const purple = Color(0xFFB607BC);
+  static const magenta = Color(0xFFFC03BA);
+  static const plum = Color(0xFF750880);
+  static const night = Color(0xFF3A0242);
+  static const navy = Color(0xFF06022A);
+
+  /// لون إبراز فوق الخلفيات المتدرجة الداكنة (بدل الذهبي سابقاً).
+  static const glow = Color(0xFFFFC2EC);
+
+  /// تدرّج الهوية: من البرقوقي الداكن إلى البنفسجي ثم الفوشي.
+  static const gradient = LinearGradient(
+    begin: AlignmentDirectional.topStart,
+    end: AlignmentDirectional.bottomEnd,
+    colors: [night, plum, purple],
+  );
+
+  static const vividGradient = LinearGradient(
+    begin: AlignmentDirectional.topStart,
+    end: AlignmentDirectional.bottomEnd,
+    colors: [plum, purple, Color(0xFFE0089F)],
+  );
+
+  static const mark = 'assets/brand/mark.png';
+  static const markLight = 'assets/brand/mark_light.png';
+  static const logo = 'assets/brand/logo.png';
+}
+
 class AppTheme {
   /// خط تجوال مضمّن في التطبيق (assets/fonts) فيعمل بدون إنترنت.
   static const fontFamily = 'Tajawal';
@@ -150,11 +180,11 @@ class AppTheme {
     final scheme = ColorScheme(
       brightness: brightness,
       primary: isDark ? p.brand : p.brand,
-      onPrimary: isDark ? const Color(0xFF052E22) : Colors.white,
+      onPrimary: isDark ? const Color(0xFF2E0533) : Colors.white,
       primaryContainer: p.brandSoft,
       onPrimaryContainer: p.brand,
       secondary: p.gold,
-      onSecondary: isDark ? const Color(0xFF2C1A00) : Colors.white,
+      onSecondary: isDark ? const Color(0xFF3A0029) : Colors.white,
       secondaryContainer: p.goldSoft,
       onSecondaryContainer: p.gold,
       error: p.danger,
