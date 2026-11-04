@@ -1,0 +1,300 @@
+@model MMApplication.Api.ViewModels.RewardsPageViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "المكافآت والقسائم";
+}
+@Html.AntiForgeryToken()
+
+<div class="space-y-5">
+
+    <!-- الترويسة -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gold-50 text-gold-700 flex items-center justify-center">
+                <i data-lucide="gift" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold text-slate-900">المكافآت والقسائم</h1>
+                <p class="text-xs text-slate-500">ما يستبدل به العملاء نقاطهم في التطبيق، والتحقق من قسائم الخصم عند الدفع</p>
+            </div>
+        </div>
+        @if (Model.CanManage)
+        {
+            <button type="button" onclick="openEditor()" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold">
+                <i data-lucide="plus" class="w-4 h-4"></i> مكافأة جديدة
+            </button>
+        }
+    </div>
+
+    <!-- التحقق من قسيمة -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <h2 class="text-sm font-bold text-slate-900">التحقق من قسيمة عميل</h2>
+        <p class="text-xs text-slate-500">اكتب الكود الذي يظهر في تطبيق العميل (مثل MM-AB12CD)</p>
+        <form class="mt-3 flex flex-col sm:flex-row gap-2" onsubmit="lookupVoucher(); return false">
+            <input id="v-code" dir="ltr" autocomplete="off" placeholder="MM-XXXXXX"
+                   class="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-lg font-bold tracking-widest uppercase" />
+            <button type="submit" class="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold">تحقق</button>
+        </form>
+        <div id="v-result" class="hidden mt-4"></div>
+    </div>
+
+    <!-- الكتالوج -->
+    @if (Model.Rewards.Count == 0)
+    {
+        <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">لا توجد مكافآت بعد. أضف أول مكافأة ليراها العملاء في التطبيق.</div>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            @foreach (var r in Model.Rewards)
+            {
+                var expired = r.ValidUntil.HasValue && r.ValidUntil < DateTime.UtcNow;
+                var outOfStock = r.StockQuantity is 0;
+                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col @(r.IsActive ? "" : "opacity-60")">
+                    @if (!string.IsNullOrEmpty(r.ImageUrl))
+                    {
+                        <img src="@r.ImageUrl" alt="" class="h-32 w-full object-cover bg-slate-100" onerror="this.remove()" />
+                    }
+                    <div class="p-4 flex-1 flex flex-col">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-bold text-slate-900">@r.Title</h3>
+                            @if (!r.IsActive)
+                            {
+                                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">موقوفة</span>
+                            }
+                            else if (expired)
+                            {
+                                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700">انتهى العرض</span>
+                            }
+                            else if (outOfStock)
+                            {
+                                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">نفدت الكمية</span>
+                            }
+                            else
+                            {
+                                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">متاحة</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(r.MerchantName))
+                        {
+                            <p class="text-xs text-slate-500 mt-0.5">@r.MerchantName</p>
+                        }
+                        <p class="text-xs text-slate-600 mt-2 line-clamp-2">@r.Description</p>
+
+                        <div class="mt-3 flex items-baseline gap-3">
+                            <span class="text-xl font-extrabold text-gold-700">@r.PointsCost.ToString("N0")</span><span class="text-xs text-slate-500">نقطة</span>
+                            @if (r.DiscountValue > 0)
+                            {
+                                <span class="text-xs font-semibold text-slate-700">• خصم @r.DiscountValue.ToString("N2") د.ل</span>
+                            }
+                        </div>
+
+                        <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@r.Redemptions</div><div class="text-[10px] text-slate-500">استبدال</div></div>
+                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@r.UsedVouchers</div><div class="text-[10px] text-slate-500">مستخدمة</div></div>
+                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@(r.StockQuantity?.ToString() ?? "∞")</div><div class="text-[10px] text-slate-500">المتبقي</div></div>
+                        </div>
+
+                        <p class="text-[11px] text-slate-500 mt-3">
+                            القسيمة صالحة @r.ValidityDays يوم بعد الاستبدال
+                            @if (r.ValidUntil.HasValue) { <span>• العرض حتى @r.ValidUntil.Value.ToString("yyyy/MM/dd")</span> }
+                        </p>
+
+                        @if (Model.CanManage)
+                        {
+                            <div class="mt-auto pt-3 flex gap-2">
+                                <button type="button" class="flex-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
+                                        onclick='openEditor(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { r.Id, r.Title, r.Description, r.MerchantName, r.PointsCost, r.DiscountValue, r.ImageUrl, r.StockQuantity, r.ValidityDays, ValidUntil = r.ValidUntil?.ToString("yyyy-MM-dd"), r.IsActive })))'>
+                                    تعديل
+                                </button>
+                                <button type="button" onclick="toggleReward('@r.Id')"
+                                        class="flex-1 px-3 py-2 rounded-xl text-xs font-bold @(r.IsActive ? "bg-rose-50 hover:bg-rose-100 text-rose-700" : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700")">
+                                    @(r.IsActive ? "إيقاف" : "تفعيل")
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (Model.CanManage)
+{
+    <!-- نموذج إضافة / تعديل مكافأة -->
+    <div id="editor" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" onclick="if(event.target===this) closeEditor()">
+        <form id="editor-form" class="bg-white rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto" onsubmit="saveReward(); return false">
+            <div class="flex items-center justify-between p-5 border-b border-slate-100">
+                <h2 id="editor-title" class="font-bold text-slate-900">مكافأة جديدة</h2>
+                <button type="button" onclick="closeEditor()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div class="p-5 space-y-3">
+                <input type="hidden" id="e-id" />
+                <label class="block"><span class="text-xs font-semibold text-slate-600">العنوان *</span>
+                    <input id="e-title" required minlength="2" maxlength="200" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="مثال: خصم 25 دينار في مطعم اللمسة الملكية" /></label>
+                <label class="block"><span class="text-xs font-semibold text-slate-600">الوصف</span>
+                    <textarea id="e-desc" rows="2" maxlength="1000" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"></textarea></label>
+                <label class="block"><span class="text-xs font-semibold text-slate-600">المتجر (اختياري)</span>
+                    <input id="e-merchant" maxlength="200" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="اتركه فارغاً إذا كانت صالحة في كل المول" /></label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block"><span class="text-xs font-semibold text-slate-600">تكلفة النقاط *</span>
+                        <input id="e-points" type="number" min="1" required dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
+                    <label class="block"><span class="text-xs font-semibold text-slate-600">قيمة الخصم (د.ل)</span>
+                        <input id="e-discount" type="number" min="0" step="0.01" dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
+                    <label class="block"><span class="text-xs font-semibold text-slate-600">الكمية المتاحة</span>
+                        <input id="e-stock" type="number" min="0" dir="ltr" placeholder="بدون حد" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
+                    <label class="block"><span class="text-xs font-semibold text-slate-600">صلاحية القسيمة (أيام) *</span>
+                        <input id="e-validity" type="number" min="1" max="365" required dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
+                </div>
+                <label class="block"><span class="text-xs font-semibold text-slate-600">آخر يوم للعرض (اختياري)</span>
+                    <input id="e-until" type="date" dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
+                <div>
+                    <span class="text-xs font-semibold text-slate-600">الصورة</span>
+                    <div class="mt-1 flex items-center gap-3">
+                        <img id="e-image-preview" class="hidden w-16 h-16 rounded-xl object-cover bg-slate-100" alt="" />
+                        <label class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold cursor-pointer">
+                            رفع صورة <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadImage(this)" />
+                        </label>
+                        <button type="button" id="e-image-clear" class="hidden text-xs text-rose-700" onclick="setImage(null)">إزالة</button>
+                    </div>
+                    <input type="hidden" id="e-image" />
+                </div>
+                <label class="flex items-center gap-2 text-sm"><input id="e-active" type="checkbox" class="rounded" checked /> متاحة للعملاء في التطبيق</label>
+            </div>
+            <div class="p-5 border-t border-slate-100 flex gap-2">
+                <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold">حفظ</button>
+                <button type="button" onclick="closeEditor()" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold">إلغاء</button>
+            </div>
+        </form>
+    </div>
+}
+
+@section Scripts {
+<script>
+    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const money = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const statusText = { ACTIVE: ['صالحة', 'bg-emerald-50 text-emerald-700'], USED: ['مستخدمة', 'bg-slate-100 text-slate-600'], EXPIRED: ['منتهية', 'bg-rose-50 text-rose-700'], CANCELLED: ['ملغاة', 'bg-rose-50 text-rose-700'] };
+
+    async function call(url, options) {
+        const resp = await fetch(url, options);
+        let data = {};
+        try { data = await resp.json(); } catch { }
+        return { ok: resp.ok && data.success !== false, data };
+    }
+
+    // ---------- القسائم ----------
+    async function lookupVoucher() {
+        const code = document.getElementById('v-code').value.trim();
+        const box = document.getElementById('v-result');
+        if (!code) return;
+        box.classList.remove('hidden');
+        box.innerHTML = '<div class="text-sm text-slate-500">جاري التحقق...</div>';
+        const { ok, data } = await call(`/AdminDashboard/VoucherLookup?code=${encodeURIComponent(code)}`);
+        renderVoucher(data, ok);
+    }
+
+    function renderVoucher(data, ok) {
+        const box = document.getElementById('v-result');
+        const v = data.voucher;
+        if (!v) { box.innerHTML = `<div class="rounded-xl bg-rose-50 text-rose-800 p-4 text-sm font-semibold">${esc(data.message)}</div>`; return; }
+        const [label, cls] = statusText[v.status] || [v.status, 'bg-slate-100'];
+        box.innerHTML = `
+            <div class="rounded-2xl border ${v.status === 'ACTIVE' ? 'border-emerald-200' : 'border-slate-200'} p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="text-lg font-extrabold tracking-widest" dir="ltr">${esc(v.code)}</div>
+                        <div class="font-bold text-slate-900">${esc(v.rewardTitle)}</div>
+                        ${v.merchantName ? `<div class="text-xs text-slate-500">${esc(v.merchantName)}</div>` : ''}
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold ${cls}">${label}</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs">
+                    <div><div class="text-slate-500">العميل</div><div class="font-semibold">${esc(v.customerName)}</div><div dir="ltr" class="text-slate-500">${esc(v.customerPhone)}</div></div>
+                    <div><div class="text-slate-500">قيمة الخصم</div><div class="font-bold text-base">${money(v.discountValue)} د.ل</div></div>
+                    <div><div class="text-slate-500">صالحة حتى</div><div class="font-semibold" dir="ltr">${new Date(v.expiresAt).toLocaleDateString('en-GB')}</div></div>
+                    <div><div class="text-slate-500">النقاط</div><div class="font-semibold">${v.pointsSpent}</div></div>
+                </div>
+                <p class="mt-3 text-sm ${ok && v.status === 'ACTIVE' ? 'text-emerald-700' : 'text-slate-700'}">${esc(data.message)}</p>
+                ${v.status === 'ACTIVE' ? `<button type="button" onclick="useVoucher('${esc(v.code)}')" class="mt-3 w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">تأكيد استخدام القسيمة</button>` : ''}
+            </div>`;
+    }
+
+    async function useVoucher(code) {
+        const c = await Swal.fire({ title: 'تأكيد الاستخدام؟', text: 'لا يمكن استخدام القسيمة مرة أخرى بعد التأكيد.', icon: 'question', showCancelButton: true, confirmButtonText: 'تأكيد', cancelButtonText: 'إلغاء', confirmButtonColor: '#059669' });
+        if (!c.isConfirmed) return;
+        const { ok, data } = await call('/AdminDashboard/VoucherUse', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify({ reason: code })
+        });
+        renderVoucher(data, ok);
+        if (ok) Swal.fire({ icon: 'success', title: 'تم', text: data.message, timer: 1600, showConfirmButton: false });
+    }
+
+    // ---------- إدارة المكافآت ----------
+    function setImage(url) {
+        document.getElementById('e-image').value = url || '';
+        const img = document.getElementById('e-image-preview');
+        img.classList.toggle('hidden', !url);
+        document.getElementById('e-image-clear').classList.toggle('hidden', !url);
+        if (url) img.src = url;
+    }
+
+    function openEditor(r) {
+        r = r || { Title: '', Description: '', MerchantName: '', PointsCost: '', DiscountValue: 0, ImageUrl: null, StockQuantity: null, ValidityDays: 30, ValidUntil: null, IsActive: true };
+        document.getElementById('editor-title').textContent = r.Id ? 'تعديل المكافأة' : 'مكافأة جديدة';
+        document.getElementById('e-id').value = r.Id || '';
+        document.getElementById('e-title').value = r.Title || '';
+        document.getElementById('e-desc').value = r.Description || '';
+        document.getElementById('e-merchant').value = r.MerchantName || '';
+        document.getElementById('e-points').value = r.PointsCost ?? '';
+        document.getElementById('e-discount').value = r.DiscountValue ?? 0;
+        document.getElementById('e-stock').value = r.StockQuantity ?? '';
+        document.getElementById('e-validity').value = r.ValidityDays ?? 30;
+        document.getElementById('e-until').value = r.ValidUntil || '';
+        document.getElementById('e-active').checked = r.IsActive !== false;
+        setImage(r.ImageUrl);
+        document.getElementById('editor').classList.remove('hidden');
+        lucide.createIcons();
+    }
+    function closeEditor() { document.getElementById('editor').classList.add('hidden'); }
+
+    async function uploadImage(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const form = new FormData();
+        form.append('file', file);
+        const { ok, data } = await call('/AdminDashboard/RewardImage', { method: 'POST', headers: { 'RequestVerificationToken': token }, body: form });
+        if (ok) setImage(data.url); else Swal.fire({ icon: 'error', title: 'تعذر رفع الصورة', text: data.message || '' });
+        input.value = '';
+    }
+
+    async function saveReward() {
+        const num = (id) => { const v = document.getElementById(id).value; return v === '' ? null : Number(v); };
+        const body = {
+            id: document.getElementById('e-id').value || null,
+            title: document.getElementById('e-title').value,
+            description: document.getElementById('e-desc').value,
+            merchantName: document.getElementById('e-merchant').value,
+            pointsCost: num('e-points') ?? 0,
+            discountValue: num('e-discount') ?? 0,
+            stockQuantity: num('e-stock'),
+            validityDays: num('e-validity') ?? 30,
+            validUntil: document.getElementById('e-until').value || null,
+            imageUrl: document.getElementById('e-image').value || null,
+            isActive: document.getElementById('e-active').checked
+        };
+        const { ok, data } = await call('/AdminDashboard/RewardSave', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token }, body: JSON.stringify(body)
+        });
+        if (ok) { closeEditor(); Swal.fire({ icon: 'success', title: 'تم الحفظ', timer: 1200, showConfirmButton: false }).then(() => location.reload()); }
+        else Swal.fire({ icon: 'error', title: 'تعذر الحفظ', text: data.message || 'تحقق من البيانات.' });
+    }
+
+    async function toggleReward(id) {
+        const { ok, data } = await call(`/AdminDashboard/RewardToggle?id=${id}`, { method: 'POST', headers: { 'RequestVerificationToken': token } });
+        if (ok) location.reload(); else Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || '' });
+    }
+</script>
+}

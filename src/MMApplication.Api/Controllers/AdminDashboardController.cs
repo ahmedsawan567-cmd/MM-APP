@@ -357,6 +357,160 @@ public class AdminDashboardController : Controller
             $"almaraa-report-{filter.From:yyyyMMdd}-{filter.To:yyyyMMdd}.xlsx");
     }
 
+    // ----------------------------------------------------
+    // 🎁 REWARDS CATALOG & VOUCHERS (كتالوج المكافآت والقسائم)
+    // ----------------------------------------------------
+    private static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+
+    [HttpGet]
+    public async Task<IActionResult> Rewards()
+    {
+        var stats = await _context.Redemptions.AsNoTracking()
+            .GroupBy(r => r.RewardId)
+            .Select(g => new
+            {
+                RewardId = g.Key,
+                Total = g.Count(),
+                Active = g.Count(r => r.Status == RedemptionStatus.ACTIVE),
+                Used = g.Count(r => r.Status == RedemptionStatus.USED),
+                Points = g.Sum(r => r.PointsSpent),
+            })
+            .ToListAsync();
+
+        var rewards = await _context.Rewards.AsNoTracking().OrderByDescending(r => r.IsActive).ThenBy(r => r.PointsCost).ToListAsync();
+        var model = new RewardsPageViewModel
+        {
+            CanManage = IsDeveloperOrSuperAdmin,
+            Rewards = rewards.Select(r =>
+            {
+                var st = stats.FirstOrDefault(x => x.RewardId == r.Id);
+                return new RewardAdminRow
+                {
+                    Id = r.Id,
+                    Title = r.Title,
+                    Description = r.Description,
+                    MerchantName = r.MerchantName,
+                    PointsCost = r.PointsCost,
+                    DiscountValue = r.DiscountValue,
+                    ImageUrl = r.ImageUrl,
+                    StockQuantity = r.StockQuantity,
+                    ValidityDays = r.ValidityDays,
+                    ValidUntil = r.ValidUntil,
+                    IsActive = r.IsActive,
+                    Redemptions = st?.Total ?? 0,
+                    ActiveVouchers = st?.Active ?? 0,
+                    UsedVouchers = st?.Used ?? 0,
+                    PointsSpent = st?.Points ?? 0,
+                };
+            }).ToList(),
+        };
+
+        ViewData["ActiveTab"] = "rewards";
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RewardSave([FromBody] RewardEditRequest req)
+    {
+        if (!IsDeveloperOrSuperAdmin) return Forbid();
+
+        var errors = new List<string>();
+        if (string.IsNullOrWhiteSpace(req.Title) || req.Title.Trim().Length < 2) errors.Add("عنوان المكافأة مطلوب.");
+        if (req.PointsCost < 1) errors.Add("تكلفة النقاط يجب أن تكون 1 على الأقل.");
+        if (req.DiscountValue < 0) errors.Add("قيمة الخصم لا يمكن أن تكون سالبة.");
+        if (req.ValidityDays is < 1 or > 365) errors.Add("مدة صلاحية القسيمة بين 1 و 365 يوماً.");
+        if (req.StockQuantity is < 0) errors.Add("الكمية لا يمكن أن تكون سالبة.");
+        if (errors.Count > 0) return BadRequest(new { success = false, message = string.Join(" ", errors) });
+
+        Reward? reward;
+        if (req.Id is { } id && id != Guid.Empty)
+        {
+            reward = await _context.Rewards.FirstOrDefaultAsync(r => r.Id == id);
+            if (reward == null) return NotFound(new { success = false, message = "المكافأة غير موجودة." });
+        }
+        else
+        {
+            reward = new Reward { CreatedAt = DateTime.UtcNow };
+            _context.Rewards.Add(reward);
+        }
+
+        reward.Title = req.Title!.Trim();
+        reward.Description = req.Description?.Trim() ?? string.Empty;
+        reward.MerchantName = string.IsNullOrWhiteSpace(req.MerchantName) ? null : req.MerchantName.Trim();
+        reward.PointsCost = req.PointsCost;
+        reward.DiscountValue = req.DiscountValue;
+        reward.ImageUrl = string.IsNullOrWhiteSpace(req.ImageUrl) ? null : req.ImageUrl.Trim();
+        reward.StockQuantity = req.StockQuantity;
+        reward.ValidityDays = req.ValidityDays;
+        reward.ValidUntil = req.ValidUntil.HasValue ? DateTime.SpecifyKind(req.ValidUntil.Value.Date.AddDays(1).AddSeconds(-1), DateTimeKind.Utc) : null;
+        reward.IsActive = req.IsActive;
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ReviewerName,
+            Action = req.Id.HasValue ? "REWARD_UPDATE" : "REWARD_CREATE",
+            EntityName = "Reward",
+            EntityId = reward.Id.ToString(),
+            Details = $"{(req.Id.HasValue ? "تعديل" : "إضافة")} المكافأة \"{reward.Title}\" بتكلفة {reward.PointsCost} نقطة",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        return Json(new { success = true, message = "تم حفظ المكافأة.", id = reward.Id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RewardToggle(Guid id)
+    {
+        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        var reward = await _context.Rewards.FirstOrDefaultAsync(r => r.Id == id);
+        if (reward == null) return NotFound(new { success = false, message = "المكافأة غير موجودة." });
+        reward.IsActive = !reward.IsActive;
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ReviewerName,
+            Action = "REWARD_TOGGLE",
+            EntityName = "Reward",
+            EntityId = reward.Id.ToString(),
+            Details = $"{(reward.IsActive ? "تفعيل" : "إيقاف")} المكافأة \"{reward.Title}\"",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        return Json(new { success = true, isActive = reward.IsActive, message = reward.IsActive ? "تم تفعيل المكافأة." : "تم إيقاف المكافأة. لن تظهر في التطبيق." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(5 * 1024 * 1024)]
+    public async Task<IActionResult> RewardImage(IFormFile? file, [FromServices] IFileStorageService storage)
+    {
+        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        if (file == null || file.Length == 0) return BadRequest(new { success = false, message = "اختر صورة." });
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedImageExtensions.Contains(ext)) return BadRequest(new { success = false, message = "الصورة يجب أن تكون JPG أو PNG أو WEBP." });
+        await using var stream = file.OpenReadStream();
+        var url = await storage.SaveFileAsync(stream, file.FileName, "rewards");
+        return Json(new { success = true, url });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> VoucherLookup(string code)
+    {
+        var result = await new VoucherService(_context).LookupAsync(code ?? string.Empty);
+        return StatusCode(result.StatusCode, new { success = result.Success, message = result.Message, voucher = result.Voucher });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> VoucherUse([FromBody] ReviewDecisionRequest request)
+    {
+        if (IsAuditor && !IsDeveloperOrSuperAdmin) return Forbid(); // المدقق يطّلع فقط
+        var usedBy = User?.FindFirst("TenantName")?.Value is { Length: > 0 } store ? store : "مكتب خدمة العملاء";
+        var result = await new VoucherService(_context).UseAsync(request.Reason ?? string.Empty, usedBy, ReviewerName);
+        return StatusCode(result.StatusCode, new { success = result.Success, message = result.Message, voucher = result.Voucher });
+    }
+
     private IActionResult ReviewResult(InvoiceReviewOutcome outcome) =>
         outcome.Success
             ? Json(new { success = true, message = outcome.Message, points = outcome.PointsChanged })

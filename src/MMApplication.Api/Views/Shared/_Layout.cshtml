@@ -171,7 +171,12 @@
                         
                         <a asp-controller="AdminDashboard" asp-action="Loyalty" class="sidebar-link @(activeTab == "loyalty" ? "active" : "")">
                             <i data-lucide="award"></i>
-                            <span>برامج الولاء والمكافآت</span>
+                            <span>قواعد النقاط والعروض</span>
+                        </a>
+
+                        <a asp-controller="AdminDashboard" asp-action="Rewards" class="sidebar-link @(activeTab == "rewards" ? "active" : "")">
+                            <i data-lucide="gift"></i>
+                            <span>المكافآت والقسائم</span>
                         </a>
 
                         @if (isDevOrSuperAdmin)
@@ -283,6 +288,10 @@
                     <a asp-controller="AdminDashboard" asp-action="Loyalty" class="sidebar-link @(activeTab == "loyalty" ? "active" : "")">
                         <i data-lucide="award"></i>
                         <span>برامج الولاء</span>
+                    </a>
+                    <a asp-controller="AdminDashboard" asp-action="Rewards" class="sidebar-link @(activeTab == "rewards" ? "active" : "")">
+                        <i data-lucide="gift"></i>
+                        <span>المكافآت والقسائم</span>
                     </a>
                     @if (isDevOrSuperAdmin)
                     {

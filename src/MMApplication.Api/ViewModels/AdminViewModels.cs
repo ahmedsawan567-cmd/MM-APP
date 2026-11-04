@@ -299,3 +299,44 @@ public class ReviewDecisionRequest
 {
     public string? Reason { get; set; }
 }
+
+// ---------------- كتالوج المكافآت ----------------
+public class RewardsPageViewModel
+{
+    public bool CanManage { get; set; }
+    public List<RewardAdminRow> Rewards { get; set; } = new();
+}
+
+public class RewardAdminRow
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string? MerchantName { get; set; }
+    public int PointsCost { get; set; }
+    public decimal DiscountValue { get; set; }
+    public string? ImageUrl { get; set; }
+    public int? StockQuantity { get; set; }
+    public int ValidityDays { get; set; }
+    public DateTime? ValidUntil { get; set; }
+    public bool IsActive { get; set; }
+    public int Redemptions { get; set; }
+    public int ActiveVouchers { get; set; }
+    public int UsedVouchers { get; set; }
+    public int PointsSpent { get; set; }
+}
+
+public class RewardEditRequest
+{
+    public Guid? Id { get; set; }
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public string? MerchantName { get; set; }
+    public int PointsCost { get; set; }
+    public decimal DiscountValue { get; set; }
+    public string? ImageUrl { get; set; }
+    public int? StockQuantity { get; set; }
+    public int ValidityDays { get; set; } = 30;
+    public DateTime? ValidUntil { get; set; }
+    public bool IsActive { get; set; } = true;
+}
