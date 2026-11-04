@@ -309,6 +309,54 @@ public class AdminDashboardController : Controller
         return full.StartsWith(Path.GetFullPath(_env.WebRootPath), StringComparison.Ordinal) ? full : null;
     }
 
+    // ----------------------------------------------------
+    // 📈 REPORTS (التقارير والإحصائيات + تصدير Excel)
+    // ----------------------------------------------------
+    private ReportFilter BuildReportFilter(string? range, DateTime? from, DateTime? to, string? storeId)
+    {
+        // مدير المتجر يرى تقارير متجره فقط
+        var tenant = IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId) ? CurrentTenantId : storeId;
+        return ReportFilter.From_(range, from, to, tenant);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Reports([FromQuery] string? range, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? storeId)
+    {
+        if (!CanReviewInvoices && !IsStoreManager) return RedirectToAction(nameof(Index));
+
+        var filter = BuildReportFilter(range, from, to, storeId);
+        var data = await new ReportService(_context).BuildAsync(filter);
+
+        ViewData["ActiveTab"] = "reports";
+        ViewData["Range"] = string.IsNullOrEmpty(range) ? "30d" : range;
+        ViewData["Stores"] = IsStoreManager ? new List<ReviewStoreOption>() : await _context.Tenants.AsNoTracking()
+            .OrderBy(t => t.NameAr).Select(t => new ReviewStoreOption { Id = t.TenantId, Name = t.NameAr }).ToListAsync();
+        return View(data);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ReportsExport([FromQuery] string? range, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? storeId)
+    {
+        if (!CanReviewInvoices && !IsStoreManager) return Forbid();
+
+        var filter = BuildReportFilter(range, from, to, storeId);
+        var data = await new ReportService(_context).BuildAsync(filter);
+        var bytes = ReportService.ToExcel(data);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ReviewerName,
+            Action = "REPORT_EXPORT",
+            EntityName = "Report",
+            Details = $"تصدير تقرير Excel من {filter.From:yyyy-MM-dd} إلى {filter.To:yyyy-MM-dd}" + (filter.TenantId != null ? $" للمتجر {filter.TenantId}" : ""),
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"almaraa-report-{filter.From:yyyyMMdd}-{filter.To:yyyyMMdd}.xlsx");
+    }
+
     private IActionResult ReviewResult(InvoiceReviewOutcome outcome) =>
         outcome.Success
             ? Json(new { success = true, message = outcome.Message, points = outcome.PointsChanged })

@@ -102,6 +102,13 @@
                         <i data-lucide="layout-grid"></i>
                         <span>الرئيسية</span>
                     </a>
+                    @if (isDevOrSuperAdmin || isAuditor || isStoreManager)
+                    {
+                        <a asp-controller="AdminDashboard" asp-action="Reports" class="sidebar-link @(activeTab == "reports" ? "active" : "")">
+                            <i data-lucide="chart-no-axes-combined"></i>
+                            <span>التقارير</span>
+                        </a>
+                    }
                 </div>
 
                 <!-- Category 2: Operations & AI Recognition -->
@@ -242,6 +249,13 @@
                         <i data-lucide="layout-grid"></i>
                         <span>الرئيسية</span>
                     </a>
+                    @if (isDevOrSuperAdmin || isAuditor || isStoreManager)
+                    {
+                        <a asp-controller="AdminDashboard" asp-action="Reports" class="sidebar-link @(activeTab == "reports" ? "active" : "")">
+                            <i data-lucide="chart-no-axes-combined"></i>
+                            <span>التقارير</span>
+                        </a>
+                    }
                     <a asp-controller="AdminDashboard" asp-action="Stores" class="sidebar-link @(activeTab == "stores" ? "active" : "")">
                         <i data-lucide="building-2"></i>
                         <span>المتاجر</span>
