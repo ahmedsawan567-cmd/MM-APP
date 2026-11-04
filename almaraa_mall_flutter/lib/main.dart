@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/constants/app_constants.dart';
+import 'core/services/server_config.dart';
 import 'core/services/session.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
@@ -22,6 +23,7 @@ void main() async {
   });
   await initializeDateFormatting('ar');
   await ThemeController.instance.load();
+  await ServerConfig.load();
   var onboardingSeen = true;
   try {
     onboardingSeen = (await SharedPreferences.getInstance()).getBool(OnboardingScreen.seenKey) ?? false;

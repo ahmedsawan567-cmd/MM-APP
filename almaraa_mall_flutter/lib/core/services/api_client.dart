@@ -82,9 +82,9 @@ class ApiClient {
     } on TimeoutException {
       throw ApiException('انتهت مهلة الاتصال بالخادم. تحقق من الإنترنت وحاول مجدداً.');
     } on SocketException {
-      throw ApiException('تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.');
+      throw ApiException('تعذّر الوصول إلى الخادم. تأكد من الشبكة ومن عنوان الخادم في "إعدادات الخادم".');
     } on http.ClientException {
-      throw ApiException('تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.');
+      throw ApiException('تعذّر الوصول إلى الخادم. تأكد من الشبكة ومن عنوان الخادم في "إعدادات الخادم".');
     }
 
     final body = _decode(response);

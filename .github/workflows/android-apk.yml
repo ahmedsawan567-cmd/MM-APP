@@ -1,0 +1,48 @@
+name: Android APK
+
+on:
+  push:
+    paths:
+      - "almaraa_mall_flutter/**"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: almaraa_mall_flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      # عنوان افتراضي للخادم (اختياري): Settings ← Secrets and variables ← Actions ← Variables ← API_BASE_URL
+      # بدونه يضبط المستخدم العنوان من داخل التطبيق (إعدادات الخادم).
+      - name: Build release APK
+        run: |
+          if [ -n "${{ vars.API_BASE_URL }}" ]; then
+            flutter build apk --release --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+          else
+            flutter build apk --release
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: almaraa-mall-apk
+          path: almaraa_mall_flutter/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30

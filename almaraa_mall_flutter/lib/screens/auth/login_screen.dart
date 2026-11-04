@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/session.dart';
 import '../../widgets/common.dart';
+import '../../widgets/server_settings_sheet.dart';
 import 'auth_widgets.dart';
 import 'register_screen.dart';
 
@@ -87,6 +88,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(color: context.palette.brand, fontWeight: FontWeight.w800)),
                 ),
               ],
+            ),
+            const SizedBox(height: 4),
+            Center(
+              child: TextButton.icon(
+                onPressed: _loading ? null : () => showServerSettings(context),
+                icon: Icon(LucideIcons.server, size: 16, color: context.palette.muted),
+                label: Text('إعدادات الخادم', style: TextStyle(color: context.palette.muted, fontSize: 13)),
+              ),
             ),
           ],
         ),

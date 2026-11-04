@@ -6,6 +6,7 @@ import '../core/services/session.dart';
 import '../core/theme/app_theme.dart';
 import '../core/theme/theme_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/server_settings_sheet.dart';
 import 'invoices_screen.dart';
 import 'rewards_screen.dart';
 
@@ -107,6 +108,11 @@ class ProfileTab extends StatelessWidget {
                   _Item(icon: LucideIcons.receiptText, tone: Tone.info, label: 'فواتيري', onTap: () => pushPage(context, const InvoicesScreen())),
                   _Item(icon: LucideIcons.gift, tone: Tone.gold, label: 'المكافآت', onTap: () => pushPage(context, const RewardsScreen())),
                   _Item(icon: LucideIcons.circleHelp, tone: Tone.brand, label: 'كيف أكسب النقاط؟', onTap: () => _howItWorks(context)),
+                ]),
+                const SizedBox(height: 22),
+                _label(context, 'الاتصال'),
+                _Group(children: [
+                  _Item(icon: LucideIcons.server, tone: Tone.info, label: 'إعدادات الخادم', onTap: () => showServerSettings(context)),
                 ]),
                 const SizedBox(height: 22),
                 _label(context, 'المظهر'),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/server_config.dart';
+
 class AppConstants {
   // ----------------------------------------------------
   // 1. BACKEND API (ASP.NET CORE 9)
@@ -7,10 +9,14 @@ class AppConstants {
   // يمكن تغيير العنوان عند البناء بدون تعديل الكود:
   //   flutter run --dart-define=API_BASE_URL=http://192.168.1.10:5000/api
   // القيمة الافتراضية 10.0.2.2 تشير إلى جهاز الكمبيوتر من داخل محاكي أندرويد.
-  static const String apiBaseUrl = String.fromEnvironment(
+  // ويمكن تغييره من داخل التطبيق: شاشة الدخول ← "إعدادات الخادم" (انظر ServerConfig).
+  static const String defaultApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://10.0.2.2:5000/api',
   );
+
+  /// العنوان المستخدم فعلياً (المحفوظ في التطبيق أو الافتراضي).
+  static String get apiBaseUrl => ServerConfig.apiBaseUrl;
 
   /// عنوان السيرفر بدون /api (لعرض الصور المرفوعة مثل صور الفواتير).
   static String get serverBaseUrl =>
