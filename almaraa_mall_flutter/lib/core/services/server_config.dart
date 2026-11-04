@@ -52,8 +52,12 @@ class ServerConfig {
     final uri = Uri.tryParse(text);
     if (uri == null || uri.host.isEmpty || !(uri.scheme == 'http' || uri.scheme == 'https')) return null;
     final port = uri.hasPort ? uri.port : (uri.scheme == 'http' && _looksLocal(uri.host) ? 5000 : null);
+    // أي مسار بعد /api (مثل /api/health المنسوخ من المتصفح) يُحذف، ثم نضمن انتهاءه بـ /api
     var path = uri.path.replaceAll(RegExp(r'/+$'), '');
-    if (!path.endsWith('/api')) path = '$path/api';
+    final apiIndex = path.toLowerCase().indexOf('/api');
+    // بدون /api نعتبر المسار رابط صفحة (مثل رابط لوحة التحكم) ونكتفي بعنوان الخادم
+    path = apiIndex >= 0 ? path.substring(0, apiIndex) : '';
+    path = '$path/api';
     return Uri(scheme: uri.scheme, host: uri.host, port: port, path: path).toString();
   }
 
