@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -430,314 +433,123 @@ END
         }
     }
 
+    /// <summary>
+    /// مزامنة مخطط PostgreSQL / Supabase مع نموذج البيانات في التطبيق (بدون حذف أي بيانات):
+    /// - قاعدة فارغة: ينشئ EF كل الجداول بالضبط كما يحتاجها التطبيق.
+    /// - قاعدة موجودة (مثلاً بعد تشغيل supabase/schema.sql): ينشئ الجداول الناقصة ويضيف الأعمدة الناقصة فقط.
+    /// </summary>
     private static async Task EnsurePostgreSqlSchemaAsync(AppDbContext context, ILogger logger)
     {
-        logger.LogInformation("Verifying and aligning PostgreSQL / Supabase database schema with extended enterprise specification...");
+        var creator = context.GetService<IRelationalDatabaseCreator>();
+        if (!await creator.ExistsAsync())
+        {
+            throw new InvalidOperationException("قاعدة البيانات غير موجودة أو لا يمكن الوصول إليها. تحقق من رابط الاتصال.");
+        }
 
-        var sql = @"
--- 1. المتاجر والمستأجرين داخل المول
-CREATE TABLE IF NOT EXISTS ""Tenants"" (
-    ""TenantId"" VARCHAR(50) PRIMARY KEY,
-    ""NameAr"" VARCHAR(150) NOT NULL,
-    ""NameEn"" VARCHAR(150) NOT NULL,
-    ""UnitNumber"" VARCHAR(20) NOT NULL,
-    ""Category"" VARCHAR(50) NOT NULL,
-    ""LogoUrl"" VARCHAR(500) NULL,
-    ""IsActive"" BOOLEAN DEFAULT TRUE,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
+        var existing = await ReadExistingColumnsAsync(context);
+        if (existing.Count == 0)
+        {
+            logger.LogInformation("PostgreSQL: قاعدة فارغة — إنشاء كل الجداول من نموذج البيانات.");
+            await creator.CreateTablesAsync();
+            return;
+        }
 
--- 2. قواعد الولاء لكل متجر
-CREATE TABLE IF NOT EXISTS ""TenantLoyaltyRules"" (
-    ""RuleId"" SERIAL PRIMARY KEY,
-    ""TenantId"" VARCHAR(50) NOT NULL UNIQUE REFERENCES ""Tenants""(""TenantId"") ON DELETE CASCADE,
-    ""RewardType"" VARCHAR(20) NOT NULL,
-    ""ConversionRate"" NUMERIC(5, 4) NOT NULL,
-    ""MinInvoiceTotal"" NUMERIC(18, 2) DEFAULT 0.00,
-    ""MaxPointsCap"" INT NULL,
-    ""PointsExpiryDays"" INT DEFAULT 365,
-    ""MaxInvoiceAgeDays"" INT DEFAULT 14,
-    ""DynamicRulesJson"" TEXT NULL,
-    ""UpdatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
+        // 1) الجداول الناقصة: من سكربت الإنشاء الذي يولّده EF
+        var statements = context.Database.GenerateCreateScript()
+            .Split(";" + Environment.NewLine, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => x.Trim().TrimEnd(';'))
+            .Where(x => x.Length > 0)
+            .ToList();
 
--- 3. موظفو ومستخدمو النظام
-CREATE TABLE IF NOT EXISTS ""SystemUsers"" (
-    ""UserId"" VARCHAR(50) PRIMARY KEY,
-    ""TenantId"" VARCHAR(50) NULL REFERENCES ""Tenants""(""TenantId"") ON DELETE SET NULL,
-    ""FullName"" VARCHAR(100) NOT NULL,
-    ""Email"" VARCHAR(150) NOT NULL UNIQUE,
-    ""PhoneNumber"" VARCHAR(20) NULL,
-    ""PasswordHash"" VARCHAR(256) NOT NULL,
-    ""Role"" VARCHAR(30) NOT NULL,
-    ""PinCodeHash"" VARCHAR(256) NULL,
-    ""IsActive"" BOOLEAN DEFAULT TRUE,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
+        var tables = context.Model.GetEntityTypes()
+            .Select(e => e.GetTableName())
+            .Where(t => t != null)
+            .Distinct()
+            .ToList();
+        var missingTables = tables.Where(t => !existing.ContainsKey(t!)).Select(t => t!).ToList();
 
--- 4. المتسوقين والعملاء
-CREATE TABLE IF NOT EXISTS ""Customers"" (
-    ""CustomerId"" VARCHAR(50) PRIMARY KEY,
-    ""FullName"" VARCHAR(100) NOT NULL,
-    ""PhoneNumber"" VARCHAR(20) NOT NULL UNIQUE,
-    ""DeviceFingerprint"" VARCHAR(100) NULL,
-    ""LoyaltyTier"" VARCHAR(20) DEFAULT 'BRONZE',
-    ""IsFrozen"" BOOLEAN DEFAULT FALSE,
-    ""IsArchived"" BOOLEAN DEFAULT FALSE,
-    ""RegisteredAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
+        foreach (var table in missingTables)
+        {
+            var create = statements.FirstOrDefault(x => x.StartsWith($"CREATE TABLE \"{table}\"", StringComparison.Ordinal));
+            if (create == null) continue;
+            logger.LogInformation("PostgreSQL: إنشاء الجدول الناقص {Table}", table);
+            await ExecuteAsync(context, create);
+        }
+        foreach (var index in statements.Where(x => x.StartsWith("CREATE ", StringComparison.Ordinal) && x.Contains(" INDEX ", StringComparison.Ordinal)))
+        {
+            if (missingTables.Any(t => index.Contains($" ON \"{t}\"", StringComparison.Ordinal)))
+            {
+                await ExecuteAsync(context, index);
+            }
+        }
 
-ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""IsArchived"" BOOLEAN DEFAULT FALSE;
-ALTER TABLE ""Customers"" ADD COLUMN IF NOT EXISTS ""PasswordHash"" VARCHAR(256) NULL;
+        // 2) الأعمدة الناقصة في الجداول الموجودة
+        if (missingTables.Count > 0) existing = await ReadExistingColumnsAsync(context);
+        var added = 0;
+        foreach (var entity in context.Model.GetEntityTypes())
+        {
+            var table = entity.GetTableName();
+            if (table == null || !existing.TryGetValue(table, out var columns)) continue;
+            var store = StoreObjectIdentifier.Table(table, entity.GetSchema());
 
--- 5. الفواتير وعمليات المسح بالذكاء الاصطناعي
-CREATE TABLE IF NOT EXISTS ""Invoices"" (
-    ""InvoiceId"" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ""CustomerId"" VARCHAR(50) NOT NULL REFERENCES ""Customers""(""CustomerId""),
-    ""TenantId"" VARCHAR(50) NULL REFERENCES ""Tenants""(""TenantId""),
-    ""ExtractedMerchant"" VARCHAR(150) NULL,
-    ""InvoiceNumber"" VARCHAR(100) NULL,
-    ""InvoiceDate"" TIMESTAMPTZ NULL,
-    ""TotalAmount"" NUMERIC(18, 2) NULL,
-    ""ConfidenceScore"" NUMERIC(5, 4) NULL,
-    ""RawAiPayload"" TEXT NULL,
-    ""ReceiptImageUrl"" VARCHAR(500) NOT NULL,
-    ""ImagePHash"" VARCHAR(64) NULL,
-    ""FraudRiskScore"" INT DEFAULT 0,
-    ""ProcessingStatus"" VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-    ""RejectionReason"" VARCHAR(250) NULL,
-    ""ResubmissionNotes"" TEXT NULL,
-    ""ResubmissionRequestedAt"" TIMESTAMPTZ NULL,
-    ""DisputeReason"" TEXT NULL,
-    ""DisputedAt"" TIMESTAMPTZ NULL,
-    ""PointsAwarded"" INT DEFAULT 0,
-    ""BasePointsEarned"" INT DEFAULT 0,
-    ""ItemBonusPointsEarned"" INT DEFAULT 0,
-    ""PointsBreakdownJson"" TEXT NULL,
-    ""CashbackAwarded"" NUMERIC(18, 2) DEFAULT 0.00,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
+            foreach (var property in entity.GetProperties())
+            {
+                var column = property.GetColumnName(store);
+                if (column == null || columns.Contains(column)) continue;
 
-ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""ResubmissionNotes"" TEXT NULL;
-ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""ResubmissionRequestedAt"" TIMESTAMPTZ NULL;
-ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""DisputeReason"" TEXT NULL;
-ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""DisputedAt"" TIMESTAMPTZ NULL;
-ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""BasePointsEarned"" INT DEFAULT 0;
-ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""ItemBonusPointsEarned"" INT DEFAULT 0;
-ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""PointsBreakdownJson"" TEXT NULL;
+                var type = property.GetColumnType(store);
+                var nullable = property.IsColumnNullable(store);
+                var fallback = DefaultFor(type);
+                var sql = $"ALTER TABLE \"{table}\" ADD COLUMN IF NOT EXISTS \"{column}\" {type}" +
+                          (!nullable && fallback != null ? $" NOT NULL DEFAULT {fallback}" : "");
+                logger.LogInformation("PostgreSQL: إضافة العمود الناقص {Table}.{Column}", table, column);
+                await ExecuteAsync(context, sql);
+                columns.Add(column);
+                added++;
+            }
+        }
 
-CREATE UNIQUE INDEX IF NOT EXISTS ""UQ_Tenant_InvoiceNumber"" 
-ON ""Invoices"" (""TenantId"", ""InvoiceNumber"") 
-WHERE ""TenantId"" IS NOT NULL AND ""InvoiceNumber"" IS NOT NULL;
+        logger.LogInformation("PostgreSQL: المخطط متوافق ({Tables} جدول جديد، {Columns} عمود جديد).", missingTables.Count, added);
+    }
 
-CREATE INDEX IF NOT EXISTS ""IX_Invoices_Customer_Date"" ON ""Invoices"" (""CustomerId"", ""CreatedAt"");
-CREATE INDEX IF NOT EXISTS ""IX_Invoices_PHash"" ON ""Invoices"" (""ImagePHash"");
+    private static string? DefaultFor(string type)
+    {
+        var t = type.ToLowerInvariant();
+        if (t.StartsWith("int") || t.StartsWith("bigint") || t.StartsWith("smallint") || t.StartsWith("numeric") ||
+            t.StartsWith("double") || t.StartsWith("real") || t.StartsWith("decimal")) return "0";
+        if (t.StartsWith("boolean")) return "FALSE";
+        if (t.StartsWith("text") || t.StartsWith("character")) return "''";
+        if (t.StartsWith("uuid")) return "gen_random_uuid()";
+        if (t.StartsWith("timestamp")) return "now()";
+        return null;
+    }
 
--- 5.1 قواعد احتساب النقاط المرنة (Flexible Loyalty Earning Rules)
-CREATE TABLE IF NOT EXISTS ""LoyaltyEarningRules"" (
-    ""RuleId"" SERIAL PRIMARY KEY,
-    ""StoreTenantId"" VARCHAR(50) NULL REFERENCES ""Tenants""(""TenantId"") ON DELETE SET NULL,
-    ""RuleName"" VARCHAR(200) NOT NULL,
-    ""CalculationType"" VARCHAR(50) NOT NULL DEFAULT 'SPEND_RATIO',
-    ""FixedPointsPerInvoice"" INT DEFAULT 0,
-    ""SpendRatioRate"" NUMERIC(5, 4) DEFAULT 0.1000,
-    ""MinInvoiceAmount"" NUMERIC(18, 2) DEFAULT 0.00,
-    ""MaxPointsCap"" INT NULL,
-    ""IsActive"" BOOLEAN DEFAULT TRUE,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp(),
-    ""UpdatedAt"" TIMESTAMPTZ NULL
-);
-
-CREATE INDEX IF NOT EXISTS ""IX_LoyaltyEarningRules_Tenant"" ON ""LoyaltyEarningRules"" (""StoreTenantId"");
-CREATE INDEX IF NOT EXISTS ""IX_LoyaltyEarningRules_Type"" ON ""LoyaltyEarningRules"" (""CalculationType"");
-
--- 6. الأصناف المسحوبة من الفاتورة
-CREATE TABLE IF NOT EXISTS ""InvoiceLineItems"" (
-    ""LineItemId"" BIGSERIAL PRIMARY KEY,
-    ""InvoiceId"" UUID NOT NULL REFERENCES ""Invoices""(""InvoiceId"") ON DELETE CASCADE,
-    ""ItemName"" VARCHAR(200) NOT NULL,
-    ""Quantity"" INT DEFAULT 1,
-    ""UnitPrice"" NUMERIC(18, 2) NOT NULL,
-    ""TotalPrice"" NUMERIC(18, 2) NOT NULL,
-    ""Confidence"" NUMERIC(5, 4) NULL
-);
-
--- 7. المحافظ الرقمية للمتسوقين
-CREATE TABLE IF NOT EXISTS ""CustomerWallets"" (
-    ""WalletId"" BIGSERIAL PRIMARY KEY,
-    ""CustomerId"" VARCHAR(50) NOT NULL REFERENCES ""Customers""(""CustomerId""),
-    ""TenantId"" VARCHAR(50) NULL REFERENCES ""Tenants""(""TenantId""),
-    ""BalanceType"" VARCHAR(20) NOT NULL,
-    ""CurrentBalance"" NUMERIC(18, 2) DEFAULT 0.00,
-    ""RowVersion"" BYTEA NULL,
-    CONSTRAINT ""UQ_Customer_Tenant_Wallet"" UNIQUE (""CustomerId"", ""TenantId"", ""BalanceType"")
-);
-
--- 8. دفتر أستاذ المحفظة وتتبع الحركات
-CREATE TABLE IF NOT EXISTS ""WalletLedger"" (
-    ""EntryId"" BIGSERIAL PRIMARY KEY,
-    ""WalletId"" BIGINT NOT NULL REFERENCES ""CustomerWallets""(""WalletId""),
-    ""InvoiceId"" UUID NULL REFERENCES ""Invoices""(""InvoiceId""),
-    ""TransactionType"" VARCHAR(30) NOT NULL,
-    ""AmountChanged"" NUMERIC(18, 2) NOT NULL,
-    ""BalanceAfter"" NUMERIC(18, 2) NOT NULL,
-    ""ExpiresAt"" TIMESTAMPTZ NULL,
-    ""ReferenceRemarks"" VARCHAR(255) NULL,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-
--- 9. المقاصة والتسويات المالية للمتاجر
-CREATE TABLE IF NOT EXISTS ""TenantSettlements"" (
-    ""SettlementId"" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ""TenantId"" VARCHAR(50) NOT NULL REFERENCES ""Tenants""(""TenantId""),
-    ""PeriodStartDate"" DATE NOT NULL,
-    ""PeriodEndDate"" DATE NOT NULL,
-    ""TotalVouchersRedeemedValue"" NUMERIC(18, 2) NOT NULL,
-    ""MallServiceFee"" NUMERIC(18, 2) NOT NULL,
-    ""NetPayableToTenant"" NUMERIC(18, 2) NOT NULL,
-    ""SettlementStatus"" VARCHAR(30) NOT NULL DEFAULT 'OPEN',
-    ""SettledByUserId"" VARCHAR(50) NULL REFERENCES ""SystemUsers""(""UserId""),
-    ""SettledAt"" TIMESTAMPTZ NULL
-);
-
--- 10. سجلات تدقيق الاحتيال
-CREATE TABLE IF NOT EXISTS ""FraudReviewLogs"" (
-    ""ReviewId"" BIGSERIAL PRIMARY KEY,
-    ""InvoiceId"" UUID NOT NULL REFERENCES ""Invoices""(""InvoiceId""),
-    ""AssignedAuditorId"" VARCHAR(50) NULL REFERENCES ""SystemUsers""(""UserId""),
-    ""CalculatedRiskScore"" INT NOT NULL,
-    ""TriggeredFlags"" TEXT NULL,
-    ""AuditorDecision"" VARCHAR(30) NULL,
-    ""DecisionReason"" VARCHAR(255) NULL,
-    ""ResolvedAt"" TIMESTAMPTZ NULL,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-
--- 11. ترويسات وأسماء المتاجر البديلة
-CREATE TABLE IF NOT EXISTS ""StoreAliases"" (
-    ""Id"" SERIAL PRIMARY KEY,
-    ""TenantId"" VARCHAR(50) NOT NULL REFERENCES ""Tenants""(""TenantId"") ON DELETE CASCADE,
-    ""AliasName"" VARCHAR(200) NOT NULL,
-    ""MatchType"" VARCHAR(30) DEFAULT 'CONTAINS',
-    ""IsActive"" BOOLEAN DEFAULT TRUE,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-CREATE INDEX IF NOT EXISTS ""IX_StoreAliases_AliasName"" ON ""StoreAliases"" (""AliasName"");
-CREATE INDEX IF NOT EXISTS ""IX_StoreAliases_TenantId"" ON ""StoreAliases"" (""TenantId"");
-
--- 12. سجل بصمات الأجهزة لمنع الحسابات المتعددة
-CREATE TABLE IF NOT EXISTS ""CustomerDevices"" (
-    ""Id"" BIGSERIAL PRIMARY KEY,
-    ""CustomerId"" VARCHAR(50) NOT NULL REFERENCES ""Customers""(""CustomerId"") ON DELETE CASCADE,
-    ""DeviceFingerprint"" VARCHAR(150) NOT NULL,
-    ""DeviceModel"" VARCHAR(100) NULL,
-    ""OsVersion"" VARCHAR(50) NULL,
-    ""IpAddress"" VARCHAR(50) NULL,
-    ""FirstSeenAt"" TIMESTAMPTZ DEFAULT clock_timestamp(),
-    ""LastSeenAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-CREATE INDEX IF NOT EXISTS ""IX_CustomerDevices_Fingerprint"" ON ""CustomerDevices"" (""DeviceFingerprint"");
-CREATE INDEX IF NOT EXISTS ""IX_CustomerDevices_CustomerId"" ON ""CustomerDevices"" (""CustomerId"");
-
--- 13. قواعد محفزات المنتجات والماركات وسلة المشتريات
-CREATE TABLE IF NOT EXISTS ""ProductBoosterRules"" (
-    ""Id"" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ""Title"" VARCHAR(200) NOT NULL,
-    ""BrandOrItemKeyword"" VARCHAR(200) NOT NULL,
-    ""TargetCategory"" VARCHAR(50) NULL,
-    ""TenantId"" VARCHAR(50) NULL REFERENCES ""Tenants""(""TenantId"") ON DELETE SET NULL,
-    ""BonusPoints"" INT DEFAULT 20,
-    ""PointsMultiplier"" NUMERIC(5, 2) DEFAULT 1.00,
-    ""SponsorName"" VARCHAR(200) NULL,
-    ""StartDate"" TIMESTAMPTZ NOT NULL,
-    ""EndDate"" TIMESTAMPTZ NOT NULL,
-    ""IsActive"" BOOLEAN DEFAULT TRUE,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-CREATE INDEX IF NOT EXISTS ""IX_ProductBooster_Keyword"" ON ""ProductBoosterRules"" (""BrandOrItemKeyword"");
-CREATE INDEX IF NOT EXISTS ""IX_ProductBooster_TenantId"" ON ""ProductBoosterRules"" (""TenantId"");
-
--- Auxiliary Tables
-CREATE TABLE IF NOT EXISTS ""Rewards"" (
-    ""Id"" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ""Title"" VARCHAR(150) NOT NULL,
-    ""Description"" VARCHAR(500) NOT NULL,
-    ""MerchantName"" VARCHAR(150) NULL,
-    ""PointsCost"" INT NOT NULL,
-    ""DiscountValue"" NUMERIC(18, 2) NOT NULL,
-    ""ImageUrl"" VARCHAR(500) NULL,
-    ""StockQuantity"" INT NULL,
-    ""IsActive"" BOOLEAN DEFAULT TRUE,
-    ""ValidityDays"" INT DEFAULT 30,
-    ""ValidUntil"" TIMESTAMPTZ NULL,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-
-CREATE TABLE IF NOT EXISTS ""RewardRedemptions"" (
-    ""Id"" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ""CustomerId"" VARCHAR(50) NOT NULL REFERENCES ""Customers""(""CustomerId""),
-    ""RewardId"" UUID NOT NULL REFERENCES ""Rewards""(""Id""),
-    ""RedemptionCode"" VARCHAR(50) NOT NULL UNIQUE,
-    ""PointsSpent"" INT NOT NULL,
-    ""Status"" VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-    ""RedeemedAt"" TIMESTAMPTZ DEFAULT clock_timestamp(),
-    ""UsedAt"" TIMESTAMPTZ NULL,
-    ""UsedByMerchant"" VARCHAR(200) NULL,
-    ""ExpiresAt"" TIMESTAMPTZ NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS ""PromotionBanners"" (
-    ""Id"" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ""Title"" VARCHAR(200) NOT NULL,
-    ""Subtitle"" VARCHAR(300) NULL,
-    ""ImageUrl"" VARCHAR(500) NOT NULL,
-    ""TargetUrl"" VARCHAR(500) NULL,
-    ""ActionType"" VARCHAR(50) DEFAULT 'EXTERNAL_URL',
-    ""ActionPayloadJson"" TEXT NULL,
-    ""TargetAudience"" VARCHAR(50) DEFAULT 'ALL',
-    ""DisplayOrder"" INT DEFAULT 0,
-    ""IsActive"" BOOLEAN DEFAULT TRUE,
-    ""StartDate"" TIMESTAMPTZ NULL,
-    ""EndDate"" TIMESTAMPTZ NULL,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-
-ALTER TABLE ""PromotionBanners"" ADD COLUMN IF NOT EXISTS ""ActionType"" VARCHAR(50) DEFAULT 'EXTERNAL_URL';
-ALTER TABLE ""PromotionBanners"" ADD COLUMN IF NOT EXISTS ""ActionPayloadJson"" TEXT NULL;
-
-CREATE TABLE IF NOT EXISTS ""LoyaltyCampaigns"" (
-    ""Id"" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ""Name"" VARCHAR(200) NOT NULL,
-    ""Description"" VARCHAR(500) NOT NULL,
-    ""PointsMultiplier"" NUMERIC(4, 2) NOT NULL,
-    ""MinSpendAmount"" NUMERIC(18, 2) NOT NULL,
-    ""StartDate"" TIMESTAMPTZ NOT NULL,
-    ""EndDate"" TIMESTAMPTZ NOT NULL,
-    ""IsActive"" BOOLEAN DEFAULT TRUE,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-
-CREATE TABLE IF NOT EXISTS ""AuditLogs"" (
-    ""Id"" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ""PerformedBy"" VARCHAR(150) NOT NULL,
-    ""Action"" VARCHAR(100) NOT NULL,
-    ""EntityName"" VARCHAR(100) NOT NULL,
-    ""EntityId"" VARCHAR(100) NULL,
-    ""Details"" VARCHAR(1000) NOT NULL,
-    ""IpAddress"" VARCHAR(50) NULL,
-    ""CreatedAt"" TIMESTAMPTZ DEFAULT clock_timestamp()
-);
-
-";
-
+    private static async Task<Dictionary<string, HashSet<string>>> ReadExistingColumnsAsync(AppDbContext context)
+    {
+        var result = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        var connection = context.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync();
         try
         {
-            await context.Database.ExecuteSqlRawAsync(sql);
-            logger.LogInformation("PostgreSQL / Supabase database schema successfully verified and aligned.");
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = current_schema()";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var table = reader.GetString(0);
+                if (!result.TryGetValue(table, out var set)) result[table] = set = new HashSet<string>(StringComparer.Ordinal);
+                set.Add(reader.GetString(1));
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            logger.LogWarning(ex, "PostgreSQL Schema alignment notice: {Message}", ex.Message);
+            if (!wasOpen) await connection.CloseAsync();
         }
+        return result;
     }
+
+    // ExecuteSqlRaw يعامل الأقواس المعقوفة كمعاملات؛ أوامر المخطط لا تحتوي معاملات فنمررها كما هي
+    private static Task ExecuteAsync(AppDbContext context, string sql) =>
+        context.Database.ExecuteSqlRawAsync(sql.Replace("{", "{{").Replace("}", "}}"));
 }

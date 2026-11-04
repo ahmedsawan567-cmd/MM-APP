@@ -52,8 +52,9 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         // Unique constraint: UQ_Tenant_InvoiceNumber
         builder.HasIndex(i => new { i.TenantId, i.InvoiceNumber })
             .IsUnique()
-            .HasDatabaseName("UQ_Tenant_InvoiceNumber")
-            .HasFilter("[TenantId] IS NOT NULL AND [InvoiceNumber] IS NOT NULL");
+            // بدون HasFilter بصيغة SQL Server: EF يضيف الفلتر تلقائياً على SQL Server،
+            // وPostgreSQL يسمح أصلاً بتكرار القيم الفارغة في الفهرس الفريد
+            .HasDatabaseName("UQ_Tenant_InvoiceNumber");
 
         // Indexes
         builder.HasIndex(i => new { i.CustomerId, i.CreatedAt })

@@ -408,6 +408,9 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, logo = EXCLUDED.logo, category = EXCLUDED.category;
 
 -- 4.3 إدراج المستخدمين والإدارة (المبرمج، مصطفى صوان، مراد)
+-- ملاحظة: كلمات المرور أدناه ليست بصيغة التطبيق ولا يمكن الدخول بها.
+-- عند أول تشغيل للـ API بدون مدير عام صالح يُنشأ تلقائياً الحساب "admin" بكلمة مرور تظهر في سجل الخادم.
+-- (الـ API ينشئ ويُكمل الجداول تلقائياً، فتشغيل هذا الملف لم يعد ضرورياً)
 INSERT INTO public."SystemUsers" ("UserId", "TenantId", "FullName", "Email", "PhoneNumber", "PasswordHash", "Role", "IsActive")
 VALUES
     ('programer', null, 'المطور والمسؤول التقني العام للنظام (Programmer)', 'dev@mmapp.ly', '0900000099', 'jZae727K08KaOmKSgOaGzww/XVqGr/hqq551Wkw5qnw=', 'SUPER_ADMIN', true),

@@ -136,6 +136,24 @@ flutter run                                                        # محاكي 
 flutter run --dart-define=API_BASE_URL=http://192.168.1.X:5000/api  # هاتف حقيقي على نفس الشبكة
 ```
 
+## 🗄️ ربط قاعدة البيانات (Supabase / PostgreSQL)
+
+بدون رابط اتصال يعمل الخادم على **قاعدة مؤقتة في الذاكرة** (تُمسح عند إعادة التشغيل، وتظهر شارة صفراء في لوحة التحكم).
+
+1. من Supabase: زر **Connect** أعلى المشروع ← **Session pooler** ← انسخ الرابط (`postgresql://postgres.xxxx:[YOUR-PASSWORD]@aws-0-....pooler.supabase.com:5432/postgres`) وضع كلمة المرور مكان `[YOUR-PASSWORD]`.
+   (الرابط المباشر `db.xxxx.supabase.co` يعمل فقط على شبكات IPv6، لذلك نستخدم Session pooler.)
+2. احفظه على جهازك (لا تكتبه في الكود):
+   ```bash
+   cd src/MMApplication.Api
+   dotnet user-secrets set "ConnectionStrings:SupabaseConnection" "postgresql://postgres.xxxx:PASSWORD@aws-0-....pooler.supabase.com:5432/postgres"
+   ```
+3. شغّل الخادم. في السجل يظهر `قاعدة البيانات: PostgreSQL ...` والشارة في اللوحة تصبح خضراء.
+
+- **الجداول تُنشأ وتُكمَّل تلقائياً** عند التشغيل (الجداول والأعمدة الناقصة فقط، بدون حذف أي بيانات). لا حاجة لتشغيل `supabase/schema.sql`.
+- **لا تُضاف بيانات تجريبية** إلى القاعدة الحقيقية. إذا لم يوجد مدير عام يمكنه الدخول، يُنشأ الحساب `admin` وتظهر كلمة مروره **مرة واحدة** في سجل الخادم — غيّرها من صفحة طاقم العمل.
+  (لتحديد كلمة المرور بنفسك: `dotnet user-secrets set "Bootstrap:AdminPassword" "..."` قبل أول تشغيل. ولإضافة البيانات التجريبية: `"SeedDemoData": true`.)
+- إذا تعذّر الاتصال يتوقف الخادم برسالة واضحة بدل أن يعمل بقاعدة غير جاهزة.
+
 ## ⚠️ قبل التشغيل الفعلي
-- قاعدة البيانات حالياً **مؤقتة في الذاكرة** (تُمسح عند إعادة التشغيل) — يجب ربطها بـ Supabase/PostgreSQL.
-- غيّر `JwtSettings:Secret` وكلمات مرور الحسابات التجريبية، وضعها عبر user-secrets أو متغيرات البيئة.
+- غيّر `JwtSettings:Secret` وضعه عبر user-secrets أو متغيرات البيئة.
+- غيّر كلمات مرور الحسابات التجريبية إن كنت قد فعّلت البيانات التجريبية.

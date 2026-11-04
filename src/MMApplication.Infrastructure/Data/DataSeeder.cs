@@ -8,6 +8,40 @@ namespace MMApplication.Infrastructure.Data;
 
 public static class DataSeeder
 {
+    /// <summary>
+    /// للقاعدة الحقيقية بدون بيانات تجريبية: يضمن وجود حساب مدير عام واحد على الأقل.
+    /// يُرجع كلمة المرور المولّدة إن أُنشئ الحساب (لعرضها مرة واحدة في سجل الخادم)، وإلا null.
+    /// </summary>
+    public static async Task<string?> EnsureBootstrapAdminAsync(AppDbContext context, IPasswordHasherService passwordHasher, string? configuredPassword)
+    {
+        // يكفي وجود مدير عام نشط بكلمة مرور بصيغة التطبيق (تكرارات.ملح.بصمة).
+        // حسابات schema.sql القديمة كلمات مرورها بصيغة أخرى فلا يمكن الدخول بها.
+        var admins = await context.SystemUsers
+            .Where(u => u.IsActive && u.Role == SystemUserRole.SUPER_ADMIN)
+            .Select(u => u.PasswordHash)
+            .ToListAsync();
+        if (admins.Any(h => h != null && h.Split('.').Length == 3)) return null;
+        if (await context.SystemUsers.AnyAsync(u => u.UserId == "admin")) return null;
+
+        var password = string.IsNullOrWhiteSpace(configuredPassword)
+            ? Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12)).Replace('/', 'x').Replace('+', 'y')
+            : configuredPassword;
+
+        context.SystemUsers.Add(new SystemUser
+        {
+            UserId = "admin",
+            FullName = "المدير العام",
+            Email = "admin@local",
+            PhoneNumber = "admin",
+            PasswordHash = passwordHasher.HashPassword(password),
+            Role = SystemUserRole.SUPER_ADMIN,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+        });
+        await context.SaveChangesAsync();
+        return string.IsNullOrWhiteSpace(configuredPassword) ? password : "(كلمة المرور المضبوطة في Bootstrap:AdminPassword)";
+    }
+
     public static async Task SeedAsync(AppDbContext context, IPasswordHasherService passwordHasher)
     {
         var now = DateTime.UtcNow;

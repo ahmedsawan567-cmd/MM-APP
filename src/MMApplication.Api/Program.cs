@@ -25,13 +25,24 @@ builder.Services.AddControllersWithViews()
 // Configure Unicode HtmlEncoder for seamless Arabic rendering without entity encoding
 builder.Services.AddSingleton<HtmlEncoder>(HtmlEncoder.Create(allowedRanges: new[] { UnicodeRanges.BasicLatin, UnicodeRanges.Arabic, UnicodeRanges.ArabicPresentationFormsA, UnicodeRanges.ArabicPresentationFormsB, UnicodeRanges.ArabicSupplement }));
 
-// 2. Database Context (Supabase Cloud Schema & Resilient Engine)
-var inMemoryDbName = builder.Configuration.GetValue<string>("InMemoryDbName") ?? "MMAppDb_Supabase";
-builder.Services.AddDbContext<AppDbContext>(options =>
+// 2. قاعدة البيانات: Supabase / PostgreSQL عند ضبط رابط الاتصال، وإلا قاعدة مؤقتة في الذاكرة
+var database = DatabaseConnection.Resolve(builder.Configuration);
+if (database.UsePostgres)
 {
-    options.UseInMemoryDatabase(inMemoryDbName);
-    options.ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning));
-});
+    // قبول التواريخ بأي نوع (Local/Unspecified) كما في SQL Server، لتجنب أخطاء timestamptz
+    AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(database.ConnectionString, npgsql => npgsql.EnableRetryOnFailure(3)));
+}
+else
+{
+    var inMemoryDbName = builder.Configuration.GetValue<string>("InMemoryDbName") ?? "MMAppDb";
+    builder.Services.AddDbContext<AppDbContext>(options =>
+    {
+        options.UseInMemoryDatabase(inMemoryDbName);
+        options.ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning));
+    });
+}
 
 // 3. Dependency Injection (Services)
 // محرك قراءة الفواتير: Claude إذا وُجد مفتاح Anthropic، وإلا المحرك الوهمي (للتطوير فقط —
@@ -195,6 +206,9 @@ using (var scope = app.Services.CreateScope())
     {
         var db = services.GetRequiredService<AppDbContext>();
         var hasher = services.GetRequiredService<IPasswordHasherService>();
+        logger.LogInformation(database.UsePostgres
+            ? "قاعدة البيانات: {Db}"
+            : "تحذير: قاعدة بيانات مؤقتة في الذاكرة ({Db}). البيانات تُمسح عند إعادة التشغيل.", database.Description);
         logger.LogInformation("Applying database schema and seed data...");
         if (db.Database.IsRelational())
         {
@@ -204,8 +218,30 @@ using (var scope = app.Services.CreateScope())
         {
             await db.Database.EnsureCreatedAsync();
         }
-        await DataSeeder.SeedAsync(db, hasher);
-        logger.LogInformation("Database is ready and seeded with test accounts.");
+        // البيانات التجريبية: افتراضياً في القاعدة المؤقتة فقط. في Supabase تُفعّل صراحةً بـ "SeedDemoData": true
+        var seedDemo = builder.Configuration.GetValue<bool?>("SeedDemoData") ?? !database.UsePostgres;
+        if (seedDemo)
+        {
+            await DataSeeder.SeedAsync(db, hasher);
+            logger.LogInformation("Database is ready and seeded with demo data and test accounts.");
+        }
+        else
+        {
+            var generated = await DataSeeder.EnsureBootstrapAdminAsync(db, hasher, builder.Configuration["Bootstrap:AdminPassword"]);
+            if (generated != null)
+            {
+                logger.LogWarning(
+                    "تم إنشاء حساب المدير العام الأول. اسم المستخدم: admin — كلمة المرور: {Password} — غيّرها من صفحة طاقم العمل بعد الدخول.",
+                    generated);
+            }
+            logger.LogInformation("Database is ready.");
+        }
+    }
+    catch (Exception ex) when (database.UsePostgres)
+    {
+        // مع قاعدة حقيقية: لا نكمل التشغيل بقاعدة غير جاهزة
+        logger.LogCritical(ex, "تعذّر تجهيز قاعدة البيانات ({Db}): {Message}", database.Description, ex.Message);
+        throw;
     }
     catch (Exception ex)
     {
