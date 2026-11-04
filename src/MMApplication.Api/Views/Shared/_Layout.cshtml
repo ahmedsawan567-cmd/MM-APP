@@ -14,7 +14,7 @@
     <!-- Custom Rebuilt Design System -->
     <link rel="stylesheet" href="~/styles.css" asp-append-version="true">
 </head>
-<body class="min-h-screen flex bg-[#f8fafc] text-slate-900 text-sm font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
+<body class="min-h-screen flex bg-[#f8fafc] text-slate-900 text-sm font-sans antialiased selection:bg-brand-100 selection:text-brand-900">
 
     @{
         var currentRole = User.FindFirst("SystemRole")?.Value ?? (User.IsInRole("superadmin") ? "SUPER_ADMIN" : (User.IsInRole("auditor") ? "FRAUD_AUDITOR" : (User.IsInRole("storemanager") ? "STORE_MANAGER" : "SUPER_ADMIN")));
@@ -41,7 +41,7 @@
         if (isDevOrSuperAdmin)
         {
             roleDisplayName = currentUserName.Contains("programer") ? "المطور التقني (Developer)" : "المدير العام (Super Admin)";
-            roleBadgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+            roleBadgeColor = "bg-brand-500/10 text-brand-400 border-brand-500/20";
         }
         else if (isAuditor)
         {
@@ -70,7 +70,7 @@
             
             <!-- Brand Logo -->
             <div class="flex items-center gap-3 px-2 py-2 border-b border-slate-800/80">
-                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-500/20">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-brand-500/20">
                     <i data-lucide="store" class="w-5 h-5 text-white"></i>
                 </div>
                 <div>
@@ -82,7 +82,7 @@
             <!-- Active User Role Card -->
             <div class="px-3 py-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                    <div class="w-7 h-7 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-xs">
                         @userInitial
                     </div>
                     <div class="min-w-0 flex-1">
@@ -239,7 +239,7 @@
             <div class="space-y-4">
                 <div class="flex items-center justify-between pb-3 border-b border-slate-800">
                     <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold">
+                        <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white font-bold">
                             <i data-lucide="store" class="w-4 h-4"></i>
                         </div>
                         <div class="text-sm font-bold text-white">المرأة مول</div>
@@ -331,7 +331,7 @@
 
                 <!-- Search Input -->
                 <div class="relative w-48 sm:w-64 md:w-80">
-                    <input type="text" id="global-search" placeholder="بحث سريع في المنظومة (فواتير، متاجر، عملاء)..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition">
+                    <input type="text" id="global-search" placeholder="بحث سريع في المنظومة (فواتير، متاجر، عملاء)..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand-600 focus:bg-white transition">
                     <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5"></i>
                 </div>
             </div>
@@ -352,7 +352,7 @@
 
                 <!-- User Profile Dropdown Pill -->
                 <div class="flex items-center gap-2 pl-2">
-                    <div class="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
+                    <div class="w-8 h-8 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
                         @userInitial
                     </div>
                     <div class="hidden md:block text-right">
@@ -402,7 +402,7 @@
                 `,
                 icon: 'info',
                 confirmButtonText: 'حسناً',
-                confirmButtonColor: '#2563eb'
+                confirmButtonColor: '#047857'
             });
         }
 

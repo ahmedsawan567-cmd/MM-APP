@@ -1687,6 +1687,18 @@ public class AdminDashboardController : Controller
             };
         }).ToList();
 
+        // تسجيلات العملاء الجدد في آخر 6 أشهر (بيانات حقيقية)
+        var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-5);
+        var registrations = await _context.Customers.AsNoTracking()
+            .Where(c => c.RegisteredAt >= monthStart)
+            .Select(c => c.RegisteredAt)
+            .ToListAsync();
+        var arMonths = new[] { "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر" };
+        ViewData["MonthlyRegistrations"] = Enumerable.Range(0, 6)
+            .Select(i => monthStart.AddMonths(i))
+            .Select(m => new { label = arMonths[m.Month - 1], count = registrations.Count(r => r.Year == m.Year && r.Month == m.Month) })
+            .ToList();
+
         ViewData["ActiveTab"] = "customers";
         ViewData["Title"] = "قاعدة بيانات العملاء والمتسوقين (Customer Database)";
         ViewData["TierFilter"] = tier ?? "ALL";

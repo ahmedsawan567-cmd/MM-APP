@@ -65,10 +65,10 @@
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
                 <span class="text-xs font-semibold text-slate-500">بانتظار إعادة التصوير</span>
-                <i data-lucide="camera" class="w-4 h-4 text-blue-500"></i>
+                <i data-lucide="camera" class="w-4 h-4 text-brand-500"></i>
             </div>
-            <div class="text-xl font-bold text-blue-600 num">@Model.ResubmitCount</div>
-            <div class="text-[11px] text-blue-700 mt-1">صورة غير واضحة</div>
+            <div class="text-xl font-bold text-brand-600 num">@Model.ResubmitCount</div>
+            <div class="text-[11px] text-brand-700 mt-1">صورة غير واضحة</div>
         </div>
     </div>
 
@@ -78,19 +78,19 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <!-- Filter Pills -->
             <div class="flex flex-wrap items-center gap-2">
-                <a asp-action="Fraud" asp-route-statusFilter="ALL" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "ALL" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Fraud" asp-route-statusFilter="ALL" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "ALL" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     الكل (@Model.QueueItems.Count)
                 </a>
-                <a asp-action="Fraud" asp-route-statusFilter="SUSPECT" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "SUSPECT" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Fraud" asp-route-statusFilter="SUSPECT" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "SUSPECT" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     مشتبه بها (30-70%)
                 </a>
-                <a asp-action="Fraud" asp-route-statusFilter="FLAGGED" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "FLAGGED" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Fraud" asp-route-statusFilter="FLAGGED" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "FLAGGED" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     عالية الخطورة (>70%)
                 </a>
-                <a asp-action="Fraud" asp-route-statusFilter="DISPUTED" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "DISPUTED" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Fraud" asp-route-statusFilter="DISPUTED" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "DISPUTED" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     اعتراضات (@Model.DisputedCount)
                 </a>
-                <a asp-action="Fraud" asp-route-statusFilter="RESUBMIT" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "RESUBMIT" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Fraud" asp-route-statusFilter="RESUBMIT" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(Model.StatusFilter == "RESUBMIT" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     إعادة تصوير (@Model.ResubmitCount)
                 </a>
             </div>
@@ -170,7 +170,7 @@
 
                             @if (!string.IsNullOrWhiteSpace(item.ResubmissionNotes))
                             {
-                                <div class="text-xs bg-blue-50 text-blue-900 p-2.5 rounded-lg border border-blue-200">
+                                <div class="text-xs bg-brand-50 text-brand-900 p-2.5 rounded-lg border border-brand-200">
                                     <span class="font-bold">ملاحظات إعادة التصوير:</span> @item.ResubmissionNotes
                                 </div>
                             }
@@ -247,7 +247,7 @@
                 <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col justify-between space-y-2">
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">توجيهات وملاحظات المدقق:</label>
-                        <textarea id="fraud-decision-reason" rows="5" placeholder="سبب الرفض أو توجيهات إعادة التصوير للعميل..." class="w-full text-xs p-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600"></textarea>
+                        <textarea id="fraud-decision-reason" rows="5" placeholder="سبب الرفض أو توجيهات إعادة التصوير للعميل..." class="w-full text-xs p-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600"></textarea>
                     </div>
                     <p class="text-[11px] text-slate-400 leading-relaxed">
                         * يتم توثيق أي قرار تلقائياً في سجل الرقابة والأمان (Audit Log).

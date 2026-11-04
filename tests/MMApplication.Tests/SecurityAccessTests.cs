@@ -58,6 +58,11 @@ public class SecurityAccessTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var response = await CreateClient().GetAsync("/AdminDashboard/Login");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // كلمات مرور الحسابات التجريبية لا تظهر خارج بيئة التطوير
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Admin123!", html);
+        Assert.DoesNotContain("Programmer123!", html);
     }
 
     [Fact]

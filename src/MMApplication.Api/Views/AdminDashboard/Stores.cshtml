@@ -17,7 +17,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
             <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center font-bold">
                     <i data-lucide="building-2" class="w-5 h-5"></i>
                 </div>
                 <div>
@@ -29,7 +29,7 @@
 
         <div class="flex items-center gap-2.5">
             <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" class="btn-secondary">
-                <i data-lucide="scan-line" class="w-4 h-4 text-blue-600"></i>
+                <i data-lucide="scan-line" class="w-4 h-4 text-brand-600"></i>
                 <span>قوالب الفواتير والـ AI</span>
             </a>
             <button onclick="openModal('modal-add-store')" class="btn-primary">
@@ -44,7 +44,7 @@
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
                 <span class="text-xs font-semibold text-slate-500">إجمالي المتاجر</span>
-                <i data-lucide="store" class="w-4 h-4 text-blue-500"></i>
+                <i data-lucide="store" class="w-4 h-4 text-brand-500"></i>
             </div>
             <div class="text-xl font-bold text-slate-900 num">@totalCount</div>
             <div class="text-[11px] text-slate-400 mt-1">تعمل بنظام المركز المتكامل</div>
@@ -84,16 +84,16 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <!-- Filter Pills -->
             <div class="flex flex-wrap items-center gap-2">
-                <a asp-action="Stores" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(string.IsNullOrEmpty(loyaltyFilter) ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Stores" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(string.IsNullOrEmpty(loyaltyFilter) ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     الكل (@totalCount)
                 </a>
-                <a asp-action="Stores" asp-route-category="مطاعم وكافيهات" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "مطاعم وكافيهات" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Stores" asp-route-category="مطاعم وكافيهات" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "مطاعم وكافيهات" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     مطاعم وكافيهات
                 </a>
-                <a asp-action="Stores" asp-route-category="أزياء وملابس" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "أزياء وملابس" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Stores" asp-route-category="أزياء وملابس" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "أزياء وملابس" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     أزياء وملابس
                 </a>
-                <a asp-action="Stores" asp-route-category="سوبرماركت" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "سوبرماركت" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
+                <a asp-action="Stores" asp-route-category="سوبرماركت" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "سوبرماركت" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
                     سوبرماركت
                 </a>
             </div>
@@ -101,7 +101,7 @@
             <!-- Search -->
             <form method="get" asp-action="Stores" class="flex items-center gap-2">
                 <div class="relative w-full sm:w-64">
-                    <input type="text" name="search" value="@searchQuery" placeholder="بحث باسم المتجر أو النشاط..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-600 focus:bg-white transition">
+                    <input type="text" name="search" value="@searchQuery" placeholder="بحث باسم المتجر أو النشاط..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-brand-600 focus:bg-white transition">
                     <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5"></i>
                 </div>
             </form>
@@ -136,7 +136,7 @@
                         <tr>
                             <td>
                                 <div class="flex items-center gap-2.5">
-                                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 font-bold flex items-center justify-center text-xs shrink-0">
+                                    <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 font-bold flex items-center justify-center text-xs shrink-0">
                                         @s.Name.Substring(0, 1)
                                     </div>
                                     <div>
@@ -173,7 +173,7 @@
                             </td>
                             <td class="text-center">
                                 <div class="flex items-center justify-center gap-1.5">
-                                    <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" asp-route-storeId="@s.Id" title="قالب ونموذج الفاتورة" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition">
+                                    <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" asp-route-storeId="@s.Id" title="قالب ونموذج الفاتورة" class="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 transition">
                                         <i data-lucide="scan-line" class="w-4 h-4"></i>
                                     </a>
                                     <button onclick="openEditStoreModal('@s.Id', '@s.Name', '@s.Category', '@s.FloorNumber', '@s.UnitNumber', @s.CommissionRate, '@(s.ContactPerson ?? "")', @(s.IsActive ? "true" : "false"))" title="تعديل بيانات المتجر" class="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition">
@@ -204,26 +204,26 @@
         <div class="space-y-3">
             <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">اسم المتجر / العلامة التجارية:</label>
-                <input type="text" id="store-name" placeholder="مثال: أديداس - Adidas" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                <input type="text" id="store-name" placeholder="مثال: أديداس - Adidas" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
             </div>
             <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">النشاط التجاري:</label>
-                <input type="text" id="store-cat" placeholder="مثال: أزياء وملابس رياضية" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                <input type="text" id="store-cat" placeholder="مثال: أزياء وملابس رياضية" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">الطابق:</label>
-                    <input type="text" id="store-floor" placeholder="الطابق الأول" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                    <input type="text" id="store-floor" placeholder="الطابق الأول" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">رقم الوحدة:</label>
-                    <input type="text" id="store-unit" placeholder="Unit-12" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-mono">
+                    <input type="text" id="store-unit" placeholder="Unit-12" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600 font-mono">
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">نموذج الولاء:</label>
-                    <select id="store-loyalty-type" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                    <select id="store-loyalty-type" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
                         <option value="MallPoints">نقاط المول المشتركة</option>
                         <option value="CashBack">كاش باك نقدي</option>
                         <option value="StorePoints">نقاط خاصة بالمتجر</option>
@@ -231,12 +231,12 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">نسبة العمولة (%):</label>
-                    <input type="number" step="0.5" id="store-comm" value="5.0" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-mono">
+                    <input type="number" step="0.5" id="store-comm" value="5.0" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600 font-mono">
                 </div>
             </div>
             <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">مسؤول التواصل والهاتف:</label>
-                <input type="text" id="store-contact" placeholder="الاسم ورقم الهاتف" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                <input type="text" id="store-contact" placeholder="الاسم ورقم الهاتف" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
             </div>
         </div>
 
@@ -262,28 +262,28 @@
         <div class="space-y-3">
             <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">اسم المتجر:</label>
-                <input type="text" id="edit-store-name" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                <input type="text" id="edit-store-name" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
             </div>
             <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">النشاط التجاري:</label>
-                <input type="text" id="edit-store-cat" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                <input type="text" id="edit-store-cat" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">الطابق:</label>
-                    <input type="text" id="edit-store-floor" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                    <input type="text" id="edit-store-floor" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">رقم الوحدة:</label>
-                    <input type="text" id="edit-store-unit" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600 font-mono">
+                    <input type="text" id="edit-store-unit" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600 font-mono">
                 </div>
             </div>
             <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">مسؤول التواصل:</label>
-                <input type="text" id="edit-store-contact" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-blue-600">
+                <input type="text" id="edit-store-contact" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
             </div>
             <div class="flex items-center gap-2 pt-1">
-                <input type="checkbox" id="edit-store-active" class="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0">
+                <input type="checkbox" id="edit-store-active" class="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-0">
                 <label for="edit-store-active" class="text-xs font-medium text-slate-700">المتجر نشط في النظام</label>
             </div>
         </div>

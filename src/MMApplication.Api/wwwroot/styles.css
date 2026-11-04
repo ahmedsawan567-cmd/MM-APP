@@ -14,9 +14,9 @@
     --bg-card: #ffffff;
     --sidebar-bg: #0f172a;
     
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
-    --primary-light: #eff6ff;
+    --primary: #047857;
+    --primary-hover: #065f46;
+    --primary-light: #ecfdf5;
     
     --success: #059669;
     --success-light: #ecfdf5;
@@ -58,6 +58,12 @@ body {
     font-feature-settings: "tnum" on, "lnum" on;
     direction: ltr;
     display: inline-block;
+}
+
+/* خلايا الجداول تبقى خلايا جدول حتى مع .num (وإلا تنكسر صفوف الجدول) */
+td.num, th.num {
+    display: table-cell;
+    direction: rtl;
 }
 
 /* Custom Sleek Scrollbar */
@@ -143,17 +149,17 @@ body {
     font-size: 0.8125rem;
     font-weight: 600;
     color: #ffffff;
-    background-color: #2563eb;
+    background-color: #047857;
     border: 1px solid transparent;
     border-radius: 0.625rem;
     cursor: pointer;
-    box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.2);
+    box-shadow: 0 1px 2px 0 rgba(4, 120, 87, 0.2);
     transition: all 0.15s ease;
 }
 
 .btn-primary:hover {
-    background-color: #1d4ed8;
-    box-shadow: 0 2px 6px 0 rgba(37, 99, 235, 0.35);
+    background-color: #065f46;
+    box-shadow: 0 2px 6px 0 rgba(4, 120, 87, 0.35);
 }
 
 .btn-secondary {
@@ -229,9 +235,9 @@ body {
 }
 
 .badge-blue {
-    background-color: #eff6ff;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
+    background-color: #ecfdf5;
+    color: #064e3b;
+    border: 1px solid #a7f3d0;
 }
 
 .badge-slate {
@@ -306,8 +312,8 @@ body {
 
 .sidebar-link.active {
     color: #ffffff;
-    background-color: #2563eb;
-    box-shadow: 0 2px 8px 0 rgba(37, 99, 235, 0.4);
+    background-color: #047857;
+    box-shadow: 0 2px 8px 0 rgba(4, 120, 87, 0.4);
 }
 
 .sidebar-link i {
