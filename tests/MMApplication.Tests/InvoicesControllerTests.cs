@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Http;
@@ -27,6 +28,11 @@ public class InvoicesControllerTests
 
         return new AppDbContext(options);
     }
+
+    // هذه الاختبارات تركز على حساب النقاط؛ قاعدة "المتجر يجب أن يكون من متاجر المول" تُختبر منفصلة
+    private static readonly IConfiguration AllowUnknownStores = new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?> { ["InvoiceReview:RequireKnownStore"] = "false" })
+        .Build();
 
     private class FakeOcrService : IReceiptOcrService
     {
@@ -107,7 +113,8 @@ public class InvoicesControllerTests
             fakeOcr,
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var request = new InvoiceUploadRequest
         {
@@ -177,7 +184,8 @@ public class InvoicesControllerTests
             fakeOcr,
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var userClaims = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
         {
@@ -242,7 +250,8 @@ public class InvoicesControllerTests
             fakeOcr,
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var request = new InvoiceUploadRequest
         {
@@ -312,7 +321,8 @@ public class InvoicesControllerTests
             fakeOcr,
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var request = new InvoiceUploadRequest
         {
@@ -338,7 +348,8 @@ public class InvoicesControllerTests
             new FakeOcrService(),
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var request = new InvoiceUploadRequest
         {
@@ -374,7 +385,8 @@ public class InvoicesControllerTests
             new FakeOcrService(),
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var request = new InvoiceUploadRequest
         {
@@ -468,7 +480,8 @@ public class InvoicesControllerTests
             fakeOcr,
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var request = new InvoiceUploadRequest
         {
@@ -533,7 +546,8 @@ public class InvoicesControllerTests
             fakeOcr,
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var request = new InvoiceUploadRequest
         {
@@ -592,7 +606,8 @@ public class InvoicesControllerTests
             fakeOcr,
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var request = new InvoiceUploadRequest
         {
@@ -611,7 +626,11 @@ public class InvoicesControllerTests
         Assert.NotNull(invoice);
         // Anti-sybil should have flagged this for human review
         Assert.Equal(InvoiceStatus.REVIEW_REQUIRED, invoice.ProcessingStatus);
-        Assert.Contains("الجهاز", invoice.RejectionReason);
+        // سبب المراجعة يُحفظ داخلياً للوحة التحكم ولا يُعرض للعميل
+        Assert.Null(invoice.RejectionReason);
+        var payload = ReceiptReviewPayload.TryParse(invoice.RawAiPayload);
+        Assert.NotNull(payload);
+        Assert.Contains(payload!.ReviewReasons, r => r.Contains("الجهاز"));
     }
 
     [Fact]
@@ -645,7 +664,8 @@ public class InvoicesControllerTests
             new FakeOcrService(),
             new FakeFileStorageService(),
             new FlexibleLoyaltyEvaluationService(context),
-            NullLogger<InvoicesController>.Instance);
+            NullLogger<InvoicesController>.Instance,
+            AllowUnknownStores);
 
         var disputeRequest = new CustomerDisputeRequest
         {

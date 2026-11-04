@@ -5,14 +5,15 @@ namespace MMApplication.Infrastructure.Services;
 
 public class MockReceiptOcrService : IReceiptOcrService
 {
+    // أسماء تطابق متاجر بيانات التجربة (DataSeeder) — هذا المحرك للتطوير والاختبار فقط
     private static readonly string[] SampleMerchants =
     [
-        "Zara - Al Nakheel Mall",
-        "H&M - Mall of Arabia",
-        "Carrefour Hypermarket",
-        "Virgin Megastore",
+        "Zara Fashion",
         "Starbucks Coffee",
-        "Apple Store - Flagship"
+        "Carrefour Hypermarket",
+        "Sephora Cosmetics",
+        "Nike Official Store",
+        "iStore Apple Reseller"
     ];
 
     private static readonly Random _random = new();
@@ -32,7 +33,8 @@ public class MockReceiptOcrService : IReceiptOcrService
             InvoiceNumber = invoiceNumber,
             InvoiceDate = DateTime.UtcNow.AddHours(-_random.Next(1, 48)),
             TotalAmount = amount,
-            Confidence = confidence
+            Confidence = confidence,
+            Provider = "Mock"
         };
 
         return Task.FromResult(result);

@@ -21,6 +21,8 @@ public class InvoicesController : ControllerBase
     private readonly IFileStorageService _fileStorageService;
     private readonly IFlexibleLoyaltyEvaluationService _loyaltyEvaluationService;
     private readonly ILogger<InvoicesController> _logger;
+    private readonly IConfiguration? _configuration;
+    private readonly IHostEnvironment? _environment;
 
     private static readonly string[] AllowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 
@@ -29,13 +31,66 @@ public class InvoicesController : ControllerBase
         IReceiptOcrService ocrService,
         IFileStorageService fileStorageService,
         IFlexibleLoyaltyEvaluationService loyaltyEvaluationService,
-        ILogger<InvoicesController> logger)
+        ILogger<InvoicesController> logger,
+        IConfiguration? configuration = null,
+        IHostEnvironment? environment = null)
     {
         _context = context;
         _ocrService = ocrService;
         _fileStorageService = fileStorageService;
         _loyaltyEvaluationService = loyaltyEvaluationService;
         _logger = logger;
+        _configuration = configuration;
+        _environment = environment;
+    }
+
+    /// <summary>
+    /// قواعد التحويل لمراجعة الموظفين بدل القبول التلقائي. القائمة الفارغة = قبول تلقائي.
+    /// الحدود قابلة للتعديل من appsettings تحت القسم "InvoiceReview".
+    /// </summary>
+    private async Task<List<string>> CollectReviewReasonsAsync(
+        ExtractedReceiptDto extracted, string? tenantId, DateTime invoiceDate, decimal totalAmount, int fraudRiskScore)
+    {
+        var reasons = new List<string>();
+        var minConfidence = _configuration?.GetValue<double?>("InvoiceReview:MinAutoApproveConfidence") ?? 0.85;
+        var amountThreshold = _configuration?.GetValue<decimal?>("InvoiceReview:ReviewAmountAbove") ?? 3000m;
+
+        if (extracted.RequiresManualReview)
+        {
+            reasons.Add("تعذّرت القراءة الآلية للفاتورة");
+            reasons.AddRange(extracted.AuthenticityConcerns);
+            return reasons;
+        }
+
+        if (fraudRiskScore >= 35) reasons.Add("الجهاز مستخدم من حسابات عملاء أخرى");
+        if (extracted.Confidence < minConfidence) reasons.Add($"ثقة القراءة منخفضة ({extracted.Confidence:P0})");
+        reasons.AddRange(extracted.AuthenticityConcerns.Select(c => $"ملاحظة الذكاء الاصطناعي: {c}"));
+        var requireKnownStore = _configuration?.GetValue<bool?>("InvoiceReview:RequireKnownStore") ?? true;
+        if (requireKnownStore && string.IsNullOrEmpty(tenantId)) reasons.Add("المتجر غير معروف ضمن متاجر المول");
+        if (totalAmount > amountThreshold) reasons.Add($"مبلغ مرتفع يتجاوز {amountThreshold:N0} د.ل");
+        if (!string.IsNullOrEmpty(extracted.Currency) &&
+            !extracted.Currency.Equals("LYD", StringComparison.OrdinalIgnoreCase))
+        {
+            reasons.Add($"عملة غير الدينار الليبي ({extracted.Currency})");
+        }
+
+        if (extracted.InvoiceDate.HasValue)
+        {
+            var maxAgeDays = 7;
+            if (!string.IsNullOrEmpty(tenantId))
+            {
+                var rule = await _context.TenantLoyaltyRules.AsNoTracking().FirstOrDefaultAsync(r => r.TenantId == tenantId);
+                if (rule != null && rule.MaxInvoiceAgeDays > 0) maxAgeDays = rule.MaxInvoiceAgeDays;
+            }
+            if (invoiceDate.Date < DateTime.UtcNow.Date.AddDays(-maxAgeDays)) reasons.Add($"الفاتورة أقدم من {maxAgeDays} أيام");
+            if (invoiceDate.Date > DateTime.UtcNow.Date.AddDays(1)) reasons.Add("تاريخ الفاتورة في المستقبل");
+        }
+
+        // المحرك الوهمي مسموح بالقبول التلقائي في بيئة التطوير والاختبار فقط
+        var isDevOrTest = _environment == null || _environment.IsDevelopment() || _environment.IsEnvironment("Testing");
+        if (extracted.Provider == "Mock" && !isDevOrTest) reasons.Add("القراءة الآلية بالذكاء الاصطناعي غير مفعّلة");
+
+        return reasons;
     }
 
     /// <summary>
@@ -150,10 +205,27 @@ public class InvoicesController : ControllerBase
             }
         }
 
+        // قائمة متاجر المول وأسمائها البديلة تُرسل لمحرك القراءة ليطابق المتجر بدقة
+        var ocrContext = new ReceiptExtractionContext
+        {
+            ContentType = request.File.ContentType,
+            FileName = request.File.FileName,
+            KnownStores = await _context.Tenants
+                .Where(t => t.IsActive)
+                .Select(t => new KnownStoreDto
+                {
+                    TenantId = t.TenantId,
+                    NameAr = t.NameAr,
+                    NameEn = t.NameEn,
+                    Aliases = t.Aliases.Where(a => a.IsActive).Select(a => a.AliasName).ToList()
+                })
+                .ToListAsync()
+        };
+
         ExtractedReceiptDto extractedData;
         using (var stream = request.File.OpenReadStream())
         {
-            extractedData = await _ocrService.ExtractReceiptDataAsync(stream);
+            extractedData = await _ocrService.ExtractReceiptDataAsync(stream, ocrContext);
         }
 
         if (extractedData == null)
@@ -165,10 +237,23 @@ public class InvoicesController : ControllerBase
             });
         }
 
-        if (string.IsNullOrWhiteSpace(extractedData.MerchantName) ||
+        if (!extractedData.IsReceipt && !extractedData.RequiresManualReview)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = "الصورة المرفوعة لا تبدو فاتورة شراء. يرجى تصوير فاتورة المتجر كاملة وبوضوح."
+            });
+        }
+
+        // عند تعذّر القراءة الآلية (خدمة متوقفة مثلاً) لا نرفض الفاتورة: تُحفظ وتُحوّل لمراجعة الموظفين
+        var needsManualRead = extractedData.RequiresManualReview;
+
+        if (!needsManualRead && (
+            string.IsNullOrWhiteSpace(extractedData.MerchantName) ||
             string.IsNullOrWhiteSpace(extractedData.InvoiceNumber) ||
             !extractedData.TotalAmount.HasValue ||
-            extractedData.TotalAmount.Value <= 0)
+            extractedData.TotalAmount.Value <= 0))
         {
             return BadRequest(new
             {
@@ -178,18 +263,25 @@ public class InvoicesController : ControllerBase
             });
         }
 
-        var merchantName = extractedData.MerchantName.Trim();
-        var invoiceNumber = extractedData.InvoiceNumber.Trim();
-        var totalAmount = extractedData.TotalAmount.Value;
+        var merchantName = extractedData.MerchantName?.Trim() ?? "بانتظار القراءة اليدوية";
+        var invoiceNumber = extractedData.InvoiceNumber?.Trim() ?? string.Empty;
+        var totalAmount = extractedData.TotalAmount ?? 0m;
         var invoiceDate = extractedData.InvoiceDate ?? DateTime.UtcNow;
 
         // --- 2. Store Alias & Header Matcher Engine ---
-        var matchedTenant = await _context.Tenants
+        // أولاً: المتجر الذي طابقه الذكاء الاصطناعي من قائمة متاجر المول
+        Tenant? matchedTenant = null;
+        if (!string.IsNullOrEmpty(extractedData.MatchedTenantId))
+        {
+            matchedTenant = await _context.Tenants.FirstOrDefaultAsync(t => t.TenantId == extractedData.MatchedTenantId);
+        }
+
+        matchedTenant ??= needsManualRead ? null : await _context.Tenants
             .FirstOrDefaultAsync(t => t.NameAr.Contains(merchantName) || t.NameEn.Contains(merchantName) || merchantName.Contains(t.NameAr) || merchantName.Contains(t.NameEn));
 
         var tenantId = matchedTenant?.TenantId;
 
-        if (string.IsNullOrEmpty(tenantId))
+        if (string.IsNullOrEmpty(tenantId) && !needsManualRead)
         {
             var activeAliases = await _context.StoreAliases
                 .Where(a => a.IsActive)
@@ -210,7 +302,7 @@ public class InvoicesController : ControllerBase
         }
 
         // Deduplication check (including VOIDED/REJECTED invoices to block reuse!)
-        var isDuplicate = await _context.Invoices.AnyAsync(i =>
+        var isDuplicate = !string.IsNullOrEmpty(invoiceNumber) && await _context.Invoices.AnyAsync(i =>
             (i.TenantId == tenantId || i.ExtractedMerchant == merchantName) && i.InvoiceNumber == invoiceNumber);
 
         if (isDuplicate)
@@ -243,7 +335,10 @@ public class InvoicesController : ControllerBase
             imageUrl = await _fileStorageService.SaveFileAsync(uploadStream, request.File.FileName, "invoices");
         }
 
-        var initialStatus = fraudRiskScore >= 35 ? InvoiceStatus.REVIEW_REQUIRED : InvoiceStatus.APPROVED;
+        // --- 4. قرار القبول التلقائي أو التحويل لمراجعة الموظفين ---
+        var reviewReasons = await CollectReviewReasonsAsync(extractedData, tenantId, invoiceDate, totalAmount, fraudRiskScore);
+        var initialStatus = reviewReasons.Count > 0 ? InvoiceStatus.REVIEW_REQUIRED : InvoiceStatus.APPROVED;
+        if (initialStatus == InvoiceStatus.REVIEW_REQUIRED) pointsEarned = 0;
         var strategy = _context.Database.CreateExecutionStrategy();
         Invoice invoice = null!;
         int updatedPointsBalance = 0;
@@ -271,7 +366,8 @@ public class InvoicesController : ControllerBase
                     PointsBreakdownJson = evalResult.PointsBreakdownJson,
                     CashbackAwarded = initialStatus == InvoiceStatus.APPROVED ? evalResult.CashbackAwarded : 0m,
                     ReceiptImageUrl = imageUrl,
-                    RejectionReason = fraudRiskScore >= 35 ? "تم تحويل الفاتورة للمراجعة لاشتراك الجهاز مع حسابات أخرى." : null,
+                    // أسباب المراجعة الداخلية لا تُعرض للعميل؛ تُحفظ مع رد الذكاء الاصطناعي للوحة التحكم
+                    RawAiPayload = ReceiptReviewPayload.Serialize(extractedData, reviewReasons),
                     CreatedAt = DateTime.UtcNow
                 };
 

@@ -34,9 +34,16 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 
 // 3. Dependency Injection (Services)
-var ocrProvider = builder.Configuration.GetValue<string>("OcrProvider") ?? "Mock";
+// محرك قراءة الفواتير: Claude إذا وُجد مفتاح Anthropic، وإلا المحرك الوهمي (للتطوير فقط —
+// خارج بيئة التطوير تُحوّل نتائجه لمراجعة الموظفين ولا تُمنح نقاط تلقائياً).
+// يمكن فرض محرك معيّن بالإعداد "OcrProvider": Claude | Mock | Azure | OpenAI
+var ocrProvider = builder.Configuration.GetValue<string>("OcrProvider")
+    ?? (ClaudeReceiptOcrService.IsConfigured(builder.Configuration) ? "Claude" : "Mock");
 switch (ocrProvider.ToLowerInvariant())
 {
+    case "claude":
+        builder.Services.AddScoped<IReceiptOcrService, ClaudeReceiptOcrService>();
+        break;
     case "azure":
         builder.Services.AddScoped<IReceiptOcrService, AzureDocumentIntelligenceOcrService>();
         break;
