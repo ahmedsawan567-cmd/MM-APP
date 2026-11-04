@@ -23,6 +23,14 @@
         var isStoreManager = User.IsInRole("storemanager") || currentRole == "STORE_MANAGER";
         var tenantName = User.FindFirst("TenantName")?.Value;
         var tenantId = User.FindFirst("TenantId")?.Value;
+        // عدد الفواتير التي تنتظر قرار الموظفين (حقيقي من قاعدة البيانات)
+        var layoutDb = Context.RequestServices.GetService(typeof(MMApplication.Infrastructure.Data.AppDbContext)) as MMApplication.Infrastructure.Data.AppDbContext;
+        var reviewQueueCount = (isDevOrSuperAdmin || isAuditor) && layoutDb != null
+            ? layoutDb.Invoices.Count(i => i.ProcessingStatus == MMApplication.Domain.Enums.InvoiceStatus.REVIEW_REQUIRED
+                || i.ProcessingStatus == MMApplication.Domain.Enums.InvoiceStatus.PENDING
+                || i.ProcessingStatus == MMApplication.Domain.Enums.InvoiceStatus.PROCESSING
+                || i.ProcessingStatus == MMApplication.Domain.Enums.InvoiceStatus.DISPUTED)
+            : 0;
         var currentUserName = (User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(User.Identity.Name))
             ? User.Identity.Name
             : "المسؤول العام";
@@ -113,6 +121,20 @@
                         </a>
                     }
 
+                    @if (isDevOrSuperAdmin || isAuditor)
+                    {
+                        <a asp-controller="AdminDashboard" asp-action="Review" class="sidebar-link @(activeTab == "review" ? "active" : "") flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <i data-lucide="scan-search"></i>
+                                <span>مراجعة الفواتير</span>
+                            </div>
+                            @if (reviewQueueCount > 0)
+                            {
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 font-mono">@reviewQueueCount</span>
+                            }
+                        </a>
+                    }
+
                     <a asp-controller="AdminDashboard" asp-action="Invoices" class="sidebar-link @(activeTab == "invoices" ? "active" : "")">
                         <i data-lucide="receipt"></i>
                         <span>سجل الفواتير</span>
@@ -125,7 +147,6 @@
                                 <i data-lucide="shield-alert"></i>
                                 <span>تدقيق الاحتيال</span>
                             </div>
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 font-mono">2</span>
                         </a>
                     }
 
@@ -228,6 +249,10 @@
                     <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" class="sidebar-link @(activeTab == "invoice_templates" ? "active" : "")">
                         <i data-lucide="scan-line"></i>
                         <span>نماذج الفواتير والـ AI</span>
+                    </a>
+                    <a asp-controller="AdminDashboard" asp-action="Review" class="sidebar-link @(activeTab == "review" ? "active" : "")">
+                        <i data-lucide="scan-search"></i>
+                        <span>مراجعة الفواتير @(reviewQueueCount > 0 ? $"({reviewQueueCount})" : "")</span>
                     </a>
                     <a asp-controller="AdminDashboard" asp-action="Invoices" class="sidebar-link @(activeTab == "invoices" ? "active" : "")">
                         <i data-lucide="receipt"></i>

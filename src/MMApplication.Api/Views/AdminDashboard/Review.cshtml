@@ -1,0 +1,499 @@
+@model MMApplication.Api.ViewModels.ReviewPageViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "مراجعة الفواتير";
+    string StatusLabel(string s) => s switch
+    {
+        "REVIEW_REQUIRED" => "تحتاج مراجعة",
+        "DISPUTED" => "اعتراض عميل",
+        "PENDING" or "PROCESSING" => "بانتظار المعالجة",
+        "RESUBMISSION_REQUESTED" => "بانتظار صورة جديدة",
+        "APPROVED" => "معتمدة",
+        "REJECTED" => "مرفوضة",
+        _ => s
+    };
+    string StatusClass(string s) => s switch
+    {
+        "DISPUTED" => "bg-indigo-50 text-indigo-700 ring-indigo-200",
+        "APPROVED" => "bg-emerald-50 text-emerald-700 ring-emerald-200",
+        "REJECTED" => "bg-rose-50 text-rose-700 ring-rose-200",
+        "RESUBMISSION_REQUESTED" => "bg-slate-100 text-slate-600 ring-slate-200",
+        _ => "bg-amber-50 text-amber-700 ring-amber-200"
+    };
+    var aiIsReal = Model.AiProvider == "Claude";
+}
+@Html.AntiForgeryToken()
+
+<div class="space-y-5">
+
+    <!-- الترويسة -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center">
+                <i data-lucide="scan-search" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold text-slate-900">مراجعة الفواتير</h1>
+                <p class="text-xs text-slate-500">فواتير لم تُعتمد تلقائياً: قارن الصورة بما قرأه الذكاء الاصطناعي ثم اعتمد أو ارفض</p>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ring-1 @(aiIsReal ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-700 ring-amber-200")">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                @(aiIsReal ? "القراءة بواسطة Claude" : "القراءة الآلية تجريبية (أضف مفتاح Claude)")
+            </span>
+            <button type="button" onclick="openAiLab()" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800">
+                <i data-lucide="flask-conical" class="w-4 h-4"></i>
+                مختبر قراءة الفواتير
+            </button>
+        </div>
+    </div>
+
+    <!-- التبويبات -->
+    <div class="flex gap-2 overflow-x-auto">
+        @{
+            var tabs = new[] { ("open", "بانتظار القرار", Model.OpenCount), ("waiting", "بانتظار العميل", Model.WaitingCount), ("decided", "آخر القرارات", -1) };
+        }
+        @foreach (var (key, label, count) in tabs)
+        {
+            <a href="?queue=@key" class="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border @(Model.Queue == key ? "bg-brand-700 text-white border-brand-700" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")">
+                @label
+                @if (count >= 0)
+                {
+                    <span class="px-1.5 py-0.5 rounded-md text-[11px] @(Model.Queue == key ? "bg-white/20" : "bg-slate-100")">@count</span>
+                }
+            </a>
+        }
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+
+        <!-- قائمة الفواتير -->
+        <div class="xl:col-span-4 bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            @if (Model.Items.Count == 0)
+            {
+                <div class="p-10 text-center">
+                    <div class="mx-auto w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+                        <i data-lucide="check-check" class="w-6 h-6"></i>
+                    </div>
+                    <p class="font-bold text-slate-800">لا توجد فواتير هنا</p>
+                    <p class="text-xs text-slate-500 mt-1">كل الفواتير في هذه القائمة تمت معالجتها</p>
+                </div>
+            }
+            else
+            {
+                <ul id="review-list" class="divide-y divide-slate-100 max-h-[75vh] overflow-y-auto">
+                    @foreach (var item in Model.Items)
+                    {
+                        <li>
+                            <button type="button" data-id="@item.Id" onclick="selectInvoice('@item.Id')"
+                                    class="review-row w-full text-right p-4 hover:bg-slate-50 focus:outline-none transition">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="font-bold text-slate-900 text-sm truncate">@item.StoreName</p>
+                                        <p class="text-xs text-slate-500 truncate">@item.CustomerName • @item.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</p>
+                                    </div>
+                                    <div class="text-left shrink-0">
+                                        <p class="font-bold text-slate-900 text-sm" dir="ltr">@(item.TotalAmount?.ToString("N2") ?? "—")</p>
+                                        <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ring-1 @StatusClass(item.Status)">@StatusLabel(item.Status)</span>
+                                    </div>
+                                </div>
+                                @if (item.Reasons.Count > 0)
+                                {
+                                    <div class="mt-2 flex flex-wrap gap-1">
+                                        @foreach (var r in item.Reasons.Take(3))
+                                        {
+                                            <span class="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-semibold">@r</span>
+                                        }
+                                        @if (item.Reasons.Count > 3)
+                                        {
+                                            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold">+@(item.Reasons.Count - 3)</span>
+                                        }
+                                    </div>
+                                }
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+
+        <!-- تفاصيل الفاتورة المختارة -->
+        <div class="xl:col-span-8" id="review-panel">
+            <div id="review-empty" class="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
+                <i data-lucide="mouse-pointer-click" class="w-8 h-8 mx-auto mb-3 text-slate-400"></i>
+                اختر فاتورة من القائمة لمراجعتها
+            </div>
+            <div id="review-loading" class="hidden bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500">جاري التحميل...</div>
+
+            <div id="review-detail" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <!-- الصورة -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-3 lg:sticky lg:top-20">
+                    <div class="flex items-center justify-between px-1 pb-2">
+                        <span class="text-xs font-bold text-slate-700">صورة الفاتورة</span>
+                        <div class="flex gap-1">
+                            <button type="button" onclick="zoom(-0.25)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold" title="تصغير">−</button>
+                            <button type="button" onclick="zoom(0.25)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold" title="تكبير">+</button>
+                            <a id="d-image-link" target="_blank" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center" title="فتح في نافذة جديدة">
+                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 rounded-xl overflow-auto h-[60vh] flex items-start justify-center">
+                        <img id="d-image" alt="صورة الفاتورة" class="origin-top transition-transform max-w-full"
+                             onerror="this.classList.add('hidden'); document.getElementById('d-noimage').classList.remove('hidden')" />
+                        <div id="d-noimage" class="hidden self-center text-center text-slate-400 text-sm p-6">
+                            ملف صورة الفاتورة غير موجود على الخادم
+                        </div>
+                        <iframe id="d-pdf" class="hidden w-full h-full bg-white" title="ملف الفاتورة"></iframe>
+                    </div>
+                </div>
+
+                <!-- البيانات والقرار -->
+                <div class="space-y-4">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <span id="d-status" class="px-2.5 py-1 rounded-full text-xs font-bold ring-1"></span>
+                            <span id="d-confidence" class="text-xs font-semibold text-slate-500"></span>
+                        </div>
+                        <div id="d-reasons" class="space-y-1.5"></div>
+                        <div id="d-dispute" class="hidden mt-3 p-3 rounded-xl bg-indigo-50 text-indigo-900 text-xs"></div>
+                        <div id="d-duplicates" class="hidden mt-3 p-3 rounded-xl bg-rose-50 text-rose-900 text-xs"></div>
+                    </div>
+
+                    <form id="d-form" class="bg-white rounded-2xl border border-slate-200 p-4 space-y-3" onsubmit="return false">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-bold text-slate-900">بيانات الفاتورة</span>
+                            <span class="text-[11px] text-slate-500">عدّل أي حقل قبل الاعتماد إذا قرأه الذكاء الاصطناعي بشكل خاطئ</span>
+                        </div>
+                        <label class="block">
+                            <span class="text-xs font-semibold text-slate-600">المتجر</span>
+                            <select id="f-tenant" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-600 focus:ring-brand-600">
+                                <option value="">— غير محدد —</option>
+                                @foreach (var s in Model.Stores)
+                                {
+                                    <option value="@s.Id">@s.Name</option>
+                                }
+                            </select>
+                            <span id="f-merchant-hint" class="text-[11px] text-slate-500"></span>
+                        </label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="block">
+                                <span class="text-xs font-semibold text-slate-600">رقم الفاتورة</span>
+                                <input id="f-number" dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                            </label>
+                            <label class="block">
+                                <span class="text-xs font-semibold text-slate-600">التاريخ</span>
+                                <input id="f-date" type="date" dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                            </label>
+                        </div>
+                        <label class="block">
+                            <span class="text-xs font-semibold text-slate-600">المبلغ الإجمالي (د.ل)</span>
+                            <input id="f-amount" type="number" step="0.01" min="0" dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold" />
+                        </label>
+                        <details id="d-items-wrap" class="hidden rounded-xl bg-slate-50 p-3">
+                            <summary class="cursor-pointer text-xs font-bold text-slate-700">الأصناف المقروءة</summary>
+                            <table class="w-full mt-2 text-xs">
+                                <thead class="text-slate-500"><tr><th class="text-right py-1">الصنف</th><th class="py-1">الكمية</th><th class="text-left py-1">المجموع</th></tr></thead>
+                                <tbody id="d-items"></tbody>
+                            </table>
+                        </details>
+
+                        <div id="d-actions" class="pt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <button type="button" onclick="approve()" class="col-span-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">
+                                <i data-lucide="check" class="w-4 h-4"></i> اعتماد ومنح النقاط
+                            </button>
+                            <button type="button" onclick="reject()" class="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-bold">
+                                <i data-lucide="x" class="w-4 h-4"></i> رفض
+                            </button>
+                            <button type="button" onclick="askResubmit()" class="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold">
+                                <i data-lucide="camera" class="w-4 h-4"></i> صورة جديدة
+                            </button>
+                        </div>
+                        <button type="button" id="btn-revoke" onclick="reject()" class="hidden w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-bold">
+                            <i data-lucide="undo-2" class="w-4 h-4"></i> إلغاء الاعتماد واسترجاع النقاط
+                        </button>
+                        <button type="button" id="btn-rerun" onclick="rerunAi()" class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> إعادة قراءة الصورة بالذكاء الاصطناعي
+                        </button>
+                    </form>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                        <span class="text-sm font-bold text-slate-900">العميل</span>
+                        <div id="d-customer" class="mt-2 text-sm"></div>
+                    </div>
+
+                    <div id="d-history-wrap" class="hidden bg-white rounded-2xl border border-slate-200 p-4">
+                        <span class="text-sm font-bold text-slate-900">سجل القرارات</span>
+                        <ul id="d-history" class="mt-2 space-y-2 text-xs"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة مختبر قراءة الفواتير -->
+<div id="ai-lab" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4" onclick="if(event.target===this) closeAiLab()">
+    <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-5 border-b border-slate-100">
+            <div>
+                <h2 class="font-bold text-slate-900">مختبر قراءة الفواتير</h2>
+                <p class="text-xs text-slate-500">جرّب قراءة أي فاتورة بالذكاء الاصطناعي. لا تُحفظ ولا تُمنح نقاط.</p>
+            </div>
+            <button type="button" onclick="closeAiLab()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="p-5 space-y-4">
+            <label class="block border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center cursor-pointer hover:bg-slate-50">
+                <i data-lucide="upload" class="w-6 h-6 mx-auto text-slate-400"></i>
+                <span class="block mt-2 text-sm font-semibold text-slate-700">اختر صورة أو PDF لفاتورة</span>
+                <span id="lab-file-name" class="block text-xs text-slate-500 mt-1">JPG / PNG / WEBP / PDF</span>
+                <input id="lab-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="hidden" onchange="runAiLab()" />
+            </label>
+            <div id="lab-result" class="hidden"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const statusLabels = { REVIEW_REQUIRED: 'تحتاج مراجعة', DISPUTED: 'اعتراض عميل', PENDING: 'بانتظار المعالجة', PROCESSING: 'بانتظار المعالجة', RESUBMISSION_REQUESTED: 'بانتظار صورة جديدة', APPROVED: 'معتمدة', REJECTED: 'مرفوضة', VOIDED: 'ملغاة' };
+    const statusClasses = { DISPUTED: 'bg-indigo-50 text-indigo-700 ring-indigo-200', APPROVED: 'bg-emerald-50 text-emerald-700 ring-emerald-200', REJECTED: 'bg-rose-50 text-rose-700 ring-rose-200', RESUBMISSION_REQUESTED: 'bg-slate-100 text-slate-600 ring-slate-200' };
+    const rejectPresets = ['الفاتورة ليست من متاجر المول', 'الفاتورة مستخدمة من قبل', 'الصورة معدّلة أو غير أصلية', 'تاريخ الفاتورة قديم', 'الصورة لا تخص فاتورة شراء'];
+    let current = null;
+    let scale = 1;
+
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const money = (v) => v == null ? '—' : Number(v).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtDate = (v) => v ? new Date(v).toLocaleString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+    async function post(url, body) {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: body === undefined ? null : JSON.stringify(body)
+        });
+        let data = {};
+        try { data = await resp.json(); } catch { }
+        if (!resp.ok || data.success === false) throw new Error(data.message || 'حدث خطأ غير متوقع.');
+        return data;
+    }
+
+    async function selectInvoice(id) {
+        document.querySelectorAll('.review-row').forEach(b => b.classList.toggle('bg-brand-50', b.dataset.id === id));
+        document.getElementById('review-empty').classList.add('hidden');
+        document.getElementById('review-detail').classList.add('hidden');
+        document.getElementById('review-loading').classList.remove('hidden');
+        history.replaceState(null, '', `?queue=@Model.Queue&id=${id}`);
+        try {
+            const resp = await fetch(`/AdminDashboard/ReviewItem?id=${id}`);
+            if (!resp.ok) throw new Error('تعذر تحميل الفاتورة');
+            current = await resp.json();
+            render(current);
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: e.message });
+        } finally {
+            document.getElementById('review-loading').classList.add('hidden');
+        }
+    }
+
+    function render(d) {
+        scale = 1;
+        const img = document.getElementById('d-image');
+        const pdf = document.getElementById('d-pdf');
+        img.style.transform = 'scale(1)';
+        document.getElementById('d-image-link').href = d.imageUrl;
+        document.getElementById('d-noimage').classList.add('hidden');
+        if (d.isPdf) { img.classList.add('hidden'); pdf.classList.remove('hidden'); pdf.src = d.imageUrl; }
+        else { pdf.classList.add('hidden'); img.classList.remove('hidden'); img.src = d.imageUrl; }
+
+        const st = document.getElementById('d-status');
+        st.textContent = statusLabels[d.status] || d.status;
+        st.className = 'px-2.5 py-1 rounded-full text-xs font-bold ring-1 ' + (statusClasses[d.status] || 'bg-amber-50 text-amber-700 ring-amber-200');
+        document.getElementById('d-confidence').textContent =
+            d.confidence != null ? `ثقة القراءة ${(d.confidence * 100).toFixed(0)}%` + (d.ai?.provider ? ` • ${d.ai.provider}` : '') : '';
+
+        const reasons = [...(d.ai?.reasons || [])];
+        document.getElementById('d-reasons').innerHTML = reasons.length
+            ? reasons.map(r => `<div class="flex gap-2 items-start text-xs text-amber-900 bg-amber-50 rounded-lg px-3 py-2"><span>⚠</span><span>${esc(r)}</span></div>`).join('')
+            : '<div class="text-xs text-slate-500">لا توجد ملاحظات من النظام.</div>';
+
+        const disp = document.getElementById('d-dispute');
+        disp.classList.toggle('hidden', !d.disputeReason);
+        disp.innerHTML = d.disputeReason ? `<b>اعتراض العميل:</b> ${esc(d.disputeReason)}` + (d.rejectionReason ? `<br><b>سبب الرفض السابق:</b> ${esc(d.rejectionReason)}` : '') : '';
+
+        const dup = document.getElementById('d-duplicates');
+        dup.classList.toggle('hidden', !d.duplicates?.length);
+        dup.innerHTML = d.duplicates?.length
+            ? `<b>تنبيه: نفس رقم الفاتورة موجود ${d.duplicates.length} مرة أخرى</b><ul class="mt-1 list-disc pr-4">` +
+              d.duplicates.map(x => `<li>${esc(x.customer)} — ${money(x.amount)} د.ل — ${esc(statusLabels[x.status] || x.status)} — ${fmtDate(x.createdAt)}</li>`).join('') + '</ul>'
+            : '';
+
+        document.getElementById('f-tenant').value = d.tenantId || '';
+        document.getElementById('f-merchant-hint').textContent = d.merchantName ? `الاسم المطبوع على الفاتورة: ${d.merchantName}` : '';
+        document.getElementById('f-number').value = d.invoiceNumber || '';
+        document.getElementById('f-date').value = d.invoiceDate || '';
+        document.getElementById('f-amount').value = d.totalAmount ?? '';
+
+        const items = d.ai?.items || [];
+        document.getElementById('d-items-wrap').classList.toggle('hidden', !items.length);
+        document.getElementById('d-items').innerHTML = items.map(i =>
+            `<tr class="border-t border-slate-200"><td class="py-1">${esc(i.description)}</td><td class="text-center">${esc(i.quantity ?? '')}</td><td class="text-left" dir="ltr">${money(i.totalPrice)}</td></tr>`).join('');
+
+        const decided = d.status === 'APPROVED' || d.status === 'REJECTED';
+        document.querySelectorAll('#d-form input, #d-form select').forEach(el => el.disabled = d.status === 'APPROVED');
+        document.getElementById('d-actions').classList.toggle('hidden', d.status === 'APPROVED');
+        document.getElementById('btn-rerun').classList.toggle('hidden', d.status === 'APPROVED');
+        document.getElementById('btn-revoke').classList.toggle('hidden', d.status !== 'APPROVED');
+
+        const c = d.customer;
+        document.getElementById('d-customer').innerHTML = `
+            <div class="flex items-center justify-between">
+                <div>
+                    <a href="/AdminDashboard/CustomerDetails/${encodeURIComponent(c.id)}" class="font-bold text-slate-900 hover:underline">${esc(c.name)}</a>
+                    <div class="text-xs text-slate-500" dir="ltr">${esc(c.phone)}</div>
+                </div>
+                <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold">${esc(c.tier || '')}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mt-3 text-center">
+                <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold">${c.total}</div><div class="text-[11px] text-slate-500">فاتورة</div></div>
+                <div class="rounded-xl bg-emerald-50 p-2"><div class="font-bold text-emerald-700">${c.approved}</div><div class="text-[11px] text-slate-500">معتمدة</div></div>
+                <div class="rounded-xl ${c.rejected > 0 ? 'bg-rose-50' : 'bg-slate-50'} p-2"><div class="font-bold ${c.rejected > 0 ? 'text-rose-700' : ''}">${c.rejected}</div><div class="text-[11px] text-slate-500">مرفوضة</div></div>
+            </div>
+            ${c.frozen ? '<div class="mt-2 text-xs font-bold text-rose-700">الحساب مجمّد</div>' : ''}`;
+
+        const hist = d.history || [];
+        document.getElementById('d-history-wrap').classList.toggle('hidden', !hist.length);
+        document.getElementById('d-history').innerHTML = hist.map(h =>
+            `<li class="border-r-2 border-slate-200 pr-2"><div class="text-slate-800">${esc(h.details)}</div><div class="text-slate-400">${esc(h.performedBy)} • ${fmtDate(h.createdAt)}</div></li>`).join('');
+
+        document.getElementById('review-detail').classList.remove('hidden');
+        lucide.createIcons();
+        if (!window.matchMedia('(min-width: 1280px)').matches) {
+            document.getElementById('review-panel').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    function zoom(delta) {
+        scale = Math.min(3, Math.max(0.5, scale + delta));
+        document.getElementById('d-image').style.transform = `scale(${scale})`;
+    }
+
+    function done(message) {
+        Swal.fire({ icon: 'success', title: 'تم', text: message, timer: 1800, showConfirmButton: false });
+        const row = document.querySelector(`.review-row[data-id="${current.id}"]`);
+        const next = row?.closest('li')?.nextElementSibling?.querySelector('.review-row')
+                  || row?.closest('li')?.previousElementSibling?.querySelector('.review-row');
+        if ('@Model.Queue' === 'open') row?.closest('li')?.remove();
+        if (next) selectInvoice(next.dataset.id);
+        else setTimeout(() => location.href = '?queue=@Model.Queue', 1200);
+    }
+
+    async function approve() {
+        const amount = parseFloat(document.getElementById('f-amount').value);
+        const body = {
+            tenantId: document.getElementById('f-tenant').value || null,
+            invoiceNumber: document.getElementById('f-number').value.trim() || null,
+            invoiceDate: document.getElementById('f-date').value || null,
+            totalAmount: isNaN(amount) ? null : amount
+        };
+        const ok = await Swal.fire({
+            title: 'اعتماد الفاتورة؟', text: `سيتم احتساب النقاط على مبلغ ${money(body.totalAmount)} د.ل وإضافتها لرصيد العميل.`,
+            icon: 'question', showCancelButton: true, confirmButtonText: 'اعتماد', cancelButtonText: 'إلغاء', confirmButtonColor: '#059669'
+        });
+        if (!ok.isConfirmed) return;
+        try { done((await post(`/AdminDashboard/ReviewApprove?id=${current.id}`, body)).message); }
+        catch (e) { Swal.fire({ icon: 'error', title: 'تعذر الاعتماد', text: e.message }); }
+    }
+
+    async function reject() {
+        const { value: reason } = await Swal.fire({
+            title: 'رفض الفاتورة',
+            html: `<div class="flex flex-wrap gap-1 justify-center mb-2">${rejectPresets.map(p => `<button type="button" class="preset px-2 py-1 rounded-lg bg-slate-100 text-xs" onclick="document.getElementById('swal-reason').value=this.textContent">${p}</button>`).join('')}</div>
+                   <textarea id="swal-reason" class="w-full border border-slate-200 rounded-xl p-2 text-sm" rows="3" placeholder="سبب الرفض (يظهر للعميل)"></textarea>`,
+            showCancelButton: true, confirmButtonText: 'تأكيد الرفض', cancelButtonText: 'إلغاء', confirmButtonColor: '#e11d48',
+            preConfirm: () => {
+                const v = document.getElementById('swal-reason').value.trim();
+                if (v.length < 3) { Swal.showValidationMessage('اكتب سبب الرفض'); return false; }
+                return v;
+            }
+        });
+        if (!reason) return;
+        try { done((await post(`/AdminDashboard/ReviewReject?id=${current.id}`, { reason })).message); }
+        catch (e) { Swal.fire({ icon: 'error', title: 'تعذر الرفض', text: e.message }); }
+    }
+
+    async function askResubmit() {
+        const { value: reason } = await Swal.fire({
+            title: 'طلب صورة جديدة من العميل', input: 'textarea',
+            inputValue: 'الصورة غير واضحة. يرجى تصوير الفاتورة كاملة في مكان جيد الإضاءة.',
+            showCancelButton: true, confirmButtonText: 'إرسال الطلب', cancelButtonText: 'إلغاء'
+        });
+        if (!reason) return;
+        try { done((await post(`/AdminDashboard/ReviewRequestResubmission?id=${current.id}`, { reason })).message); }
+        catch (e) { Swal.fire({ icon: 'error', title: 'خطأ', text: e.message }); }
+    }
+
+    async function rerunAi() {
+        const btn = document.getElementById('btn-rerun');
+        btn.disabled = true; btn.textContent = 'جاري القراءة...';
+        try {
+            const r = await post(`/AdminDashboard/ReviewRerunAi?id=${current.id}`);
+            Swal.fire({ icon: 'success', title: 'تمت القراءة', text: r.message, timer: 1500, showConfirmButton: false });
+            selectInvoice(current.id);
+        } catch (e) {
+            Swal.fire({ icon: 'warning', title: 'تعذرت القراءة', text: e.message });
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="sparkles" class="w-3.5 h-3.5"></i> إعادة قراءة الصورة بالذكاء الاصطناعي';
+            lucide.createIcons();
+        }
+    }
+
+    // ---------- مختبر القراءة ----------
+    function openAiLab() { document.getElementById('ai-lab').classList.remove('hidden'); }
+    function closeAiLab() { document.getElementById('ai-lab').classList.add('hidden'); }
+
+    async function runAiLab() {
+        const input = document.getElementById('lab-file');
+        const file = input.files[0];
+        if (!file) return;
+        document.getElementById('lab-file-name').textContent = file.name;
+        const out = document.getElementById('lab-result');
+        out.classList.remove('hidden');
+        out.innerHTML = '<div class="text-center text-sm text-slate-500 py-6">جاري قراءة الفاتورة...</div>';
+        const form = new FormData();
+        form.append('file', file);
+        try {
+            const resp = await fetch('/AdminDashboard/AiReceiptLab', { method: 'POST', headers: { 'RequestVerificationToken': token }, body: form });
+            const r = await resp.json();
+            if (!resp.ok || r.success === false) throw new Error(r.message || 'تعذرت القراءة');
+            const row = (k, v) => `<div class="flex justify-between py-1.5 border-b border-slate-100"><span class="text-slate-500">${k}</span><span class="font-semibold">${esc(v ?? '—')}</span></div>`;
+            out.innerHTML = `
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold ${r.isReceipt && !r.manual ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">
+                        ${r.manual ? 'تعذرت القراءة الآلية' : r.isReceipt ? 'فاتورة شراء' : 'ليست فاتورة شراء'}</span>
+                    <span class="text-xs text-slate-500">${esc(r.provider)} • ثقة ${(r.confidence * 100).toFixed(0)}%</span>
+                </div>
+                <div class="text-sm">
+                    ${row('المتجر المطبوع', r.merchantName)}
+                    ${row('المتجر المطابق في المول', r.matchedStore || 'لا يوجد')}
+                    ${row('رقم الفاتورة', r.invoiceNumber)}
+                    ${row('التاريخ', r.invoiceDate)}
+                    ${row('المبلغ', r.totalAmount != null ? money(r.totalAmount) + ' ' + (r.currency || '') : null)}
+                </div>
+                ${r.items?.length ? `<div class="mt-3 text-xs"><b>الأصناف (${r.items.length})</b><ul class="mt-1 space-y-0.5">${r.items.map(i => `<li>${esc(i.description)} — ${money(i.totalPrice)}</li>`).join('')}</ul></div>` : ''}
+                ${r.concerns?.length ? `<div class="mt-3 space-y-1">${r.concerns.map(c => `<div class="text-xs bg-amber-50 text-amber-900 rounded-lg px-3 py-2">⚠ ${esc(c)}</div>`).join('')}</div>` : ''}`;
+        } catch (e) {
+            out.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 rounded-xl p-3">${esc(e.message)}</div>`;
+        } finally {
+            input.value = '';
+        }
+    }
+
+    // فتح فاتورة من الرابط أو أول فاتورة في القائمة
+    const initial = new URLSearchParams(location.search).get('id') || document.querySelector('.review-row')?.dataset.id;
+    if (initial && window.matchMedia('(min-width: 1280px)').matches) selectInvoice(initial);
+</script>
+}

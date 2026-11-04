@@ -265,3 +265,37 @@ public class InvoiceItemViewModel
 }
 
 
+
+// ---------------- مراجعة الفواتير ----------------
+public class ReviewPageViewModel
+{
+    public string Queue { get; set; } = "open";
+    public int OpenCount { get; set; }
+    public int WaitingCount { get; set; }
+    public string AiProvider { get; set; } = "-";
+    public List<ReviewQueueItem> Items { get; set; } = new();
+    public List<ReviewStoreOption> Stores { get; set; } = new();
+}
+
+public class ReviewQueueItem
+{
+    public Guid Id { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public string StoreName { get; set; } = string.Empty;
+    public decimal? TotalAmount { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public decimal? Confidence { get; set; }
+    public List<string> Reasons { get; set; } = new();
+}
+
+public class ReviewStoreOption
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}
+
+public class ReviewDecisionRequest
+{
+    public string? Reason { get; set; }
+}

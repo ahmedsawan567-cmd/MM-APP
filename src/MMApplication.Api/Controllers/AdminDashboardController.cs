@@ -1,3 +1,4 @@
+using MMApplication.Api.Services;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -25,12 +26,293 @@ public class AdminDashboardController : Controller
     private readonly ILogger<AdminDashboardController> _logger;
     private readonly IPasswordHasherService _passwordHasher;
 
-    public AdminDashboardController(AppDbContext context, ILogger<AdminDashboardController> logger, IPasswordHasherService? passwordHasher = null)
+    private readonly InvoiceReviewService _review;
+    private readonly IReceiptOcrService? _ocr;
+    private readonly IWebHostEnvironment? _env;
+
+    public AdminDashboardController(
+        AppDbContext context,
+        ILogger<AdminDashboardController> logger,
+        IPasswordHasherService? passwordHasher = null,
+        InvoiceReviewService? review = null,
+        IReceiptOcrService? ocr = null,
+        IWebHostEnvironment? env = null)
     {
         _context = context;
         _logger = logger;
         _passwordHasher = passwordHasher ?? new PasswordHasherService();
+        _review = review ?? new InvoiceReviewService(context, new FlexibleLoyaltyEvaluationService(context),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InvoiceReviewService>.Instance);
+        _ocr = ocr;
+        _env = env;
     }
+
+    /// <summary>من يحق له اعتماد/رفض الفواتير: المدير العام ومدقق الاحتيال فقط (ليس مدير المتجر).</summary>
+    private bool CanReviewInvoices => IsDeveloperOrSuperAdmin || IsAuditor;
+
+    private string ReviewerName => User?.Identity?.Name ?? CurrentUserId ?? "Admin";
+
+    private static readonly InvoiceStatus[] ReviewQueueStatuses =
+        [InvoiceStatus.PENDING, InvoiceStatus.PROCESSING, InvoiceStatus.REVIEW_REQUIRED, InvoiceStatus.DISPUTED];
+
+    // ----------------------------------------------------
+    // ✅ INVOICE REVIEW (مراجعة الفواتير بمساعدة الذكاء الاصطناعي)
+    // ----------------------------------------------------
+    [HttpGet]
+    public async Task<IActionResult> Review([FromQuery] string? queue)
+    {
+        if (!CanReviewInvoices) return RedirectToAction(nameof(Index));
+
+        queue = queue is "waiting" or "decided" ? queue : "open";
+        var query = _context.Invoices.AsNoTracking().Include(i => i.Customer).Include(i => i.Tenant).AsQueryable();
+        query = queue switch
+        {
+            "waiting" => query.Where(i => i.ProcessingStatus == InvoiceStatus.RESUBMISSION_REQUESTED),
+            "decided" => query.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED || i.ProcessingStatus == InvoiceStatus.REJECTED),
+            _ => query.Where(i => ReviewQueueStatuses.Contains(i.ProcessingStatus)),
+        };
+
+        var rows = await query
+            .OrderBy(i => queue == "open" ? 0 : 1)
+            .ThenByDescending(i => i.ProcessingStatus == InvoiceStatus.DISPUTED)
+            .ThenBy(i => queue == "open" ? i.CreatedAt : DateTime.MinValue)
+            .ThenByDescending(i => i.CreatedAt)
+            .Take(200)
+            .ToListAsync();
+
+        var model = new ReviewPageViewModel
+        {
+            Queue = queue,
+            OpenCount = await _context.Invoices.CountAsync(i => ReviewQueueStatuses.Contains(i.ProcessingStatus)),
+            WaitingCount = await _context.Invoices.CountAsync(i => i.ProcessingStatus == InvoiceStatus.RESUBMISSION_REQUESTED),
+            AiProvider = _ocr?.GetType().Name.Replace("ReceiptOcrService", "").Replace("OcrService", "") ?? "-",
+            Stores = await _context.Tenants.AsNoTracking().OrderBy(t => t.NameAr)
+                .Select(t => new ReviewStoreOption { Id = t.TenantId, Name = t.NameAr }).ToListAsync(),
+            Items = rows.Select(i =>
+            {
+                var payload = ReceiptReviewPayload.TryParse(i.RawAiPayload);
+                return new ReviewQueueItem
+                {
+                    Id = i.InvoiceId,
+                    CustomerName = i.Customer?.FullName ?? i.CustomerId,
+                    StoreName = i.Tenant?.NameAr ?? i.ExtractedMerchant ?? "غير معروف",
+                    TotalAmount = i.TotalAmount,
+                    Status = i.ProcessingStatus.ToString(),
+                    CreatedAt = i.CreatedAt,
+                    Confidence = i.ConfidenceScore,
+                    Reasons = payload?.ReviewReasons ?? (string.IsNullOrEmpty(i.DisputeReason) ? new() : new() { "اعتراض العميل" }),
+                };
+            }).ToList(),
+        };
+
+        ViewData["ActiveTab"] = "review";
+        return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ReviewItem(Guid id)
+    {
+        if (!CanReviewInvoices) return Forbid();
+
+        var i = await _context.Invoices.AsNoTracking()
+            .Include(x => x.Customer).Include(x => x.Tenant)
+            .FirstOrDefaultAsync(x => x.InvoiceId == id);
+        if (i == null) return NotFound(new { success = false, message = "الفاتورة غير موجودة." });
+
+        var payload = ReceiptReviewPayload.TryParse(i.RawAiPayload);
+        var customerInvoices = await _context.Invoices.AsNoTracking()
+            .Where(x => x.CustomerId == i.CustomerId)
+            .GroupBy(x => x.ProcessingStatus)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        var duplicates = string.IsNullOrEmpty(i.InvoiceNumber) ? new() : await _context.Invoices.AsNoTracking()
+            .Include(x => x.Customer)
+            .Where(x => x.InvoiceId != i.InvoiceId && x.InvoiceNumber == i.InvoiceNumber)
+            .Select(x => new
+            {
+                id = x.InvoiceId,
+                customer = x.Customer != null ? x.Customer.FullName : x.CustomerId,
+                status = x.ProcessingStatus.ToString(),
+                amount = x.TotalAmount,
+                createdAt = x.CreatedAt,
+            })
+            .ToListAsync<object>();
+
+        var history = await _context.AuditLogs.AsNoTracking()
+            .Where(a => a.EntityName == "Invoice" && a.EntityId == i.InvoiceId.ToString())
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new { a.PerformedBy, a.Action, a.Details, a.CreatedAt })
+            .ToListAsync();
+
+        return Json(new
+        {
+            id = i.InvoiceId,
+            status = i.ProcessingStatus.ToString(),
+            imageUrl = i.ReceiptImageUrl,
+            isPdf = i.ReceiptImageUrl.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase),
+            tenantId = i.TenantId,
+            storeName = i.Tenant?.NameAr,
+            merchantName = i.ExtractedMerchant,
+            invoiceNumber = i.InvoiceNumber,
+            invoiceDate = i.InvoiceDate?.ToString("yyyy-MM-dd"),
+            totalAmount = i.TotalAmount,
+            pointsAwarded = i.PointsAwarded,
+            confidence = i.ConfidenceScore,
+            fraudRiskScore = i.FraudRiskScore,
+            rejectionReason = i.RejectionReason,
+            disputeReason = i.DisputeReason,
+            createdAt = i.CreatedAt,
+            ai = payload == null ? null : new
+            {
+                provider = payload.Provider,
+                reasons = payload.ReviewReasons,
+                concerns = payload.AuthenticityConcerns,
+                currency = payload.Currency,
+                items = payload.Items,
+                manual = payload.RequiresManualReview,
+            },
+            customer = new
+            {
+                id = i.CustomerId,
+                name = i.Customer?.FullName,
+                phone = i.Customer?.PhoneNumber,
+                tier = i.Customer?.LoyaltyTier,
+                frozen = i.Customer?.IsFrozen ?? false,
+                registeredAt = i.Customer?.RegisteredAt,
+                approved = customerInvoices.Where(c => c.Status == InvoiceStatus.APPROVED).Sum(c => c.Count),
+                rejected = customerInvoices.Where(c => c.Status == InvoiceStatus.REJECTED).Sum(c => c.Count),
+                total = customerInvoices.Sum(c => c.Count),
+            },
+            duplicates,
+            history,
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReviewApprove(Guid id, [FromBody] InvoiceCorrection? correction)
+    {
+        if (!CanReviewInvoices) return Forbid();
+        return ReviewResult(await _review.ApproveAsync(id, ReviewerName, correction));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReviewReject(Guid id, [FromBody] ReviewDecisionRequest request)
+    {
+        if (!CanReviewInvoices) return Forbid();
+        return ReviewResult(await _review.RejectAsync(id, ReviewerName, request.Reason ?? string.Empty));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReviewRequestResubmission(Guid id, [FromBody] ReviewDecisionRequest request)
+    {
+        if (!CanReviewInvoices) return Forbid();
+        return ReviewResult(await _review.RequestResubmissionAsync(id, ReviewerName, request.Reason ?? string.Empty));
+    }
+
+    /// <summary>إعادة قراءة صورة الفاتورة المحفوظة بالذكاء الاصطناعي (مثلاً بعد تفعيل مفتاح Claude).</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReviewRerunAi(Guid id)
+    {
+        if (!CanReviewInvoices) return Forbid();
+        if (_ocr == null || _env == null) return BadRequest(new { success = false, message = "خدمة القراءة الآلية غير متاحة." });
+
+        var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == id);
+        if (invoice == null) return NotFound(new { success = false, message = "الفاتورة غير موجودة." });
+        if (invoice.ProcessingStatus == InvoiceStatus.APPROVED)
+            return BadRequest(new { success = false, message = "الفاتورة معتمدة؛ لا حاجة لإعادة القراءة." });
+
+        var path = ResolveUploadPath(invoice.ReceiptImageUrl);
+        if (path == null || !System.IO.File.Exists(path))
+            return BadRequest(new { success = false, message = "ملف صورة الفاتورة غير موجود على الخادم." });
+
+        ExtractedReceiptDto result;
+        await using (var stream = System.IO.File.OpenRead(path))
+        {
+            result = await _ocr.ExtractReceiptDataAsync(stream, await ReceiptContextBuilder.BuildAsync(_context));
+        }
+
+        if (!result.RequiresManualReview)
+        {
+            invoice.ExtractedMerchant = result.MerchantName ?? invoice.ExtractedMerchant;
+            invoice.InvoiceNumber = result.InvoiceNumber ?? invoice.InvoiceNumber;
+            invoice.InvoiceDate = result.InvoiceDate ?? invoice.InvoiceDate;
+            invoice.TotalAmount = result.TotalAmount ?? invoice.TotalAmount;
+            invoice.TenantId = result.MatchedTenantId ?? invoice.TenantId;
+            invoice.ConfidenceScore = (decimal)result.Confidence;
+        }
+
+        var previous = ReceiptReviewPayload.TryParse(invoice.RawAiPayload)?.ReviewReasons ?? new List<string>();
+        invoice.RawAiPayload = ReceiptReviewPayload.Serialize(result, previous);
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ReviewerName,
+            Action = "INVOICE_AI_REREAD",
+            EntityName = "Invoice",
+            EntityId = invoice.InvoiceId.ToString(),
+            Details = $"إعادة قراءة الفاتورة بـ {result.Provider} (ثقة {result.Confidence:P0})",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+
+        return Json(new
+        {
+            success = !result.RequiresManualReview,
+            message = result.RequiresManualReview
+                ? "تعذّرت القراءة الآلية: " + string.Join("، ", result.AuthenticityConcerns)
+                : "تمت إعادة قراءة الفاتورة وتحديث البيانات.",
+        });
+    }
+
+    /// <summary>مختبر الذكاء الاصطناعي: قراءة أي صورة فاتورة للتجربة بدون حفظها أو منح نقاط.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(15 * 1024 * 1024)]
+    public async Task<IActionResult> AiReceiptLab(IFormFile? file)
+    {
+        if (!CanReviewInvoices && !IsStoreManager) return Forbid();
+        if (_ocr == null) return BadRequest(new { success = false, message = "خدمة القراءة الآلية غير متاحة." });
+        if (file == null || file.Length == 0) return BadRequest(new { success = false, message = "اختر صورة فاتورة." });
+
+        await using var stream = file.OpenReadStream();
+        var result = await _ocr.ExtractReceiptDataAsync(stream, await ReceiptContextBuilder.BuildAsync(_context, file.ContentType, file.FileName));
+        var store = result.MatchedTenantId == null ? null
+            : await _context.Tenants.AsNoTracking().Where(t => t.TenantId == result.MatchedTenantId).Select(t => t.NameAr).FirstOrDefaultAsync();
+
+        return Json(new
+        {
+            success = true,
+            provider = result.Provider,
+            isReceipt = result.IsReceipt,
+            manual = result.RequiresManualReview,
+            merchantName = result.MerchantName,
+            matchedStore = store,
+            invoiceNumber = result.InvoiceNumber,
+            invoiceDate = result.InvoiceDate?.ToString("yyyy-MM-dd"),
+            totalAmount = result.TotalAmount,
+            currency = result.Currency,
+            confidence = result.Confidence,
+            items = result.Items,
+            concerns = result.AuthenticityConcerns,
+        });
+    }
+
+    private string? ResolveUploadPath(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || _env?.WebRootPath == null || url.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return null;
+        var full = Path.GetFullPath(Path.Combine(_env.WebRootPath, url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
+        // حماية من الخروج خارج مجلد wwwroot
+        return full.StartsWith(Path.GetFullPath(_env.WebRootPath), StringComparison.Ordinal) ? full : null;
+    }
+
+    private IActionResult ReviewResult(InvoiceReviewOutcome outcome) =>
+        outcome.Success
+            ? Json(new { success = true, message = outcome.Message, points = outcome.PointsChanged })
+            : StatusCode(outcome.StatusCode, new { success = false, message = outcome.Message });
 
     #region RBAC Helper Properties
     private string? CurrentUserId => User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -793,10 +1075,19 @@ public class AdminDashboardController : Controller
             return Forbid();
         }
 
-        invoice.ProcessingStatus = status;
-        if (status == InvoiceStatus.REJECTED || status == InvoiceStatus.VOIDED)
+        // الاعتماد والرفض يمران عبر خدمة المراجعة لتُضاف/تُسترجع النقاط بشكل صحيح
+        if (status == InvoiceStatus.APPROVED || status == InvoiceStatus.REJECTED)
         {
-            invoice.RejectionReason = string.IsNullOrWhiteSpace(reason) ? "تم الرفض بواسطة الإدارة" : reason;
+            if (!CanReviewInvoices) return Forbid();
+            return ReviewResult(status == InvoiceStatus.APPROVED
+                ? await _review.ApproveAsync(id, ReviewerName)
+                : await _review.RejectAsync(id, ReviewerName, string.IsNullOrWhiteSpace(reason) ? "تم الرفض بواسطة الإدارة" : reason));
+        }
+
+        invoice.ProcessingStatus = status;
+        if (status == InvoiceStatus.VOIDED)
+        {
+            invoice.RejectionReason = string.IsNullOrWhiteSpace(reason) ? "تم الإلغاء بواسطة الإدارة" : reason;
         }
 
         _context.AuditLogs.Add(new AuditLog

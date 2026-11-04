@@ -1,3 +1,5 @@
+using MMApplication.Infrastructure.Services;
+using MMApplication.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,10 +19,40 @@ public class AdminController : ControllerBase
     private readonly AppDbContext _context;
     private readonly ILogger<AdminController> _logger;
 
-    public AdminController(AppDbContext context, ILogger<AdminController> logger)
+    private readonly InvoiceReviewService _review;
+
+    public AdminController(AppDbContext context, ILogger<AdminController> logger, InvoiceReviewService? review = null)
     {
         _context = context;
         _logger = logger;
+        _review = review ?? new InvoiceReviewService(context,
+            new FlexibleLoyaltyEvaluationService(context),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InvoiceReviewService>.Instance);
+    }
+
+    private string Reviewer => User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "API";
+
+    private async Task<IActionResult> InvoiceResult(Guid id, InvoiceReviewOutcome outcome)
+    {
+        if (!outcome.Success)
+        {
+            return StatusCode(outcome.StatusCode, new { success = false, message = outcome.Message });
+        }
+        var invoice = await _context.Invoices.AsNoTracking().FirstAsync(i => i.InvoiceId == id);
+        return Ok(new InvoiceResponseDto
+        {
+            Id = invoice.InvoiceId,
+            CustomerId = invoice.CustomerId,
+            MerchantName = invoice.ExtractedMerchant ?? "متجر",
+            InvoiceNumber = invoice.InvoiceNumber ?? string.Empty,
+            InvoiceDate = invoice.InvoiceDate.GetValueOrDefault(invoice.CreatedAt),
+            TotalAmount = invoice.TotalAmount.GetValueOrDefault(0m),
+            PointsEarned = invoice.PointsAwarded,
+            Status = invoice.ProcessingStatus.ToString(),
+            RejectionReason = invoice.RejectionReason,
+            ImageUrl = invoice.ReceiptImageUrl,
+            CreatedAt = invoice.CreatedAt
+        });
     }
 
     /// <summary>
@@ -189,94 +221,8 @@ public class AdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ApproveInvoice(Guid id)
     {
-        var invoice = await _context.Invoices
-            .Include(i => i.Customer)
-                .ThenInclude(c => c.Wallets)
-            .FirstOrDefaultAsync(i => i.InvoiceId == id);
-
-        if (invoice == null)
-        {
-            return NotFound(new { success = false, message = "الفاتورة غير موجودة." });
-        }
-
-        if (invoice.ProcessingStatus == InvoiceStatus.APPROVED)
-        {
-            return BadRequest(new { success = false, message = "الفاتورة معتمدة بالفعل مسبقاً." });
-        }
-
-        var pointsEarned = (int)Math.Floor(invoice.TotalAmount.GetValueOrDefault(0m) / 10m);
-
-        var strategy = _context.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
-        {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                invoice.ProcessingStatus = InvoiceStatus.APPROVED;
-                invoice.PointsAwarded = pointsEarned;
-                invoice.CashbackAwarded = invoice.TotalAmount.GetValueOrDefault(0m) * 0.05m;
-                invoice.RejectionReason = null;
-
-                var wallet = await _context.CustomerWallets
-                    .FirstOrDefaultAsync(w => w.CustomerId == invoice.CustomerId && w.BalanceType == BalanceType.POINTS);
-
-                if (wallet == null)
-                {
-                    wallet = new CustomerWallet
-                    {
-                        CustomerId = invoice.CustomerId,
-                        TenantId = invoice.TenantId,
-                        BalanceType = BalanceType.POINTS,
-                        CurrentBalance = pointsEarned
-                    };
-                    await _context.CustomerWallets.AddAsync(wallet);
-                }
-                else
-                {
-                    wallet.CurrentBalance += pointsEarned;
-                }
-
-                // تسجيل حركة كسب النقاط
-                var ledgerEntry = new WalletLedger
-                {
-                    Wallet = wallet,
-                    InvoiceId = invoice.InvoiceId,
-                    AmountChanged = pointsEarned,
-                    BalanceAfter = wallet.CurrentBalance,
-                    TransactionType = WalletTransactionType.EARN_RECEIPT,
-                    ReferenceRemarks = $"اعتماد يدوي لفاتورة: {invoice.ExtractedMerchant} (#{invoice.InvoiceNumber})",
-                    CreatedAt = DateTime.UtcNow
-                };
-                await _context.WalletLedger.AddAsync(ledgerEntry);
-
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "فشل اعتماد الفاتورة {InvoiceId}", invoice.InvoiceId);
-                throw;
-            }
-        });
-
-        _logger.LogInformation("تم اعتماد الفاتورة {InvoiceId} يدوياً وإضافة {Points} نقطة للعميل {CustomerId}",
-            invoice.InvoiceId, pointsEarned, invoice.CustomerId);
-
-        return Ok(new InvoiceResponseDto
-        {
-            Id = invoice.InvoiceId,
-            CustomerId = invoice.CustomerId,
-            MerchantName = invoice.ExtractedMerchant ?? "متجر",
-            InvoiceNumber = invoice.InvoiceNumber,
-            InvoiceDate = invoice.InvoiceDate.GetValueOrDefault(invoice.CreatedAt),
-            TotalAmount = invoice.TotalAmount.GetValueOrDefault(0m),
-            PointsEarned = pointsEarned,
-            Status = invoice.ProcessingStatus.ToString(),
-            RejectionReason = invoice.RejectionReason,
-            ImageUrl = invoice.ReceiptImageUrl,
-            CreatedAt = invoice.CreatedAt
-        });
+        // الحساب بمحرك الولاء الموحّد (قواعد المتجر والعروض ومستوى العضوية)
+        return await InvoiceResult(id, await _review.ApproveAsync(id, Reviewer));
     }
 
     /// <summary>
@@ -293,38 +239,8 @@ public class AdminController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == id);
-        if (invoice == null)
-        {
-            return NotFound(new { success = false, message = "الفاتورة غير موجودة." });
-        }
-
-        if (invoice.ProcessingStatus == InvoiceStatus.APPROVED)
-        {
-            return BadRequest(new { success = false, message = "لا يمكن رفض فاتورة تم اعتمادها بالفعل وإضافة نقاطها." });
-        }
-
-        invoice.ProcessingStatus = InvoiceStatus.REJECTED;
-        invoice.RejectionReason = dto.Reason.Trim();
-
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("تم رفض الفاتورة {InvoiceId}، السبب: {Reason}", invoice.InvoiceId, invoice.RejectionReason);
-
-        return Ok(new InvoiceResponseDto
-        {
-            Id = invoice.InvoiceId,
-            CustomerId = invoice.CustomerId,
-            MerchantName = invoice.ExtractedMerchant ?? "متجر",
-            InvoiceNumber = invoice.InvoiceNumber,
-            InvoiceDate = invoice.InvoiceDate.GetValueOrDefault(invoice.CreatedAt),
-            TotalAmount = invoice.TotalAmount.GetValueOrDefault(0m),
-            PointsEarned = invoice.PointsAwarded,
-            Status = invoice.ProcessingStatus.ToString(),
-            RejectionReason = invoice.RejectionReason,
-            ImageUrl = invoice.ReceiptImageUrl,
-            CreatedAt = invoice.CreatedAt
-        });
+        // رفض فاتورة معتمدة يسترجع نقاطها تلقائياً
+        return await InvoiceResult(id, await _review.RejectAsync(id, Reviewer, dto.Reason));
     }
 
     /// <summary>

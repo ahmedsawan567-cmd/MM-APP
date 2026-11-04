@@ -206,21 +206,7 @@ public class InvoicesController : ControllerBase
         }
 
         // قائمة متاجر المول وأسمائها البديلة تُرسل لمحرك القراءة ليطابق المتجر بدقة
-        var ocrContext = new ReceiptExtractionContext
-        {
-            ContentType = request.File.ContentType,
-            FileName = request.File.FileName,
-            KnownStores = await _context.Tenants
-                .Where(t => t.IsActive)
-                .Select(t => new KnownStoreDto
-                {
-                    TenantId = t.TenantId,
-                    NameAr = t.NameAr,
-                    NameEn = t.NameEn,
-                    Aliases = t.Aliases.Where(a => a.IsActive).Select(a => a.AliasName).ToList()
-                })
-                .ToListAsync()
-        };
+        var ocrContext = await MMApplication.Api.Services.ReceiptContextBuilder.BuildAsync(_context, request.File.ContentType, request.File.FileName);
 
         ExtractedReceiptDto extractedData;
         using (var stream = request.File.OpenReadStream())
