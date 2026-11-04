@@ -42,6 +42,46 @@ public static class DataSeeder
         return string.IsNullOrWhiteSpace(configuredPassword) ? password : "(كلمة المرور المضبوطة في Bootstrap:AdminPassword)";
     }
 
+    /// <summary>
+    /// استعادة الدخول: يعيد ضبط كلمة مرور الحساب "admin" (وينشئه إن لم يوجد) ويُفعّله كمدير عام.
+    /// يُستدعى فقط عند التشغيل بالخيار Bootstrap:ResetAdminPassword=true. يرجع كلمة المرور الجديدة.
+    /// </summary>
+    public static async Task<string> ResetAdminPasswordAsync(AppDbContext context, IPasswordHasherService passwordHasher, string? configuredPassword)
+    {
+        var password = string.IsNullOrWhiteSpace(configuredPassword)
+            ? Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12)).Replace('/', 'x').Replace('+', 'y')
+            : configuredPassword;
+
+        var admin = await context.SystemUsers.FirstOrDefaultAsync(u => u.UserId == "admin");
+        if (admin == null)
+        {
+            admin = new SystemUser
+            {
+                UserId = "admin",
+                FullName = "المدير العام",
+                Email = "admin@local",
+                PhoneNumber = "admin",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.SystemUsers.Add(admin);
+        }
+
+        admin.PasswordHash = passwordHasher.HashPassword(password);
+        admin.Role = SystemUserRole.SUPER_ADMIN;
+        admin.IsActive = true;
+        context.AuditLogs.Add(new AuditLog
+        {
+            Action = "ADMIN_PASSWORD_RESET",
+            EntityName = "SystemUser",
+            EntityId = "admin",
+            PerformedBy = "النظام (من جهاز الخادم)",
+            Details = "إعادة ضبط كلمة مرور المدير العام عبر خيار التشغيل Bootstrap:ResetAdminPassword.",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await context.SaveChangesAsync();
+        return password;
+    }
+
     /// <param name="includeDemoData">
     /// true: كل البيانات التجريبية (حسابات طاقم بكلمات مرور معروفة، عملاء، فواتير، تسويات، سجل عمليات).
     /// false: بيانات المول فقط (المتاجر، قواعد النقاط، أسماء الفواتير، المكافآت، البنرات، الحملات، العروض)

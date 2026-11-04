@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -126,5 +127,29 @@ public class StaffManagementTests : IClassFixture<WebApplicationFactory<Program>
     {
         var resp = await _factory.CreateClient().GetFromJsonAsync<JsonElement>("/api/health");
         Assert.Equal("ok", resp.GetProperty("status").GetString());
+    }
+}
+
+public class AdminPasswordResetTests
+{
+    [Fact]
+    public async Task Reset_SetsNewWorkingPassword_AndReactivatesAdmin()
+    {
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<MMApplication.Infrastructure.Data.AppDbContext>()
+            .UseInMemoryDatabase("ResetAdmin_" + Guid.NewGuid()).Options;
+        await using var db = new MMApplication.Infrastructure.Data.AppDbContext(options);
+        var hasher = new MMApplication.Infrastructure.Services.PasswordHasherService();
+
+        Assert.NotNull(await MMApplication.Infrastructure.Data.DataSeeder.EnsureBootstrapAdminAsync(db, hasher, null));
+        var admin = db.SystemUsers.Single(u => u.UserId == "admin");
+        admin.IsActive = false;
+        await db.SaveChangesAsync();
+
+        var password = await MMApplication.Infrastructure.Data.DataSeeder.ResetAdminPasswordAsync(db, hasher, null);
+
+        admin = db.SystemUsers.Single(u => u.UserId == "admin");
+        Assert.True(admin.IsActive);
+        Assert.True(hasher.VerifyPassword(password, admin.PasswordHash));
+        Assert.Contains(db.AuditLogs, a => a.Action == "ADMIN_PASSWORD_RESET");
     }
 }

@@ -259,6 +259,16 @@ using (var scope = app.Services.CreateScope())
             }
             logger.LogInformation("Database is ready.");
         }
+
+        // استعادة الدخول للمدير العام (تشغيل لمرة واحدة):
+        //   dotnet run -- --Bootstrap:ResetAdminPassword=true
+        if (builder.Configuration.GetValue<bool>("Bootstrap:ResetAdminPassword"))
+        {
+            var newPassword = await DataSeeder.ResetAdminPasswordAsync(db, hasher, builder.Configuration["Bootstrap:AdminPassword"]);
+            logger.LogWarning(
+                "تمت إعادة ضبط كلمة مرور المدير العام. اسم المستخدم: admin — كلمة المرور: {Password} — شغّل الخادم بعدها بدون خيار ResetAdminPassword وغيّرها من صفحة طاقم العمل.",
+                newPassword);
+        }
     }
     catch (Exception ex) when (database.UsePostgres)
     {
