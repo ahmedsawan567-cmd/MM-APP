@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../../models/app_notification.dart';
 import '../../models/invoice.dart';
 import '../../models/json_utils.dart';
 import '../../models/mall.dart';
@@ -46,6 +47,19 @@ class LoyaltyApi {
       _api.post('/Auth/change-password', {'currentPassword': currentPassword, 'newPassword': newPassword});
 
   static Future<void> deleteAccount(String password) async => _api.post('/Auth/delete-account', {'password': password});
+
+  // ---------- الإشعارات ----------
+  static Future<(List<AppNotification>, int)> getNotifications() async {
+    final res = await _api.get('/Notifications', query: {'take': '50'}) as Map<String, dynamic>;
+    return (jList(res['items'], AppNotification.fromJson), jInt(res['unread']));
+  }
+
+  static Future<int> getUnreadNotifications() async =>
+      jInt((await _api.get('/Notifications/unread-count') as Map<String, dynamic>)['unread']);
+
+  static Future<void> markNotificationRead(String id) async => _api.post('/Notifications/$id/read');
+
+  static Future<void> markAllNotificationsRead() async => _api.post('/Notifications/read-all');
 
   // ---------- الرئيسية والمتاجر ----------
   static Future<HomeData> getHome() async => HomeData.fromJson(await _api.get('/v1/mobile/home'));

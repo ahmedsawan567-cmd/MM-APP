@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/user_profile.dart';
 import 'api_client.dart';
 import 'loyalty_api.dart';
+import 'notifications_service.dart';
 
 /// يدير جلسة العميل: تسجيل الدخول، إنشاء الحساب، الاستعادة عند فتح التطبيق، وتسجيل الخروج.
 class Session extends ChangeNotifier {
@@ -25,6 +26,16 @@ class Session extends ChangeNotifier {
 
   void notifyDataChanged() => dataVersion.value++;
 
+  /// عدد الإشعارات غير المقروءة (للجرس في الرئيسية).
+  final ValueNotifier<int> unreadNotifications = ValueNotifier<int>(0);
+
+  Future<void> refreshUnread() async {
+    if (!isLoggedIn) return;
+    try {
+      unreadNotifications.value = await LoyaltyApi.getUnreadNotifications();
+    } catch (_) {}
+  }
+
   Future<void> restore() async {
     ApiClient.instance.onUnauthorized = () {
       if (_user != null) logout();
@@ -38,6 +49,8 @@ class Session extends ChangeNotifier {
       if (token != null && (expiry == null || expiry.isAfter(DateTime.now()))) {
         ApiClient.instance.setToken(token);
         _user = await LoyaltyApi.getProfile();
+        AppNotifications.startBackground();
+        refreshUnread();
       }
     } on ApiException catch (e) {
       // عند انقطاع الإنترنت نُبقي التوكن، وعند رفضه نحذفه.
@@ -78,6 +91,8 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await AppNotifications.stopBackground();
+    unreadNotifications.value = 0;
     await _clear();
     _user = null;
     notifyListeners();
@@ -92,6 +107,8 @@ class Session extends ChangeNotifier {
     await prefs.setString(_tokenKey, auth.token);
     await prefs.setString(_expiryKey, auth.expiresAt.toIso8601String());
     _user = await LoyaltyApi.getProfile();
+    AppNotifications.startBackground();
+    refreshUnread();
     notifyListeners();
   }
 

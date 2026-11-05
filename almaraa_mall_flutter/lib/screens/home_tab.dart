@@ -8,6 +8,7 @@ import '../core/theme/app_theme.dart';
 import '../models/mall.dart';
 import '../widgets/common.dart';
 import 'invoices_screen.dart';
+import 'notifications_screen.dart';
 import 'rewards_screen.dart';
 
 String tierNameAr(String tier) => switch (tier.toUpperCase()) {
@@ -86,6 +87,8 @@ class _HomeTabState extends State<HomeTab> {
                         ],
                       ),
                     ),
+                    const NotificationBell(),
+                    const SizedBox(width: 10),
                     Container(
                       width: 46,
                       height: 46,

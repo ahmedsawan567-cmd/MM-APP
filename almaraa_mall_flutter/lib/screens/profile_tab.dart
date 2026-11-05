@@ -11,6 +11,7 @@ import 'account/change_password_screen.dart';
 import 'account/edit_profile_screen.dart';
 import 'account/membership_card_screen.dart';
 import 'invoices_screen.dart';
+import 'notifications_screen.dart';
 import 'rewards_screen.dart';
 
 class ProfileTab extends StatelessWidget {
@@ -117,6 +118,7 @@ class ProfileTab extends StatelessWidget {
                 const SizedBox(height: 22),
                 _label(context, 'نشاطي'),
                 _Group(children: [
+                  _Item(icon: LucideIcons.bell, tone: Tone.brand, label: 'الإشعارات', onTap: () => pushPage(context, const NotificationsScreen())),
                   _Item(icon: LucideIcons.receiptText, tone: Tone.info, label: 'فواتيري', onTap: () => pushPage(context, const InvoicesScreen())),
                   _Item(icon: LucideIcons.gift, tone: Tone.gold, label: 'المكافآت', onTap: () => pushPage(context, const RewardsScreen())),
                   _Item(icon: LucideIcons.circleHelp, tone: Tone.brand, label: 'كيف أكسب النقاط؟', onTap: () => _howItWorks(context)),

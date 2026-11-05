@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 import '../services/server_config.dart';
 
 class AppConstants {
@@ -33,6 +35,8 @@ class AppConstants {
   // 3. MALL INFORMATION
   // ----------------------------------------------------
   static const String appNameAr = 'المرأة مول';
+  /// لون أيقونة الإشعار (بنفسجي الشعار)
+  static const Color notificationColor = Color(0xFFB607BC);
   static const String appNameEn = 'Almaraa Mall';
   static const String taglineAr = 'بوابتك للتسوق الفاخر وبرامج الولاء الحصرية';
   static const String currency = 'د.ل'; // Libyan Dinar
