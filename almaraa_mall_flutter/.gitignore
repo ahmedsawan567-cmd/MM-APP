@@ -48,5 +48,5 @@ app.*.map.json
 .widget_preview/
 
 # إعدادات Firebase (لا تُرفع للمستودع)
-google-services.json
+/google-services.json
 firebase-defines.json

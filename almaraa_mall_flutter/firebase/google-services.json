@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "71497090183",
+    "project_id": "almaraa-mall",
+    "storage_bucket": "almaraa-mall.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:71497090183:android:537d5acb43fbe9cfb0e422",
+        "android_client_info": {
+          "package_name": "ly.mmapp.almaraamall"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB13m-OC04OyJyY3ftJAlPKAIDfhaadri4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
