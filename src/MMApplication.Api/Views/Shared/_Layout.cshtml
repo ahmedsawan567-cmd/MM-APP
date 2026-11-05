@@ -165,6 +165,26 @@
                     @(dbIsPersistent ? "قاعدة البيانات متصلة" : "قاعدة بيانات تجريبية")
                 </span>
 
+                <!-- الإشعارات -->
+                <div class="relative">
+                    <button type="button" id="notif-button" class="btn-icon relative" onclick="MM.notifications.toggle()" aria-haspopup="menu" aria-expanded="false" title="الإشعارات" aria-label="الإشعارات">
+                        <i data-lucide="bell" class="h-5 w-5"></i>
+                        <span id="notif-badge" class="hidden absolute -top-0.5 -left-0.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-bold leading-5 text-center ring-2 ring-surface"></span>
+                    </button>
+                    <div id="notif-menu" class="dropdown left-0 hidden w-[22rem] max-w-[calc(100vw-2rem)] !p-0 overflow-hidden" role="menu">
+                        <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-line">
+                            <span class="font-bold text-ink">الإشعارات</span>
+                            <button type="button" class="text-sm font-semibold text-brand-700 hover:underline" onclick="MM.notifications.readAll()">تحديد الكل كمقروء</button>
+                        </div>
+                        <div id="notif-list" class="max-h-[26rem] overflow-y-auto divide-y divide-line">
+                            <div class="px-4 py-8 text-center text-sm text-ink-3">جارٍ التحميل...</div>
+                        </div>
+                        <button type="button" id="notif-desktop" class="hidden w-full px-4 py-3 border-t border-line text-sm font-semibold text-ink-2 hover:bg-slate-50 text-right" onclick="MM.notifications.enableDesktop()">
+                            تفعيل تنبيهات المتصفح عند وصول إشعار جديد
+                        </button>
+                    </div>
+                </div>
+
                 <button type="button" class="btn-icon" onclick="MM.toggleTheme()" title="تبديل الوضع الفاتح / الداكن" aria-label="تبديل الوضع الفاتح أو الداكن">
                     <i data-lucide="moon" class="h-[18px] w-[18px] theme-icon-light"></i>
                     <i data-lucide="sun" class="h-[18px] w-[18px] theme-icon-dark"></i>
@@ -193,6 +213,8 @@
                 </div>
             </div>
         </header>
+
+        <form id="mm-af" class="hidden">@Html.AntiForgeryToken()</form>
 
         <main id="main" class="mx-auto w-full max-w-[1360px] flex-1 space-y-6 p-4 animate-fade-in sm:p-6 lg:px-10 lg:py-8">
             @RenderBody()

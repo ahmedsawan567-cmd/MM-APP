@@ -269,6 +269,8 @@ using (var scope = app.Services.CreateScope())
             logger.LogInformation("Database is ready.");
         }
 
+        await Notifier.PurgeOldAsync(db);
+
         var keyed = await InvoiceKeys.BackfillAsync(db, logger);
         if (keyed > 0) logger.LogInformation("حُسبت الصيغة الموحّدة لأرقام {Count} فاتورة سابقة.", keyed);
 

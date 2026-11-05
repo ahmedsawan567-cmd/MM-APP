@@ -448,6 +448,23 @@ public class InvoicesController : ControllerBase
             throw;
         }
 
+        // الإشعارات: للعميل بنتيجة فاتورته، وللمراجعين إن احتاجت قراراً
+        if (invoice.ProcessingStatus == InvoiceStatus.APPROVED)
+        {
+            Notifier.Customer(_context, customer.CustomerId, "INVOICE_APPROVED",
+                pointsEarned > 0 ? $"تمت إضافة {pointsEarned} نقطة إلى رصيدك" : "تم قبول فاتورتك",
+                $"فاتورة {merchantName} بمبلغ {totalAmount:N2} د.ل. رصيدك الآن {updatedPointsBalance} نقطة.",
+                $"invoice:{invoice.InvoiceId}");
+        }
+        else
+        {
+            Notifier.Customer(_context, customer.CustomerId, "INVOICE_IN_REVIEW", "فاتورتك قيد المراجعة",
+                $"استلمنا فاتورة {merchantName}، وسيراجعها فريق المول ويُضيف نقاطك بعد الاعتماد.", $"invoice:{invoice.InvoiceId}");
+            await Notifier.StaffAsync(_context, "REVIEW_NEEDED", "فاتورة جديدة تحتاج مراجعة",
+                $"{merchantName} — {totalAmount:N2} د.ل من {customer.FullName}", "/AdminDashboard/Review");
+        }
+        await _context.SaveChangesAsync();
+
         _logger.LogInformation(
             "تمت معالجة الفاتورة بنجاح: {InvoiceId}, العميل: {CustomerId}, الحالة: {Status}, النقاط: +{Points}, الرصيد الحالي: {Balance}",
             invoice.InvoiceId, customer.CustomerId, invoice.ProcessingStatus, pointsEarned, updatedPointsBalance);
@@ -502,6 +519,10 @@ public class InvoicesController : ControllerBase
 
         if (!sameCustomer)
         {
+            await Notifier.StaffAsync(_context, "FRAUD_DUPLICATE", "محاولة استخدام فاتورة مكررة",
+                $"{customer.FullName} ({customer.MembershipNumber}) حاول رفع فاتورة {merchantName} رقم {invoiceNumber} المسجلة لعميل آخر.",
+                "/AdminDashboard/Settings?search=INVOICE_DUPLICATE");
+            await _context.SaveChangesAsync();
             _logger.LogWarning("محاولة استخدام فاتورة عميل آخر: العميل {Customer} حاول رفع الفاتورة {Invoice} الخاصة بـ {Owner}",
                 customer.CustomerId, existing.InvoiceId, existing.CustomerId);
         }
@@ -571,6 +592,8 @@ public class InvoicesController : ControllerBase
             CreatedAt = DateTime.UtcNow
         });
 
+        await Notifier.StaffAsync(_context, "INVOICE_DISPUTED", "اعتراض جديد على فاتورة",
+            $"{invoice.ExtractedMerchant} #{invoice.InvoiceNumber}: {req.DisputeReason}", "/AdminDashboard/Review");
         await _context.SaveChangesAsync();
         return Ok(new { success = true, message = "تم تقديم الاعتراض بنجاح وسيتم تدقيقه من قبل إدارة المول." });
     }
@@ -636,6 +659,8 @@ public class InvoicesController : ControllerBase
             CreatedAt = DateTime.UtcNow
         });
 
+        await Notifier.StaffAsync(_context, "INVOICE_RESUBMITTED", "أعاد عميل تصوير فاتورة",
+            $"{invoice.ExtractedMerchant} #{invoice.InvoiceNumber} جاهزة للمراجعة من جديد.", "/AdminDashboard/Review");
         await _context.SaveChangesAsync();
         return Ok(new { success = true, message = "تمت إعادة رفع الفاتورة بنجاح ودخلت طابور المراجعة والتدقيق." });
     }

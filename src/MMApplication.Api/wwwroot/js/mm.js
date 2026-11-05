@@ -148,6 +148,7 @@
     document.querySelectorAll('.modal-overlay').forEach(m => document.body.appendChild(m));
     window.lucide && lucide.createIcons();
     setupQuickNav();
+    MM.notifications.start();
   });
 
   // نوافذ الحوار (modal-overlay): فتح/إغلاق موحّد لكل الصفحات، مع الإغلاق بـ Esc أو بالنقر خارج النافذة.
@@ -168,6 +169,109 @@
   document.addEventListener('mousedown', e => {
     if (e.target.classList?.contains('modal-overlay')) e.target.classList.add('hidden');
   });
+
+  // ---------- الإشعارات (جرس الشريط العلوي) ----------
+  MM.notifications = (() => {
+    const POLL_MS = 30000;
+    let lastSeen = null, open = false, loaded = false;
+    const el = id => document.getElementById(id);
+    const token = () => document.querySelector('#mm-af input[name="__RequestVerificationToken"]')?.value || '';
+    const ago = iso => {
+      const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+      if (s < 60) return 'الآن';
+      if (s < 3600) return `منذ ${Math.floor(s / 60)} د`;
+      if (s < 86400) return `منذ ${Math.floor(s / 3600)} س`;
+      return new Date(iso).toLocaleDateString('ar-LY');
+    };
+    const ICON = { REVIEW_NEEDED: 'scan-search', INVOICE_DISPUTED: 'message-circle-warning', INVOICE_RESUBMITTED: 'image-up', FRAUD_DUPLICATE: 'shield-alert' };
+
+    function render(data) {
+      const badge = el('notif-badge');
+      if (badge) {
+        badge.textContent = data.unread > 99 ? '99+' : data.unread;
+        badge.classList.toggle('hidden', !data.unread);
+      }
+      document.title = document.title.replace(/^\(\d+\+?\) /, '');
+      if (data.unread) document.title = `(${data.unread > 99 ? '99+' : data.unread}) ${document.title}`;
+      const list = el('notif-list');
+      if (!list) return;
+      list.innerHTML = data.items.length === 0
+        ? '<div class="px-4 py-10 text-center text-sm text-ink-3">لا توجد إشعارات بعد</div>'
+        : data.items.map(n => `
+            <button type="button" class="w-full text-right px-4 py-3 flex gap-3 hover:bg-slate-50 ${n.isRead ? '' : 'bg-brand-50/60'}" data-id="${n.id}" data-link="${MM.esc(n.link || '')}">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${n.type === 'FRAUD_DUPLICATE' ? 'bg-rose-50 text-rose-600' : 'bg-brand-50 text-brand-700'}">
+                <i data-lucide="${ICON[n.type] || 'bell'}" class="h-4 w-4"></i>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="flex items-start justify-between gap-2">
+                  <span class="font-semibold text-ink text-sm">${MM.esc(n.title)}</span>
+                  ${n.isRead ? '' : '<span class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-600"></span>'}
+                </span>
+                <span class="block text-sm text-ink-3 leading-relaxed">${MM.esc(n.body)}</span>
+                <span class="block text-xs text-ink-3 mt-1">${ago(n.createdAt)}</span>
+              </span>
+            </button>`).join('');
+      list.querySelectorAll('button[data-id]').forEach(b => b.onclick = () => openItem(b.dataset.id, b.dataset.link));
+      window.lucide && lucide.createIcons();
+    }
+
+    function desktopAlert(items) {
+      if (!('Notification' in window) || Notification.permission !== 'granted' || !document.hidden) return;
+      items.slice(0, 3).forEach(n => {
+        const notice = new Notification(n.title, { body: n.body, icon: '/img/brand/icon-192.png', tag: n.id });
+        notice.onclick = () => { window.focus(); if (n.link) location.href = n.link; };
+      });
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch('/AdminDashboard/NotificationsJson', { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const fresh = lastSeen ? data.items.filter(n => !n.isRead && new Date(n.createdAt) > lastSeen) : [];
+        if (data.items[0]) lastSeen = new Date(Math.max(lastSeen || 0, new Date(data.items[0].createdAt)));
+        else lastSeen = lastSeen || new Date();
+        loaded = true;
+        render(data);
+        if (fresh.length) {
+          desktopAlert(fresh);
+          if (!document.hidden) MM.toast(fresh[0].title, 'info');
+        }
+      } catch { }
+    }
+
+    async function post(id) {
+      await fetch('/AdminDashboard/NotificationsRead' + (id ? `?id=${encodeURIComponent(id)}` : ''), {
+        method: 'POST', headers: { 'RequestVerificationToken': token() }
+      }).catch(() => {});
+    }
+
+    async function openItem(id, link) {
+      await post(id);
+      if (link) location.href = link; else refresh();
+    }
+
+    return {
+      start() {
+        if (!el('notif-button')) return;
+        refresh();
+        setInterval(refresh, POLL_MS);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+        if ('Notification' in window && Notification.permission === 'default') el('notif-desktop')?.classList.remove('hidden');
+      },
+      toggle() {
+        open = !el('notif-menu').classList.toggle('hidden') ? true : false;
+        el('notif-button').setAttribute('aria-expanded', String(open));
+        if (open && !loaded) refresh();
+      },
+      async readAll() { await post(null); refresh(); },
+      async enableDesktop() {
+        const p = await Notification.requestPermission();
+        el('notif-desktop')?.classList.add('hidden');
+        MM.toast(p === 'granted' ? 'ستصلك تنبيهات المتصفح عند وصول إشعار جديد.' : 'لم يُسمح بتنبيهات المتصفح.', p === 'granted' ? 'success' : 'info');
+      },
+    };
+  })();
 
   window.MM = MM;
   window.showToast = MM.toast; // توافق مع الصفحات القديمة

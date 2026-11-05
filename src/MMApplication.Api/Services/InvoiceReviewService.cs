@@ -130,6 +130,10 @@ public class InvoiceReviewService
                 });
             }
 
+            Notifier.Customer(_context, invoice.CustomerId, "INVOICE_APPROVED",
+                points > 0 ? $"تمت إضافة {points} نقطة إلى رصيدك" : "تم اعتماد فاتورتك",
+                $"اعتُمدت فاتورة {invoice.ExtractedMerchant} بمبلغ {invoice.TotalAmount:N2} د.ل بعد المراجعة.",
+                $"invoice:{invoice.InvoiceId}");
             Audit(reviewer, "INVOICE_APPROVE", invoice,
                 $"اعتماد الفاتورة {invoice.InvoiceNumber} ومنح {points} نقطة." +
                 (changes.Count > 0 ? " تصحيحات: " + string.Join("، ", changes) : string.Empty));
@@ -179,6 +183,10 @@ public class InvoiceReviewService
 
             invoice.ProcessingStatus = target;
             invoice.RejectionReason = reason.Trim();
+            Notifier.Customer(_context, invoice.CustomerId, voiding ? "INVOICE_VOIDED" : "INVOICE_REJECTED",
+                voiding ? "أُلغيت إحدى فواتيرك" : "لم تُقبل فاتورتك",
+                $"فاتورة {invoice.ExtractedMerchant}: {reason.Trim()}" + (reversed > 0 ? $" — استُرجعت {reversed} نقطة." : ""),
+                $"invoice:{invoice.InvoiceId}");
             Audit(reviewer, voiding ? "INVOICE_VOID" : "INVOICE_REJECT", invoice,
                 $"{(voiding ? "إلغاء" : "رفض")} الفاتورة {invoice.InvoiceNumber}. السبب: {reason.Trim()}" + (reversed > 0 ? $" — استرجاع {reversed} نقطة." : string.Empty));
         });
@@ -249,6 +257,8 @@ public class InvoiceReviewService
         invoice.ResubmissionNotes = note.Trim();
         invoice.ResubmissionRequestedAt = DateTime.UtcNow;
         Audit(reviewer, "INVOICE_REQUEST_RESUBMISSION", invoice, $"طلب إعادة تصوير الفاتورة {invoice.InvoiceNumber}: {note.Trim()}");
+        Notifier.Customer(_context, invoice.CustomerId, "INVOICE_RESUBMIT_REQUESTED", "مطلوب إعادة تصوير فاتورة",
+            $"فاتورة {invoice.ExtractedMerchant}: {note.Trim()}", $"invoice:{invoice.InvoiceId}");
         await _context.SaveChangesAsync();
         return new InvoiceReviewOutcome(true, "تم إرسال طلب إعادة التصوير للعميل.");
     }

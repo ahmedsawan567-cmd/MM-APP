@@ -1310,6 +1310,35 @@ public class AdminDashboardController : Controller
     }
 
     // ----------------------------------------------------
+    // 🔔 إشعارات الموظف (جرس الشريط العلوي)
+    // ----------------------------------------------------
+    private IQueryable<Notification> MyNotifications() =>
+        _context.Notifications.Where(n => n.RecipientType == Notification.ToStaff && n.RecipientId == CurrentUserId);
+
+    [HttpGet]
+    public async Task<IActionResult> NotificationsJson()
+    {
+        if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
+        var items = await MyNotifications().AsNoTracking().OrderByDescending(n => n.CreatedAt).Take(20)
+            .Select(n => new { n.Id, n.Type, n.Title, n.Body, n.Link, n.IsRead, n.CreatedAt })
+            .ToListAsync();
+        return Json(new { unread = await MyNotifications().CountAsync(n => !n.IsRead), items });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> NotificationsRead(Guid? id)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
+        var query = MyNotifications().Where(n => !n.IsRead);
+        if (id.HasValue) query = query.Where(n => n.Id == id.Value);
+        var list = await query.ToListAsync();
+        foreach (var n in list) { n.IsRead = true; n.ReadAt = DateTime.UtcNow; }
+        await _context.SaveChangesAsync();
+        return Json(new { success = true, count = list.Count });
+    }
+
+    // ----------------------------------------------------
     // 3. 🛡️ FRAUD & REVIEW HUB (Fraud View)
     // ----------------------------------------------------
     [HttpGet]

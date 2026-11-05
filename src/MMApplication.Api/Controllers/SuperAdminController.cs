@@ -1134,39 +1134,25 @@ public class SuperAdminController : ControllerBase
         return Ok(new { success = true, message = "تم حذف البنر بنجاح." });
     }
 
+    /// <summary>إعلان من الإدارة يصل لتطبيقات العملاء (شريحة محددة أو الكل).</summary>
     [HttpPost("notifications/send")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> SendPushNotification([FromBody] SendPushNotificationRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.Body))
-        {
             return BadRequest(new { success = false, message = "عنوان ونص الإشعار مطلوبان." });
-        }
 
-        var audienceCount = req.TargetAudience switch
-        {
-            "VIP_GOLD" => await _context.Customers.CountAsync(c => c.LoyaltyTier == "GOLD" || c.LoyaltyTier == "VIP"),
-            "SILVER" => await _context.Customers.CountAsync(c => c.LoyaltyTier == "SILVER"),
-            _ => await _context.Customers.CountAsync(c => !c.IsFrozen)
-        };
-
+        var count = await Notifier.BroadcastAsync(_context, req.TargetAudience ?? "ALL", req.Title.Trim(), req.Body.Trim());
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
-            Action = "PUSH_NOTIFICATION_BROADCAST",
+            PerformedBy = ActorName,
+            Action = "NOTIFICATION_BROADCAST",
             EntityName = "Notification",
-            Details = $"إرسال إشعار ترويجي فوري لعدد ({audienceCount}) متسوق: {req.Title} - {req.Body}",
+            Details = $"إرسال إشعار إلى {count} عميل ({req.TargetAudience ?? "ALL"}): {req.Title}",
             CreatedAt = DateTime.UtcNow
         });
-
         await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            success = true,
-            message = $"تم إرسال الإشعار بنجاح إلى ({audienceCount}) عميل مسجل.",
-            recipientsCount = audienceCount,
-            sentAt = DateTime.UtcNow
-        });
+        return Ok(new { success = true, message = $"أُرسل الإشعار إلى {count} عميل، ويظهر في تطبيقاتهم.", recipientsCount = count, sentAt = DateTime.UtcNow });
     }
 
     // ==========================================
@@ -2064,6 +2050,9 @@ public class SuperAdminController : ControllerBase
             CreatedAt = DateTime.UtcNow
         });
 
+        Notifier.Customer(_context, customer.CustomerId, "POINTS_ADJUSTED",
+            req.PointsDelta > 0 ? $"أُضيفت {req.PointsDelta} نقطة إلى رصيدك" : $"خُصمت {-req.PointsDelta} نقطة من رصيدك",
+            $"{req.Reason}. رصيدك الآن {wallet.CurrentBalance:N0} نقطة.", "wallet");
         await _context.SaveChangesAsync();
         return Ok(new { success = true, message = "تم تعديل رصيد النقاط.", newBalance = wallet.CurrentBalance });
     }
