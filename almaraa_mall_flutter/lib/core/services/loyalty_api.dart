@@ -25,6 +25,28 @@ class LoyaltyApi {
 
   static Future<UserProfile> getProfile() async => UserProfile.fromJson(await _api.get('/Auth/me'));
 
+  static Future<UserProfile> updateProfile({
+    required String fullName,
+    String? email,
+    DateTime? birthDate,
+    String? gender,
+  }) async {
+    final res = await _api.put('/Auth/me', {
+      'fullName': fullName,
+      'email': email,
+      'birthDate': birthDate == null
+          ? null
+          : '${birthDate.year.toString().padLeft(4, '0')}-${birthDate.month.toString().padLeft(2, '0')}-${birthDate.day.toString().padLeft(2, '0')}',
+      'gender': gender,
+    });
+    return UserProfile.fromJson((res as Map<String, dynamic>)['profile'] as Map<String, dynamic>);
+  }
+
+  static Future<void> changePassword(String currentPassword, String newPassword) async =>
+      _api.post('/Auth/change-password', {'currentPassword': currentPassword, 'newPassword': newPassword});
+
+  static Future<void> deleteAccount(String password) async => _api.post('/Auth/delete-account', {'password': password});
+
   // ---------- الرئيسية والمتاجر ----------
   static Future<HomeData> getHome() async => HomeData.fromJson(await _api.get('/v1/mobile/home'));
 

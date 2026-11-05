@@ -58,6 +58,12 @@ class ApiClient {
         body: body == null ? null : jsonEncode(body),
       ));
 
+  Future<dynamic> put(String path, [Object? body]) => _send(() => _http.put(
+        _uri(path),
+        headers: _headers(json: true),
+        body: body == null ? null : jsonEncode(body),
+      ));
+
   /// رفع ملف (صورة فاتورة) كـ multipart/form-data.
   Future<dynamic> uploadFile(
     String path, {

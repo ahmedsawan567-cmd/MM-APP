@@ -7,6 +7,9 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/theme_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/server_settings_sheet.dart';
+import 'account/change_password_screen.dart';
+import 'account/edit_profile_screen.dart';
+import 'account/membership_card_screen.dart';
 import 'invoices_screen.dart';
 import 'rewards_screen.dart';
 
@@ -84,7 +87,12 @@ class ProfileTab extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(user.phoneNumber, textDirection: TextDirection.ltr, style: TextStyle(color: p.muted)),
                               const SizedBox(height: 6),
-                              Text('عضو منذ ${formatDate(user.createdAt)}', style: TextStyle(fontSize: 12, color: p.muted)),
+                              if (user.membershipNumber != null)
+                                Text(user.membershipNumber!,
+                                    textDirection: TextDirection.ltr,
+                                    style: TextStyle(fontSize: 12, color: p.brand, fontWeight: FontWeight.w800, letterSpacing: 0.5))
+                              else
+                                Text('عضو منذ ${formatDate(user.createdAt)}', style: TextStyle(fontSize: 12, color: p.muted)),
                             ],
                           ),
                         ),
@@ -99,6 +107,13 @@ class ProfileTab extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 22),
+                _label(context, 'حسابي'),
+                _Group(children: [
+                  _Item(icon: LucideIcons.idCard, tone: Tone.brand, label: 'بطاقة العضوية', onTap: () => pushPage(context, const MembershipCardScreen())),
+                  _Item(icon: LucideIcons.userPen, tone: Tone.info, label: 'تعديل بياناتي', onTap: () => pushPage(context, const EditProfileScreen())),
+                  _Item(icon: LucideIcons.keyRound, tone: Tone.gold, label: 'تغيير كلمة المرور', onTap: () => pushPage(context, const ChangePasswordScreen())),
+                ]),
                 const SizedBox(height: 22),
                 _label(context, 'نشاطي'),
                 _Group(children: [
@@ -118,6 +133,13 @@ class ProfileTab extends StatelessWidget {
                 _Group(children: [
                   _Item(icon: LucideIcons.logOut, tone: Tone.danger, label: 'تسجيل الخروج', danger: true, onTap: () => _logout(context)),
                 ]),
+                const SizedBox(height: 10),
+                Center(
+                  child: TextButton(
+                    onPressed: () => _deleteAccount(context),
+                    child: Text('حذف الحساب نهائياً', style: TextStyle(color: p.danger, fontSize: 13)),
+                  ),
+                ),
                 const SizedBox(height: 22),
                 Center(
                   child: Text('${AppConstants.appNameAr} • الإصدار 1.0.0', style: TextStyle(fontSize: 12, color: p.muted)),
@@ -128,6 +150,61 @@ class ProfileTab extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    final password = TextEditingController();
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(24, 0, 24, 28 + MediaQuery.of(ctx).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const IconBadge(LucideIcons.userX, tone: Tone.danger, size: 60),
+            const SizedBox(height: 14),
+            Text('حذف الحساب نهائياً؟', style: Theme.of(ctx).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'ستفقد نقاطك وقسائمك ولا يمكن التراجع. تُمسح بياناتك الشخصية وتبقى سجلات الفواتير بدون هويتك.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: ctx.palette.muted, height: 1.5),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: password,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'كلمة المرور للتأكيد', prefixIcon: Icon(LucideIcons.lock, size: 20)),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء'))),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('حذف الحساب'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    if (password.text.isEmpty) {
+      showMessage(context, 'أدخل كلمة المرور لتأكيد الحذف', error: true);
+      return;
+    }
+    try {
+      await Session.instance.deleteAccount(password.text);
+    } catch (e) {
+      if (context.mounted) showMessage(context, e.toString(), error: true);
+    }
   }
 
   Widget _label(BuildContext context, String text) => Padding(

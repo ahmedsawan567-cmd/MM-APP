@@ -66,6 +66,17 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateProfile({required String fullName, String? email, DateTime? birthDate, String? gender}) async {
+    _user = await LoyaltyApi.updateProfile(fullName: fullName, email: email, birthDate: birthDate, gender: gender);
+    notifyListeners();
+  }
+
+  /// حذف الحساب نهائياً (بعد التأكيد بكلمة المرور) ثم الخروج.
+  Future<void> deleteAccount(String password) async {
+    await LoyaltyApi.deleteAccount(password);
+    await logout();
+  }
+
   Future<void> logout() async {
     await _clear();
     _user = null;
