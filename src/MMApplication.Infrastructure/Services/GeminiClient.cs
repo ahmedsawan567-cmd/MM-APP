@@ -23,12 +23,15 @@ public class GeminiClient
 {
     public const string ProviderName = "Gemini";
     public const string DefaultModel = "gemini-flash-latest";
+    /// <summary>نموذج أخف بحصة مجانية أكبر، يُستخدم تلقائياً عند انتهاء حصة النموذج الأساسي.</summary>
+    public const string DefaultFallbackModel = "gemini-flash-lite-latest";
 
     private readonly HttpClient _http;
     private readonly ILogger _logger;
     private readonly string? _apiKey;
     private readonly string _baseUrl;
     private readonly string _configuredModel;
+    private readonly string? _fallbackModel;
 
     // النموذج الذي اكتُشف تلقائياً لكل (عنوان، مفتاح) — يُحفظ للطلبات التالية
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> Discovered = new();
@@ -41,6 +44,9 @@ public class GeminiClient
         _apiKey = KeyFrom(configuration);
         _baseUrl = (configuration["Gemini:BaseUrl"] is { Length: > 0 } b ? b : "https://generativelanguage.googleapis.com").TrimEnd('/');
         _configuredModel = configuration["Gemini:Model"] is { Length: > 0 } m ? m : DefaultModel;
+        // "none" لتعطيل التحويل التلقائي
+        var fallback = configuration["Gemini:FallbackModel"];
+        _fallbackModel = fallback == null ? DefaultFallbackModel : fallback is "" or "none" ? null : fallback;
         if (_http.Timeout > TimeSpan.FromSeconds(120)) _http.Timeout = TimeSpan.FromSeconds(120);
     }
 
@@ -95,8 +101,18 @@ public class GeminiClient
             {
                 _logger.LogWarning("Gemini: النموذج {Model} غير متاح؛ سيُستخدم {Found}.", model, found);
                 Discovered[CacheKey] = found;
+                model = found;
                 (status, json) = await PostAsync(found, body, ct);
             }
+        }
+
+        // انتهت حصة النموذج (الحصة المجانية لكل نموذج منفصلة): نجرب النموذج الأخف مرة واحدة
+        if (status == HttpStatusCode.TooManyRequests && _fallbackModel != null &&
+            !string.Equals(model, _fallbackModel, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Gemini: انتهت حصة {Model}؛ محاولة بالنموذج الأخف {Fallback}.", model, _fallbackModel);
+            var (s2, j2) = await PostAsync(_fallbackModel, body, ct);
+            if (s2 != HttpStatusCode.NotFound) { status = s2; json = j2; model = _fallbackModel; }
         }
 
         if (status != HttpStatusCode.OK) return Fail(status, json);
@@ -127,7 +143,7 @@ public class GeminiClient
         if (root.TryGetProperty("usageMetadata", out var usage))
         {
             _logger.LogInformation("Gemini {Model}: tokens in/out = {In}/{Out}",
-                Discovered.TryGetValue(CacheKey, out var used) ? used : _configuredModel,
+                model,
                 usage.TryGetProperty("promptTokenCount", out var pi) ? pi.GetInt32() : 0,
                 usage.TryGetProperty("candidatesTokenCount", out var co) ? co.GetInt32() : 0);
         }
@@ -222,7 +238,7 @@ public class GeminiClient
             (HttpStatusCode.NotFound, _, _) =>
                 "نموذج Gemini المحدد غير متاح لهذا المفتاح (تحقق من الإعداد Gemini:Model).",
             (HttpStatusCode.TooManyRequests, _, _) =>
-                "تجاوزت حصة Gemini المسموحة حالياً. انتظر قليلاً أو ارفع الحصة/فعّل الفوترة في Google AI Studio.",
+                "انتهت حصة Gemini المجانية مؤقتاً. ستُعاد قراءة الفاتورة تلقائياً بعد قليل.",
             ( >= HttpStatusCode.InternalServerError, _, _) =>
                 "خدمة Gemini غير متاحة مؤقتاً.",
             _ => "خطأ في طلب Gemini.",
@@ -326,19 +342,24 @@ public class GeminiReceiptOcrService : MMApplication.Application.Interfaces.IRec
             var result = await _gemini.GenerateJsonAsync(bytes, mime, ClaudeReceiptOcrService.SystemPrompt,
                 ClaudeReceiptOcrService.BuildUserPrompt(context), GeminiClient.ReceiptSchema());
             return result.Json == null
-                ? ManualReview(result.FailureReason ?? "تعذّرت القراءة الآلية.")
+                ? ManualReview(result.FailureReason ?? "تعذّرت القراءة الآلية.", result.Retryable)
                 : ClaudeReceiptOcrService.Parse(result.Json, context, GeminiClient.ProviderName);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            return ManualReview("تعذّر الاتصال بخدمة Gemini.");
+            return ManualReview("تعذّر الاتصال بخدمة Gemini.", retryable: true);
+        }
+        catch (JsonException)
+        {
+            return ManualReview("رد Gemini غير مفهوم.");
         }
     }
 
-    private static ExtractedReceiptDto ManualReview(string reason) => new()
+    private static ExtractedReceiptDto ManualReview(string reason, bool retryable = false) => new()
     {
         Provider = GeminiClient.ProviderName,
         RequiresManualReview = true,
+        Retryable = retryable,
         Confidence = 0,
         AuthenticityConcerns = [reason],
     };

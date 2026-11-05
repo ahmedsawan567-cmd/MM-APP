@@ -245,6 +245,7 @@ public class AdminDashboardController : Controller
             invoice.TotalAmount = result.TotalAmount ?? invoice.TotalAmount;
             invoice.TenantId = result.MatchedTenantId ?? invoice.TenantId;
             invoice.ConfidenceScore = (decimal)result.Confidence;
+            invoice.NextAiRetryAt = null;
         }
 
         var previous = ReceiptReviewPayload.TryParse(invoice.RawAiPayload)?.ReviewReasons ?? new List<string>();
@@ -304,10 +305,8 @@ public class AdminDashboardController : Controller
 
     private string? ResolveUploadPath(string? url)
     {
-        if (string.IsNullOrWhiteSpace(url) || _env?.WebRootPath == null || url.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return null;
-        var full = Path.GetFullPath(Path.Combine(_env.WebRootPath, url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
         // حماية من الخروج خارج مجلد wwwroot
-        return full.StartsWith(Path.GetFullPath(_env.WebRootPath), StringComparison.Ordinal) ? full : null;
+        return AiRetryService.ResolveUploadPath(_env?.WebRootPath, url);
     }
 
     // ----------------------------------------------------

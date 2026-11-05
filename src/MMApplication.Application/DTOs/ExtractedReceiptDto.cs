@@ -31,6 +31,9 @@ public class ExtractedReceiptDto
 
     /// <summary>true إذا تعذرت القراءة الآلية ويجب تحويل الفاتورة لمراجعة بشرية بدل رفضها.</summary>
     public bool RequiresManualReview { get; set; }
+
+    /// <summary>true إذا كان الفشل مؤقتاً (انتهاء الحصة المجانية، خدمة متوقفة) فتُعاد القراءة تلقائياً لاحقاً.</summary>
+    public bool Retryable { get; set; }
 }
 
 /// <summary>معلومات مساعدة لمحرك القراءة: قائمة متاجر المول ونوع الملف.</summary>

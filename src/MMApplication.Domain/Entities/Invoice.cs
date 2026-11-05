@@ -40,6 +40,11 @@ public class Invoice
     public decimal CashbackAwarded { get; set; } = 0.00m;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>عدد محاولات إعادة القراءة الآلية بعد فشل مؤقت (حصة Gemini المجانية مثلاً).</summary>
+    public int AiRetryCount { get; set; }
+    /// <summary>موعد إعادة القراءة الآلية التالية (null = لا إعادة).</summary>
+    public DateTime? NextAiRetryAt { get; set; }
+
     // Helper properties for backward compatibility
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public Guid Id { get => InvoiceId; set => InvoiceId = value; }

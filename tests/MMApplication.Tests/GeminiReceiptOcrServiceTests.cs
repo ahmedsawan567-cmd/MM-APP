@@ -124,6 +124,27 @@ public class GeminiReceiptOcrServiceTests
     }
 
     [Fact]
+    public async Task QuotaExhausted_FallsBackToLiteModel()
+    {
+        var (svc, handler) = Create((req, _) => req.RequestUri!.AbsolutePath.Contains("flash-lite")
+            ? (HttpStatusCode.OK, Answer(Receipt))
+            : (HttpStatusCode.TooManyRequests, """{"error":{"code":429,"message":"Quota exceeded","status":"RESOURCE_EXHAUSTED"}}"""));
+        var r = await svc.ExtractReceiptDataAsync(new MemoryStream(TinyPng), Context);
+        Assert.False(r.RequiresManualReview);
+        Assert.Equal(2, handler.Calls.Count);
+        Assert.Contains("gemini-flash-lite-latest", handler.Calls.Last().Request.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task QuotaExhaustedEverywhere_IsRetryable()
+    {
+        var (svc, _) = Create((_, _) => (HttpStatusCode.TooManyRequests, """{"error":{"code":429,"message":"Quota exceeded","status":"RESOURCE_EXHAUSTED"}}"""));
+        var r = await svc.ExtractReceiptDataAsync(new MemoryStream(TinyPng), Context);
+        Assert.True(r.RequiresManualReview);
+        Assert.True(r.Retryable);
+    }
+
+    [Fact]
     public async Task SafetyBlock_GoesToManualReview()
     {
         var (svc, _) = Create((_, _) => (HttpStatusCode.OK, Answer(Receipt, finish: "SAFETY")));

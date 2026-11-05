@@ -94,6 +94,9 @@ builder.Services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IFlexibleLoyaltyEvaluationService, FlexibleLoyaltyEvaluationService>();
 builder.Services.AddScoped<MMApplication.Api.Services.InvoiceReviewService>();
+// إعادة القراءة الآلية للفواتير بعد انتهاء حصة الذكاء الاصطناعي المجانية مؤقتاً
+if (!builder.Environment.IsEnvironment("Testing"))
+    builder.Services.AddHostedService<MMApplication.Api.Services.AiRetryService>();
 
 // 4. Authentication (Cookies for Web MVC Dashboard & JWT Bearer for Mobile API)
 var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "MM_Loyalty_Super_Secure_Secret_Key_2026_For_Development_And_Production_Tokens_Must_Be_Long!";
