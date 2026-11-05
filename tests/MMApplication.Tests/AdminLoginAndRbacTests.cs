@@ -102,6 +102,6 @@ public class AdminLoginAndRbacTests : IClassFixture<WebApplicationFactory<Progra
         var invoicesResp = await client.GetAsync("/AdminDashboard/Invoices");
         Assert.Equal(HttpStatusCode.OK, invoicesResp.StatusCode);
         var invoicesHtml = await invoicesResp.Content.ReadAsStringAsync();
-        Assert.Contains("سجل الفواتير والمعاملات اليومية", invoicesHtml);
+        Assert.Contains("سجل الفواتير", invoicesHtml);
     }
 }

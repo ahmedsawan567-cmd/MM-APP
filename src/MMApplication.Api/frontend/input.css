@@ -1,12 +1,12 @@
-/* خط Cairo محلياً (عربي + لاتيني) */
-@font-face { font-family: 'Cairo'; font-style: normal; font-display: swap; font-weight: 400; src: url('fonts/cairo-arabic-400-normal.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
-@font-face { font-family: 'Cairo'; font-style: normal; font-display: swap; font-weight: 600; src: url('fonts/cairo-arabic-600-normal.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
-@font-face { font-family: 'Cairo'; font-style: normal; font-display: swap; font-weight: 700; src: url('fonts/cairo-arabic-700-normal.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
-@font-face { font-family: 'Cairo'; font-style: normal; font-display: swap; font-weight: 800; src: url('fonts/cairo-arabic-800-normal.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
-@font-face { font-family: 'Cairo'; font-style: normal; font-display: swap; font-weight: 400; src: url('fonts/cairo-latin-400-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: 'Cairo'; font-style: normal; font-display: swap; font-weight: 600; src: url('fonts/cairo-latin-600-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: 'Cairo'; font-style: normal; font-display: swap; font-weight: 700; src: url('fonts/cairo-latin-700-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: 'Cairo'; font-style: normal; font-display: swap; font-weight: 800; src: url('fonts/cairo-latin-800-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+/* خط IBM Plex Sans Arabic محلياً (عربي + لاتيني) — رخصة SIL OFL: lib/fonts/OFL-IBM-Plex.txt */
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 400; src: url('fonts/plex-arabic-arabic-400.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC7, U+10EC9-10EEE, U+10EF0-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 400; src: url('fonts/plex-arabic-latin-400.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 500; src: url('fonts/plex-arabic-arabic-500.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC7, U+10EC9-10EEE, U+10EF0-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 500; src: url('fonts/plex-arabic-latin-500.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 600; src: url('fonts/plex-arabic-arabic-600.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC7, U+10EC9-10EEE, U+10EF0-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 600; src: url('fonts/plex-arabic-latin-600.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 700; src: url('fonts/plex-arabic-arabic-700.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC7, U+10EC9-10EEE, U+10EF0-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 700; src: url('fonts/plex-arabic-latin-700.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
 @tailwind base;
 @tailwind components;
@@ -78,8 +78,8 @@
     --chart-primary: 224 128 232;
   }
 
-  html { font-size: 14px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-  body { @apply bg-canvas text-ink font-sans antialiased; line-height: 1.55; }
+  html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  body { @apply bg-canvas text-ink font-sans antialiased; line-height: 1.6; }
   ::selection { background: rgb(var(--brand-100)); }
 
   /* انتقال ناعم عند تبديل الوضع (بدون التأثير على الحركات الأخرى) */
@@ -145,29 +145,29 @@
 
   /* البطاقات */
   .card { @apply bg-surface border border-line rounded-2xl shadow-card; }
-  .card-header { @apply flex items-center justify-between gap-3 px-5 py-4 border-b border-line; }
-  .card-title { @apply text-sm font-bold text-ink; }
-  .card-subtitle { @apply text-xs text-ink-3; }
-  .card-body { @apply p-5; }
+  .card-header { @apply flex items-center justify-between gap-3 px-6 py-4 border-b border-line; }
+  .card-title { @apply text-base font-bold text-ink; }
+  .card-subtitle { @apply text-sm text-ink-3; }
+  .card-body { @apply p-6; }
 
   /* ترويسة الصفحة */
-  .page-header { @apply flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between; }
-  .page-title { @apply text-xl font-extrabold tracking-tight text-ink; }
-  .page-subtitle { @apply text-sm text-ink-3 mt-0.5; }
+  .page-header { @apply flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-1; }
+  .page-title { @apply text-2xl font-bold text-ink; }
+  .page-subtitle { @apply text-sm text-ink-3 mt-1 max-w-3xl; }
   .page-actions { @apply flex flex-wrap items-center gap-2; }
 
   /* بطاقة مؤشر */
-  .stat-card { @apply bg-surface border border-line rounded-2xl p-5 shadow-card flex flex-col justify-between transition hover:border-slate-300; }
-  .stat-label { @apply text-xs font-semibold text-ink-3; }
-  .stat-value { @apply mt-2 text-2xl font-extrabold tracking-tight text-ink; }
-  .stat-meta { @apply mt-1 text-xs text-ink-3; }
+  .stat-card { @apply bg-surface border border-line rounded-2xl p-5 shadow-card flex flex-col justify-between; }
+  .stat-label { @apply text-sm font-medium text-ink-3; }
+  .stat-value { @apply mt-2 text-3xl font-bold text-ink; }
+  .stat-meta { @apply mt-1 text-sm text-ink-3; }
   .stat-icon { @apply w-10 h-10 rounded-xl flex items-center justify-center shrink-0; }
 
   /* الأزرار */
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-[13px] font-bold transition select-none whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none; }
-  .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; }
-  .btn-lg { @apply px-5 py-2.5 text-sm; }
-  .btn-icon { @apply inline-flex items-center justify-center w-9 h-9 rounded-xl text-ink-2 hover:bg-slate-100 hover:text-ink transition; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition select-none whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-sm { @apply px-3 py-1.5 text-sm rounded-lg; }
+  .btn-lg { @apply px-5 py-3 text-base; }
+  .btn-icon { @apply inline-flex items-center justify-center w-10 h-10 rounded-xl text-ink-2 hover:bg-slate-100 hover:text-ink transition; }
   .btn-primary { @apply btn bg-brand-700 text-white shadow-sm hover:bg-brand-800; }
   .btn-secondary { @apply btn bg-surface text-ink-2 border border-line shadow-sm hover:bg-slate-50 hover:text-ink; }
   .btn-ghost { @apply btn text-ink-2 hover:bg-slate-100 hover:text-ink; }
@@ -177,7 +177,7 @@
   .btn-dark { @apply btn bg-ink text-surface hover:opacity-90; }
 
   /* الشارات */
-  .badge { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 ring-inset whitespace-nowrap; }
+  .badge { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset whitespace-nowrap; }
   .badge-emerald { @apply bg-emerald-50 text-emerald-700 ring-emerald-200; }
   .badge-amber { @apply bg-amber-50 text-amber-700 ring-amber-200; }
   .badge-orange { @apply bg-orange-50 text-orange-700 ring-orange-200; }
@@ -189,36 +189,39 @@
   .dot { @apply w-1.5 h-1.5 rounded-full; }
 
   /* النماذج */
-  .form-label { @apply block text-xs font-semibold text-ink-2 mb-1.5; }
+  .form-label { @apply block text-sm font-medium text-ink-2 mb-1.5; }
   .form-input, .form-select, .form-textarea {
-    @apply block w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-slate-400
+    @apply block w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[0.9375rem] text-ink placeholder:text-slate-400
            shadow-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/15 disabled:bg-slate-50 disabled:text-ink-3;
   }
   .form-select { @apply pl-8 appearance-none bg-no-repeat; background-position: left .6rem center; background-size: 1rem;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e"); }
-  .form-hint { @apply mt-1 text-[11px] text-ink-3; }
+  .form-hint { @apply mt-1 text-xs text-ink-3; }
   .form-check { @apply w-4 h-4 rounded border-line text-brand-700 focus:ring-brand-600; }
 
   /* الجداول */
   .table-container { @apply overflow-x-auto rounded-2xl border border-line bg-surface; }
-  .data-table { @apply w-full text-right text-[13px]; border-collapse: separate; border-spacing: 0; }
-  .data-table thead th { @apply sticky top-0 z-[1] bg-surface-2 px-5 py-3 text-xs font-bold text-ink-3 whitespace-nowrap border-b border-line; }
-  .data-table td { @apply px-5 py-3.5 text-ink align-middle border-b border-line; }
+  .data-table { @apply w-full text-right text-sm; border-collapse: separate; border-spacing: 0; }
+  .data-table thead th { @apply sticky top-0 z-[1] bg-surface-2 px-5 py-3.5 text-[0.8125rem] font-semibold text-ink-3 whitespace-nowrap border-b border-line; }
+  .data-table td { @apply px-5 py-4 text-ink align-middle border-b border-line; }
   .data-table tbody tr { @apply transition-colors hover:bg-slate-50; }
   .data-table tbody tr:last-child td { @apply border-b-0; }
+  .data-table td :is(a, button) { @apply whitespace-nowrap; }
+  /* جدول داخل بطاقة: بدون إطار ثانٍ */
+  .card .table-container { @apply rounded-none border-0 border-t; }
 
   /* التبويبات */
   .tabs { @apply flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1; }
-  .tab { @apply shrink-0 inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-semibold text-ink-3 transition hover:text-ink; }
+  .tab { @apply shrink-0 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-ink-3 transition hover:text-ink; }
   .tab-active { @apply bg-surface text-ink shadow-sm; }
 
   /* النوافذ المنبثقة */
   .modal-overlay { @apply fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm; }
   [data-theme="dark"] .modal-overlay { background-color: rgb(0 0 0 / .6); }
   .modal-box { @apply relative w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col rounded-2xl bg-surface border border-line shadow-pop animate-fade-in; }
-  .modal-header { @apply flex items-center justify-between gap-3 px-5 py-4 border-b border-line; }
-  .modal-body { @apply p-5 overflow-y-auto space-y-4; }
-  .modal-footer { @apply flex items-center justify-end gap-2 px-5 py-4 border-t border-line bg-surface-2; }
+  .modal-header { @apply flex items-center justify-between gap-3 px-6 py-4 border-b border-line; }
+  .modal-body { @apply p-6 overflow-y-auto space-y-4; }
+  .modal-footer { @apply flex items-center justify-end gap-2 px-6 py-4 border-t border-line bg-surface-2; }
 
   /* حالات فارغة وهياكل التحميل */
   .empty-state { @apply flex flex-col items-center justify-center text-center gap-2 py-12 px-6 text-ink-3; }
@@ -228,13 +231,13 @@
     background: linear-gradient(90deg, transparent, rgb(var(--surface) / .6), transparent); animation: shimmer 1.4s infinite; }
 
   /* القائمة الجانبية */
-  .nav-section { @apply px-3 pt-5 pb-1.5 text-[11px] font-bold text-ink-3; }
-  .sidebar-link { @apply relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-semibold text-ink-2 transition hover:bg-slate-100 hover:text-ink; }
-  .sidebar-link > i, .sidebar-link > svg { @apply w-[18px] h-[18px] shrink-0 opacity-80; }
-  .sidebar-link.active { @apply bg-brand-50 text-brand-700; }
+  .nav-section { @apply px-3 pt-6 pb-2 text-xs font-semibold text-ink-3; }
+  .sidebar-link { @apply relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.9375rem] font-medium text-ink-2 transition hover:bg-slate-100 hover:text-ink; }
+  .sidebar-link > i, .sidebar-link > svg { @apply w-5 h-5 shrink-0 opacity-75; }
+  .sidebar-link.active { @apply bg-brand-50 text-brand-700 font-semibold; }
   .sidebar-link.active > svg { @apply opacity-100; }
   .sidebar-link.active::before { content: ""; @apply absolute -right-3 top-2 bottom-2 w-1 rounded-l-full bg-brand-600; }
-  .nav-count { @apply mr-auto min-w-[1.25rem] rounded-full bg-amber-100 px-1.5 text-center text-[11px] font-bold text-amber-800; }
+  .nav-count { @apply mr-auto min-w-[1.25rem] rounded-full bg-amber-100 px-1.5 text-center text-xs font-bold text-amber-800; }
 
   /* القائمة المنسدلة */
   .dropdown { @apply absolute z-40 mt-2 min-w-[14rem] rounded-2xl border border-line bg-surface p-1.5 shadow-pop animate-fade-in; }

@@ -1,7 +1,7 @@
 @model List<MMApplication.Application.DTOs.StoreSettlementDto>
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "التسويات المالية للمتاجر";
+    ViewData["Title"] = "التسويات المالية";
     ViewData["ActiveTab"] = "settlements";
     var totalAmount = Model.Sum(s => s.TotalRedemptionsValue);
     var pendingAmount = Model.Where(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Pending).Sum(s => s.NetPayableAmount);
@@ -12,20 +12,12 @@
 <div class="space-y-6">
 
     <!-- 1. Page Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+    <div class="page-header">
         <div>
-            <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center font-bold">
-                    <i data-lucide="wallet-cards" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <h1 class="text-base font-bold text-slate-900">التسويات والمستحقات المالية للمتاجر</h1>
-                    <p class="text-xs text-slate-500">إدارة ومراقبة التحويلات المالية للمتاجر، وعمليات المقاصة الدورية لبرامج الولاء والقسائم المستردة</p>
-                </div>
-            </div>
+            <h1 class="page-title">التسويات المالية</h1>
+            <p class="page-subtitle">مستحقات المتاجر من القسائم المستخدمة لديها</p>
         </div>
-
-        <div class="flex items-center gap-2.5">
+        <div class="page-actions">
             <button onclick="openModal('modal-generate-settlement')" class="btn-primary">
                 <i data-lucide="plus" class="w-4 h-4"></i>
                 <span>بدء دورة تسوية جديدة</span>
@@ -37,38 +29,38 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">إجمالي الكشوفات المسجلة</span>
+                <span class="text-sm font-medium text-slate-500">إجمالي الكشوفات المسجلة</span>
                 <i data-lucide="receipt" class="w-4 h-4 text-slate-500"></i>
             </div>
-            <div class="text-xl font-bold text-slate-900 num">@totalAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
-            <div class="text-[11px] text-slate-400 mt-1 font-mono">@Model.Count كشف تسوية مسجل</div>
+            <div class="text-2xl font-bold text-slate-900 num">@totalAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-xs text-slate-400 mt-1">@Model.Count كشف تسوية مسجل</div>
         </div>
 
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">مستحقات بانتظار الصرف</span>
+                <span class="text-sm font-medium text-slate-500">مستحقات بانتظار الصرف</span>
                 <i data-lucide="clock" class="w-4 h-4 text-amber-500"></i>
             </div>
-            <div class="text-xl font-bold text-amber-600 num">@pendingAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
-            <div class="text-[11px] text-amber-700 mt-1 font-mono">@Model.Count(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Pending) عملية قيد المراجعة</div>
+            <div class="text-2xl font-bold text-amber-600 num">@pendingAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-xs text-amber-700 mt-1">@Model.Count(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Pending) عملية قيد المراجعة</div>
         </div>
 
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">تم صرفها وتسويتها</span>
+                <span class="text-sm font-medium text-slate-500">تم صرفها وتسويتها</span>
                 <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
             </div>
-            <div class="text-xl font-bold text-emerald-600 num">@settledAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
-            <div class="text-[11px] text-emerald-700 mt-1 font-mono">@Model.Count(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Settled) دورة مكتملة</div>
+            <div class="text-2xl font-bold text-emerald-600 num">@settledAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-xs text-emerald-700 mt-1">@Model.Count(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Settled) دورة مكتملة</div>
         </div>
 
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">عمولة إدارة المول</span>
+                <span class="text-sm font-medium text-slate-500">عمولة إدارة المول</span>
                 <i data-lucide="percent" class="w-4 h-4 text-brand-500"></i>
             </div>
-            <div class="text-xl font-bold text-slate-900 num">@commissionTotal.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
-            <div class="text-[11px] text-slate-400 mt-1">رسوم تشغيل المنظومة</div>
+            <div class="text-2xl font-bold text-slate-900 num">@commissionTotal.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-xs text-slate-400 mt-1">رسوم تشغيل المنظومة</div>
         </div>
     </div>
 
@@ -77,8 +69,8 @@
         
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
-                <h2 class="text-xs font-bold text-slate-900">سجل كشوفات التسويات والمقاصة المالية</h2>
-                <p class="text-[11px] text-slate-400">عرض وتتبع واعتماد حركات التسوية المالية للمتاجر داخل المركز التجاري</p>
+                <h2 class="text-base font-bold text-slate-900">سجل كشوفات التسويات والمقاصة المالية</h2>
+                <p class="text-xs text-slate-400">عرض وتتبع واعتماد حركات التسوية المالية للمتاجر داخل المركز التجاري</p>
             </div>
         </div>
 
@@ -86,12 +78,11 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>رقم الكشف</th>
                         <th>المتجر</th>
                         <th>الفترة المالية</th>
                         <th>القيمة الإجمالية</th>
                         <th>عمولة المول</th>
-                        <th>صافي المستحق للمتجر</th>
+                        <th>المستحق للمتجر</th>
                         <th>الحالة</th>
                         <th class="text-center">الإجراءات</th>
                     </tr>
@@ -100,7 +91,7 @@
                     @if (Model.Count == 0)
                     {
                         <tr>
-                            <td colspan="8" class="p-8 text-center text-slate-400">
+                            <td colspan="7" class="p-8 text-center text-slate-400">
                                 <i data-lucide="receipt" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
                                 <span>لا توجد كشوفات تسوية مسجلة حالياً. اضغط "بدء دورة تسوية جديدة" لتوليد الكشوفات.</span>
                             </td>
@@ -110,14 +101,11 @@
                     {
                         <tr>
                             <td>
-                                <span class="badge badge-slate num font-mono font-bold">SET-@s.Id.ToString()[..8].ToUpper()</span>
+                                <div class="font-semibold text-slate-900">@s.StoreName</div>
+                                <div class="text-xs text-slate-500 num">SET-@s.Id.ToString()[..8].ToUpper()</div>
                             </td>
                             <td>
-                                <div class="font-bold text-slate-900 text-xs">@s.StoreName</div>
-                                <div class="text-[10px] text-slate-400 font-mono">@s.StoreTenantId</div>
-                            </td>
-                            <td>
-                                <span class="num text-slate-600 text-xs">@s.PeriodLabel</span>
+                                <span class="text-slate-600 text-sm whitespace-nowrap">@s.PeriodLabel</span>
                             </td>
                             <td>
                                 <span class="num font-bold text-slate-900 text-xs">@s.TotalRedemptionsValue.ToString("N2") د.ل</span>
@@ -170,7 +158,7 @@
 <div id="modal-generate-settlement" class="fixed inset-0 z-50 modal-overlay hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 space-y-4">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h3 class="text-sm font-bold text-slate-900">توليد واعتماد دورة مقاصة جديدة</h3>
+            <h3 class="text-base font-bold text-slate-900">توليد واعتماد دورة مقاصة جديدة</h3>
             <button onclick="closeModal('modal-generate-settlement')" class="text-slate-400 hover:text-slate-600">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -187,7 +175,7 @@
                     <input type="date" id="settle-end-date" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
                 </div>
             </div>
-            <p class="text-[11px] text-slate-500 leading-relaxed">
+            <p class="text-sm text-slate-500 leading-relaxed">
                 يُحسب لكل متجر مجموع قيمة القسائم التي استُخدمت فيه فعلاً خلال الفترة، وتُخصم عمولة المول حسب نسبة المتجر (من صفحة المتاجر).
                 الفترات التي سبق توليد تسوية لها لا تتكرر.
             </p>

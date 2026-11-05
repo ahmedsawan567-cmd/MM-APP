@@ -8,28 +8,25 @@
 <div class="space-y-5">
 
     <!-- الترويسة -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-gold-50 text-gold-700 flex items-center justify-center">
-                <i data-lucide="gift" class="w-5 h-5"></i>
-            </div>
-            <div>
-                <h1 class="text-base font-bold text-slate-900">المكافآت والقسائم</h1>
-                <p class="text-xs text-slate-500">ما يستبدل به العملاء نقاطهم في التطبيق، والتحقق من قسائم الخصم عند الدفع</p>
-            </div>
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">المكافآت والقسائم</h1>
+            <p class="page-subtitle">ما يستبدل به العملاء نقاطهم، والتحقق من القسائم عند الدفع</p>
         </div>
-        @if (Model.CanManage)
+        <div class="page-actions">
+            @if (Model.CanManage)
         {
             <button type="button" onclick="openEditor()" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold">
                 <i data-lucide="plus" class="w-4 h-4"></i> مكافأة جديدة
             </button>
         }
+        </div>
     </div>
 
     <!-- التحقق من قسيمة -->
     <div class="bg-white rounded-2xl border border-slate-200 p-5">
-        <h2 class="text-sm font-bold text-slate-900">التحقق من قسيمة عميل</h2>
-        <p class="text-xs text-slate-500">اكتب الكود الذي يظهر في تطبيق العميل (مثل MM-AB12CD)</p>
+        <h2 class="text-base font-bold text-slate-900">التحقق من قسيمة عميل</h2>
+        <p class="text-sm text-slate-500">اكتب الكود الذي يظهر في تطبيق العميل (مثل MM-AB12CD)</p>
         <form class="mt-3 flex flex-col sm:flex-row gap-2" onsubmit="lookupVoucher(); return false">
             <input id="v-code" dir="ltr" autocomplete="off" placeholder="MM-XXXXXX"
                    class="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-lg font-bold tracking-widest uppercase" />
@@ -60,24 +57,24 @@
                             <h3 class="font-bold text-slate-900">@r.Title</h3>
                             @if (!r.IsActive)
                             {
-                                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">موقوفة</span>
+                                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">موقوفة</span>
                             }
                             else if (expired)
                             {
-                                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700">انتهى العرض</span>
+                                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700">انتهى العرض</span>
                             }
                             else if (outOfStock)
                             {
-                                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">نفدت الكمية</span>
+                                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700">نفدت الكمية</span>
                             }
                             else
                             {
-                                <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">متاحة</span>
+                                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700">متاحة</span>
                             }
                         </div>
                         @if (!string.IsNullOrEmpty(r.MerchantName))
                         {
-                            <p class="text-xs text-slate-500 mt-0.5">@r.MerchantName</p>
+                            <p class="text-sm text-slate-500 mt-0.5">@r.MerchantName</p>
                         }
                         <p class="text-xs text-slate-600 mt-2 line-clamp-2">@r.Description</p>
 
@@ -90,12 +87,12 @@
                         </div>
 
                         <div class="mt-3 grid grid-cols-3 gap-2 text-center">
-                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@r.Redemptions</div><div class="text-[10px] text-slate-500">استبدال</div></div>
-                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@r.UsedVouchers</div><div class="text-[10px] text-slate-500">مستخدمة</div></div>
-                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@(r.StockQuantity?.ToString() ?? "∞")</div><div class="text-[10px] text-slate-500">المتبقي</div></div>
+                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@r.Redemptions</div><div class="text-xs text-slate-500">استبدال</div></div>
+                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@r.UsedVouchers</div><div class="text-xs text-slate-500">مستخدمة</div></div>
+                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@(r.StockQuantity?.ToString() ?? "∞")</div><div class="text-xs text-slate-500">المتبقي</div></div>
                         </div>
 
-                        <p class="text-[11px] text-slate-500 mt-3">
+                        <p class="text-sm text-slate-500 mt-3">
                             القسيمة صالحة @r.ValidityDays يوم بعد الاستبدال
                             @if (r.ValidUntil.HasValue) { <span>• العرض حتى @r.ValidUntil.Value.ToString("yyyy/MM/dd")</span> }
                         </p>

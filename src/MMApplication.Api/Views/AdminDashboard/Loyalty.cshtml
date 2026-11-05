@@ -1,27 +1,19 @@
 @model MMApplication.Api.ViewModels.LoyaltyPageViewModel
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "برنامج ولاء المول وقواعد النقاط";
+    ViewData["Title"] = "قواعد النقاط";
     ViewData["ActiveTab"] = "loyalty";
 }
 
 <div class="space-y-6">
 
     <!-- 1. Page Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+    <div class="page-header">
         <div>
-            <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-                    <i data-lucide="award" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <h1 class="text-base font-bold text-slate-900">محرك قواعد الولاء والنقاط الذكي</h1>
-                    <p class="text-xs text-slate-500">إدارة أنماط احتساب النقاط، محفزات الأصناف (SKU)، حملات المضاعفة، ومستويات عضوية الزوار</p>
-                </div>
-            </div>
+            <h1 class="page-title">قواعد النقاط</h1>
+            <p class="page-subtitle">كيف تُحتسب النقاط لكل متجر، وحملات المضاعفة ومكافآت الأصناف</p>
         </div>
-
-        <div class="flex items-center gap-2.5">
+        <div class="page-actions">
             <button onclick="openModal('modal-add-earning-rule')" class="btn-secondary">
                 <i data-lucide="sliders-horizontal" class="w-4 h-4 text-purple-600"></i>
                 <span>قاعدة احتساب جديدة</span>
@@ -37,11 +29,11 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">الحملات الترويجية</span>
+                <span class="text-sm font-medium text-slate-500">الحملات الترويجية</span>
                 <i data-lucide="sparkles" class="w-4 h-4 text-purple-500"></i>
             </div>
-            <div class="text-xl font-bold text-slate-900 num">@Model.Campaigns.Count</div>
-            <div class="text-[11px] text-emerald-700 mt-1 flex items-center gap-1 font-medium">
+            <div class="text-2xl font-bold text-slate-900 num">@Model.Campaigns.Count</div>
+            <div class="text-xs text-emerald-700 mt-1 flex items-center gap-1 font-medium">
                 <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 <span>@Model.Campaigns.Count(c => c.IsActive) حملات نشطة حالياً</span>
             </div>
@@ -49,29 +41,29 @@
 
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">معدل الاكتساب الأساسي</span>
+                <span class="text-sm font-medium text-slate-500">معدل الاكتساب الأساسي</span>
                 <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
             </div>
-            <div class="text-xl font-bold text-slate-900 num">@Model.Rules.DinarsPerPoint <span class="text-xs font-sans font-normal text-slate-500">د.ل / نقطة</span></div>
-            <div class="text-[11px] text-slate-400 mt-1">1 نقطة لكل @Model.Rules.DinarsPerPoint د.ل مشتريات</div>
+            <div class="text-2xl font-bold text-slate-900 num">@Model.Rules.DinarsPerPoint <span class="text-xs font-sans font-normal text-slate-500">د.ل / نقطة</span></div>
+            <div class="text-xs text-slate-400 mt-1">1 نقطة لكل @Model.Rules.DinarsPerPoint د.ل مشتريات</div>
         </div>
 
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">قيمة استبدال النقطة</span>
+                <span class="text-sm font-medium text-slate-500">قيمة استبدال النقطة</span>
                 <i data-lucide="banknote" class="w-4 h-4 text-emerald-500"></i>
             </div>
-            <div class="text-xl font-bold text-emerald-600 num">@Model.Rules.PointRedemptionValueDinars <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
-            <div class="text-[11px] text-slate-400 mt-1">100 نقطة = @(Model.Rules.PointRedemptionValueDinars * 100) د.ل</div>
+            <div class="text-2xl font-bold text-emerald-600 num">@Model.Rules.PointRedemptionValueDinars <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
+            <div class="text-xs text-slate-400 mt-1">100 نقطة = @(Model.Rules.PointRedemptionValueDinars * 100) د.ل</div>
         </div>
 
         <div class="stat-card">
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">مضاعف الفئة البلاتينية</span>
+                <span class="text-sm font-medium text-slate-500">مضاعف الفئة البلاتينية</span>
                 <i data-lucide="crown" class="w-4 h-4 text-purple-600"></i>
             </div>
-            <div class="text-xl font-bold text-purple-600 num">@(Model.Rules.PlatinumMultiplier)x</div>
-            <div class="text-[11px] text-purple-700 mt-1 font-medium">أعضاء النخبة VIP</div>
+            <div class="text-2xl font-bold text-purple-600 num">@(Model.Rules.PlatinumMultiplier)x</div>
+            <div class="text-xs text-purple-700 mt-1 font-medium">أعضاء النخبة VIP</div>
         </div>
     </div>
 
@@ -80,17 +72,17 @@
         <button class="segmented-tab active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-ink text-surface shadow-xs" onclick="switchLoyaltyTab('earning-rules', this)">
             <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
             <span>قواعد احتساب النقاط</span>
-            <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-surface">@(Model.EarningRules?.Count ?? 0)</span>
+            <span class="px-1.5 py-0.5 rounded-full text-xs bg-white/20 text-surface">@(Model.EarningRules?.Count ?? 0)</span>
         </button>
         <button class="segmented-tab px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100" onclick="switchLoyaltyTab('sku-boosters', this)">
             <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i>
             <span>محفزات الأصناف والـ SKU</span>
-            <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600">@(Model.Boosters?.Count ?? 0)</span>
+            <span class="px-1.5 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">@(Model.Boosters?.Count ?? 0)</span>
         </button>
         <button class="segmented-tab px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100" onclick="switchLoyaltyTab('campaigns', this)">
             <i data-lucide="sparkles" class="w-3.5 h-3.5 text-purple-500"></i>
             <span>حملات المضاعفة</span>
-            <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600">@Model.Campaigns.Count</span>
+            <span class="px-1.5 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">@Model.Campaigns.Count</span>
         </button>
         <button class="segmented-tab px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100" onclick="switchLoyaltyTab('general-rules', this)">
             <i data-lucide="settings-2" class="w-3.5 h-3.5 text-slate-500"></i>
@@ -103,8 +95,8 @@
         <div class="card overflow-hidden">
             <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
                 <div>
-                    <h3 class="text-sm font-bold text-slate-900">محرك احتساب النقاط المرن (Flexible Earning Engine)</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">أنماط احتساب النقاط: نقطة ثابتة لكل فاتورة، نسبة الإنفاق، بونص الأصناف، أو النظام الهجين</p>
+                    <h3 class="text-base font-bold text-slate-900">محرك احتساب النقاط المرن</h3>
+                    <p class="text-sm text-slate-500 mt-0.5">أنماط احتساب النقاط: نقطة ثابتة لكل فاتورة، نسبة الإنفاق، بونص الأصناف، أو النظام الهجين</p>
                 </div>
                 <button onclick="openModal('modal-add-earning-rule')" class="btn-primary">
                     <i data-lucide="plus" class="w-3.5 h-3.5"></i>
@@ -120,7 +112,7 @@
                             <th>نمط الاحتساب</th>
                             <th>المعايير المحددة</th>
                             <th>الحد الأدنى للفاتورة</th>
-                            <th>سقف النقاط (Cap)</th>
+                            <th>سقف النقاط</th>
                             <th>الحالة</th>
                             <th class="text-left">الإجراءات</th>
                         </tr>
@@ -165,7 +157,7 @@
                                                 break;
                                             case "ITEM_BOOSTER":
                                                 <span class="badge badge-purple">
-                                                    <i data-lucide="zap" class="w-3 h-3"></i> بونص الأصناف (SKU)
+                                                    <i data-lucide="zap" class="w-3 h-3"></i> بونص الأصناف
                                                 </span>
                                                 break;
                                             case "HYBRID":
@@ -245,8 +237,8 @@
         <div class="card overflow-hidden">
             <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
                 <div>
-                    <h3 class="text-sm font-bold text-slate-900">محفزات الأصناف والماركات التجارية (SKU & Brand Boosters)</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">مكافآت نقاط إضافية وتلقائية عند شراء ماركة معينة أو أصناف محددة مستخرجة بالـ OCR</p>
+                    <h3 class="text-base font-bold text-slate-900">محفزات الأصناف والماركات التجارية</h3>
+                    <p class="text-sm text-slate-500 mt-0.5">مكافآت نقاط إضافية وتلقائية عند شراء ماركة معينة أو أصناف محددة تظهر في الفاتورة</p>
                 </div>
                 <button onclick="openModal('modal-add-booster')" class="btn-primary">
                     <i data-lucide="plus" class="w-3.5 h-3.5"></i>
@@ -287,7 +279,7 @@
                                 <tr>
                                     <td>
                                         <div class="font-bold text-slate-900">@b.RuleName</div>
-                                        <div class="text-xs text-slate-500 font-mono mt-0.5">الهدف: @b.TargetValue</div>
+                                        <div class="text-xs text-slate-500 mt-0.5">الهدف: @b.TargetValue</div>
                                     </td>
                                     <td>
                                         <span class="badge badge-slate">@b.TargetType</span>
@@ -348,8 +340,8 @@
         <div class="card overflow-hidden">
             <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
                 <div>
-                    <h3 class="text-sm font-bold text-slate-900">حملات مضاعفة النقاط الترويجية (Loyalty Campaigns)</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">إدارة حملات مضاعفة النقاط المؤقتة للمول والفعاليات التسويقية ومواسم التخفيضات</p>
+                    <h3 class="text-base font-bold text-slate-900">حملات مضاعفة النقاط الترويجية</h3>
+                    <p class="text-sm text-slate-500 mt-0.5">إدارة حملات مضاعفة النقاط المؤقتة للمول والفعاليات التسويقية ومواسم التخفيضات</p>
                 </div>
                 <button onclick="openModal('modal-add-campaign')" class="btn-primary">
                     <i data-lucide="plus" class="w-3.5 h-3.5"></i>
@@ -438,8 +430,8 @@
         <div class="card p-6">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-100 mb-6">
                 <div>
-                    <h3 class="text-sm font-bold text-slate-900">إعدادات ومستويات برنامج الولاء العام للمول</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">حدد معدل تحويل الدينار إلى نقاط، وقيمة الاستبدال المالي ومضاعفات مستويات العضوية (Tier Multipliers)</p>
+                    <h3 class="text-base font-bold text-slate-900">إعدادات ومستويات برنامج الولاء العام للمول</h3>
+                    <p class="text-sm text-slate-500 mt-0.5">حدد معدل تحويل الدينار إلى نقاط، وقيمة الاستبدال المالي ومضاعفات مستويات العضوية</p>
                 </div>
                 <button onclick="saveLoyaltyRules()" class="btn-primary">
                     <i data-lucide="save" class="w-4 h-4"></i>
@@ -451,25 +443,25 @@
                 <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
                     <label class="form-label font-bold text-slate-800">دينار لكل 1 نقطة:</label>
                     <input type="number" step="0.5" id="rule-dinars-per-point" value="@Model.Rules.DinarsPerPoint" class="form-input font-bold num">
-                    <p class="text-[11px] text-slate-500">مثال: 10 د.ل مشتريات = 1 نقطة</p>
+                    <p class="text-sm text-slate-500">مثال: 10 د.ل مشتريات = 1 نقطة</p>
                 </div>
 
                 <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
                     <label class="form-label font-bold text-slate-800">قيمة النقطة عند الاستبدال (د.ل):</label>
                     <input type="number" step="0.05" id="rule-redemption-val" value="@Model.Rules.PointRedemptionValueDinars" class="form-input font-bold text-emerald-600 num">
-                    <p class="text-[11px] text-slate-500">مثال: 0.50 د.ل لكل نقطة في المحفظة</p>
+                    <p class="text-sm text-slate-500">مثال: 0.50 د.ل لكل نقطة في المحفظة</p>
                 </div>
 
                 <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-                    <label class="form-label font-bold text-slate-800">مضاعف الفئة الفضية (Silver):</label>
+                    <label class="form-label font-bold text-slate-800">مضاعف الفئة الفضية:</label>
                     <input type="number" step="0.05" id="rule-silver-mult" value="@Model.Rules.SilverMultiplier" class="form-input font-bold text-slate-700 num">
-                    <p class="text-[11px] text-slate-500">مكافأة تلقائية لأعضاء الفئة الفضية</p>
+                    <p class="text-sm text-slate-500">مكافأة تلقائية لأعضاء الفئة الفضية</p>
                 </div>
 
                 <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-                    <label class="form-label font-bold text-slate-800">مضاعف الفئة الذهبية (Gold):</label>
+                    <label class="form-label font-bold text-slate-800">مضاعف الفئة الذهبية:</label>
                     <input type="number" step="0.05" id="rule-gold-mult" value="@Model.Rules.GoldMultiplier" class="form-input font-bold text-amber-600 num">
-                    <p class="text-[11px] text-slate-500">مكافأة تلقائية لأعضاء الفئة الذهبية</p>
+                    <p class="text-sm text-slate-500">مكافأة تلقائية لأعضاء الفئة الذهبية</p>
                 </div>
             </div>
         </div>
@@ -513,9 +505,9 @@
             <div>
                 <label class="form-label">نمط احتساب النقاط:</label>
                 <select id="earning-calc-type" onchange="onEarningModeChange('earning')" class="form-select">
-                    <option value="SPEND_RATIO">النمط الثاني: النقاط حسب إجمالي المبلغ (Spend-Based)</option>
-                    <option value="FIXED_PER_INVOICE">النمط الأول: نقطة ثابتة لكل فاتورة / زيارة (Flat Visit Reward)</option>
-                    <option value="ITEM_BOOSTER">النمط الثالث: بونص الأصناف المحددة (Item / SKU Booster)</option>
+                    <option value="SPEND_RATIO">النمط الثاني: النقاط حسب إجمالي المبلغ</option>
+                    <option value="FIXED_PER_INVOICE">النمط الأول: نقطة ثابتة لكل فاتورة / زيارة</option>
+                    <option value="ITEM_BOOSTER">النمط الثالث: بونص الأصناف المحددة</option>
                     <option value="HYBRID">النمط الرابع: النظام الهجين المدمج (Hybrid: زيارة + إنفاق + أصناف)</option>
                 </select>
             </div>
@@ -523,7 +515,7 @@
             <div id="earning-box-fixed" class="hidden p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                 <label class="form-label text-slate-800">النقاط الثابتة لكل فاتورة / زيارة:</label>
                 <input type="number" id="earning-fixed-pts" value="5" class="form-input font-bold num">
-                <p class="text-[11px] text-slate-500">يحصل العميل على هذا الرصيد الثابت فور اعتماد الفاتورة بغض النظر عن قيمتها.</p>
+                <p class="text-sm text-slate-500">يحصل العميل على هذا الرصيد الثابت فور اعتماد الفاتورة بغض النظر عن قيمتها.</p>
             </div>
 
             <div id="earning-box-spend" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
@@ -549,7 +541,7 @@
                     <input type="number" id="earning-min-spend" value="0" class="form-input num">
                 </div>
                 <div>
-                    <label class="form-label">سقف النقاط الأقصى للفاتورة (Cap):</label>
+                    <label class="form-label">سقف النقاط الأقصى للفاتورة:</label>
                     <input type="number" id="earning-max-cap" placeholder="غير محدود" class="form-input num">
                 </div>
             </div>
@@ -596,9 +588,9 @@
             <div>
                 <label class="form-label">نمط احتساب النقاط:</label>
                 <select id="edit-earning-calc-type" onchange="onEarningModeChange('edit-earning')" class="form-select">
-                    <option value="SPEND_RATIO">النمط الثاني: النقاط حسب إجمالي المبلغ (Spend-Based)</option>
-                    <option value="FIXED_PER_INVOICE">النمط الأول: نقطة ثابتة لكل فاتورة / زيارة (Flat Visit Reward)</option>
-                    <option value="ITEM_BOOSTER">النمط الثالث: بونص الأصناف المحددة (Item / SKU Booster)</option>
+                    <option value="SPEND_RATIO">النمط الثاني: النقاط حسب إجمالي المبلغ</option>
+                    <option value="FIXED_PER_INVOICE">النمط الأول: نقطة ثابتة لكل فاتورة / زيارة</option>
+                    <option value="ITEM_BOOSTER">النمط الثالث: بونص الأصناف المحددة</option>
                     <option value="HYBRID">النمط الرابع: النظام الهجين المدمج (Hybrid: زيارة + إنفاق + أصناف)</option>
                 </select>
             </div>
@@ -619,7 +611,7 @@
                     <input type="number" id="edit-earning-min-spend" class="form-input num">
                 </div>
                 <div>
-                    <label class="form-label">سقف النقاط الأقصى للفاتورة (Cap):</label>
+                    <label class="form-label">سقف النقاط الأقصى للفاتورة:</label>
                     <input type="number" id="edit-earning-max-cap" class="form-input num">
                 </div>
             </div>
@@ -767,14 +759,14 @@
                 <div>
                     <label class="form-label">نوع الاستهداف:</label>
                     <select id="booster-type" class="form-select">
-                        <option value="Brand">ماركة تجارية (Brand)</option>
-                        <option value="SKU">باركود الصنف (SKU)</option>
-                        <option value="ItemName">اسم الصنف بالـ OCR</option>
+                        <option value="Brand">ماركة تجارية</option>
+                        <option value="SKU">باركود الصنف</option>
+                        <option value="ItemName">اسم الصنف في الفاتورة</option>
                     </select>
                 </div>
                 <div>
                     <label class="form-label">الكلمة أو الباركود المستهدف:</label>
-                    <input type="text" id="booster-value" placeholder="مثال: Dior أو 619123456" class="form-input font-mono">
+                    <input type="text" id="booster-value" placeholder="مثال: Dior أو 619123456" class="form-input">
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
@@ -838,14 +830,14 @@
                 <div>
                     <label class="form-label">نوع الاستهداف:</label>
                     <select id="edit-booster-type" class="form-select">
-                        <option value="Brand">ماركة تجارية (Brand)</option>
-                        <option value="SKU">باركود الصنف (SKU)</option>
-                        <option value="ItemName">اسم الصنف بالـ OCR</option>
+                        <option value="Brand">ماركة تجارية</option>
+                        <option value="SKU">باركود الصنف</option>
+                        <option value="ItemName">اسم الصنف في الفاتورة</option>
                     </select>
                 </div>
                 <div>
                     <label class="form-label">الكلمة أو الباركود المستهدف:</label>
-                    <input type="text" id="edit-booster-value" class="form-input font-mono">
+                    <input type="text" id="edit-booster-value" class="form-input">
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-3">

@@ -67,7 +67,7 @@
       const axis = MM.color('chart-axis');
       return Object.assign({}, options, {
         theme: { mode: MM.isDark() ? 'dark' : 'light' },
-        chart: Object.assign({ fontFamily: 'Cairo, sans-serif', toolbar: { show: false }, background: 'transparent', foreColor: axis }, options.chart || {}),
+        chart: Object.assign({ fontFamily: '"IBM Plex Sans Arabic", sans-serif', toolbar: { show: false }, background: 'transparent', foreColor: axis }, options.chart || {}),
         grid: Object.assign({ borderColor: MM.color('chart-grid'), strokeDashArray: 0 }, options.grid || {}),
         xaxis: Object.assign({}, options.xaxis || {}, {
           labels: Object.assign({ style: { colors: axis, fontSize: '11px' } }, (options.xaxis || {}).labels || {}),

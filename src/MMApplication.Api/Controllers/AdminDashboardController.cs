@@ -1200,7 +1200,7 @@ public class AdminDashboardController : Controller
         };
 
         ViewData["ActiveTab"] = "invoices";
-        ViewData["Title"] = "سجل الفواتير والمعاملات (Invoices Log)";
+        ViewData["Title"] = "سجل الفواتير والمعاملات";
         return View(viewModel);
     }
 
@@ -1420,7 +1420,7 @@ public class AdminDashboardController : Controller
         };
 
         ViewData["ActiveTab"] = "fraud";
-        ViewData["Title"] = "مركز مكافحة الاحتيال والتدقيق (Fraud & Review Hub)";
+        ViewData["Title"] = "مركز مكافحة الاحتيال والتدقيق";
         return View(viewModel);
     }
 
@@ -1460,7 +1460,7 @@ public class AdminDashboardController : Controller
         }).ToList();
 
         ViewData["ActiveTab"] = "ads";
-        ViewData["Title"] = "الإعلانات والعروض الترويجية (Ads & Offers Hub)";
+        ViewData["Title"] = "الإعلانات والعروض الترويجية";
         return View(dtos);
     }
 
@@ -1575,7 +1575,7 @@ public class AdminDashboardController : Controller
         };
 
         ViewData["ActiveTab"] = "loyalty";
-        ViewData["Title"] = IsStoreManager ? "قواعد كاش باك وبونص المتجر" : "برنامج ولاء المول العام (Mall-Wide Loyalty)";
+        ViewData["Title"] = IsStoreManager ? "قواعد كاش باك وبونص المتجر" : "برنامج ولاء المول العام";
         return View(viewModel);
     }
 
@@ -1605,7 +1605,7 @@ public class AdminDashboardController : Controller
             Id = s.SettlementId,
             StoreTenantId = s.TenantId,
             StoreName = s.Tenant != null ? s.Tenant.NameAr : "متجر غير معروف",
-            PeriodLabel = $"{s.PeriodStartDate:yyyy/MM/dd} - {s.PeriodEndDate:yyyy/MM/dd}",
+            PeriodLabel = $"{s.PeriodStartDate:yyyy/MM/dd} ← {s.PeriodEndDate:MM/dd}",
             PeriodStart = s.PeriodStartDate,
             PeriodEnd = s.PeriodEndDate,
             RedemptionsCount = 1,
@@ -1618,7 +1618,7 @@ public class AdminDashboardController : Controller
         }).ToList();
 
         ViewData["ActiveTab"] = "settlements";
-        ViewData["Title"] = IsStoreManager ? "مستحقات وتسويات متجري المالية" : "التسويات والمقاصة المالية للمتاجر (Settlements & Clearing)";
+        ViewData["Title"] = IsStoreManager ? "مستحقات وتسويات متجري المالية" : "التسويات والمقاصة المالية للمتاجر";
         return View(dtos);
     }
 
@@ -1683,7 +1683,7 @@ public class AdminDashboardController : Controller
         ViewData["ActiveTab"] = "customers";
         ViewData["CanEditCustomers"] = IsDeveloperOrSuperAdmin || IsAuditor;
         ViewData["IsSuperAdmin"] = IsDeveloperOrSuperAdmin;
-        ViewData["Title"] = "قاعدة بيانات العملاء والمتسوقين (Customer Database)";
+        ViewData["Title"] = "قاعدة بيانات العملاء والمتسوقين";
         ViewData["TierFilter"] = tier ?? "ALL";
         ViewData["SearchQuery"] = search ?? "";
         return View(dtos);
@@ -1912,10 +1912,10 @@ public class AdminDashboardController : Controller
             },
             StaffRoleLabel = s.Role switch
             {
-                SystemUserRole.SUPER_ADMIN => "المدير العام (Super Admin)",
-                SystemUserRole.FRAUD_AUDITOR => "مدقق فواتير (Fraud Auditor)",
-                SystemUserRole.STORE_MANAGER => "مدير فرع (Store Manager)",
-                SystemUserRole.CASHIER => "كاشير ونقاط بيع (Cashier)",
+                SystemUserRole.SUPER_ADMIN => "المدير العام",
+                SystemUserRole.FRAUD_AUDITOR => "مدقق فواتير",
+                SystemUserRole.STORE_MANAGER => "مدير فرع",
+                SystemUserRole.CASHIER => "كاشير ونقاط بيع",
                 _ => s.Role.ToString()
             },
             StoreTenantId = s.TenantId,
@@ -1938,7 +1938,7 @@ public class AdminDashboardController : Controller
         };
 
         ViewData["ActiveTab"] = "staff";
-        ViewData["Title"] = "طاقم العمل وإدارة الصلاحيات (Staff & Role Management)";
+        ViewData["Title"] = "طاقم العمل وإدارة الصلاحيات";
         return View(viewModel);
     }
 
@@ -1999,7 +1999,7 @@ public class AdminDashboardController : Controller
         };
 
         ViewData["ActiveTab"] = "settings";
-        ViewData["Title"] = "إعدادات النظام وسجلات الأمان (System Settings & Audit Logs)";
+        ViewData["Title"] = "إعدادات النظام وسجلات الأمان";
         return View(viewModel);
     }
 }

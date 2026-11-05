@@ -1,31 +1,19 @@
 @model MMApplication.Api.ViewModels.SettingsPageViewModel
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "إعدادات محرك الذكاء الاصطناعي وسجلات الأمان";
+    ViewData["Title"] = "الإعدادات والسجل";
     ViewData["ActiveTab"] = "settings";
 }
 
 <div class="space-y-6">
 
     <!-- 1. Page Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+    <div class="page-header">
         <div>
-            <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-xl bg-ink text-surface flex items-center justify-center font-bold">
-                    <i data-lucide="sliders" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <h1 class="text-base font-bold text-slate-900">إعدادات محرك الذكاء الاصطناعي وسجلات الرقابة</h1>
-                    <p class="text-xs text-slate-500">تعديل معايير الاعتماد الآلي للفواتير، نسب الثقة بالـ OCR، وتتبع سجل النشاطات والعمليات الرقابية</p>
-                </div>
-            </div>
+            <h1 class="page-title">الإعدادات والسجل</h1>
+            <p class="page-subtitle">شروط القبول التلقائي للفواتير وسجل العمليات</p>
         </div>
-
-        <div class="flex items-center gap-2.5">
-            <button onclick="showToast('جاري استخراج سجلات الأمان والتدقيق...', 'info')" class="btn-secondary">
-                <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
-                <span>تصدير السجلات</span>
-            </button>
+        <div class="page-actions">
             <button onclick="saveSystemSettings()" class="btn-primary">
                 <i data-lucide="save" class="w-4 h-4"></i>
                 <span>حفظ التعديلات</span>
@@ -37,13 +25,9 @@
     <div class="card p-6 space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
             <div>
-                <h3 class="text-sm font-bold text-slate-900">شروط ومحددات محرك الذكاء الاصطناعي ومكافحة الاحتيال</h3>
-                <p class="text-xs text-slate-500 mt-0.5">ضبط حساسية محرك الـ OCR وبصمة الصور والحدود القصوى للاعتماد الآلي</p>
+                <h3 class="text-base font-bold text-slate-900">شروط القبول التلقائي للفواتير</h3>
+                <p class="text-sm text-slate-500 mt-0.5">الفواتير التي لا تحقق هذه الشروط تذهب لمراجعة الموظفين بدل قبولها تلقائياً</p>
             </div>
-            <button onclick="saveSystemSettings()" class="btn-primary">
-                <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                <span>حفظ المعايير</span>
-            </button>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -53,7 +37,7 @@
                     <span class="text-xs font-bold text-emerald-600 num">%</span>
                 </div>
                 <input type="number" id="setting-ocr-conf" min="50" max="100" step="1" value="@Model.Settings.OcrConfidenceThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-input font-bold text-emerald-600 num">
-                <p class="text-[11px] text-slate-500">الفواتير الأقل دقة تدخل طابور التدقيق تلقائياً للمراجعة البشرية.</p>
+                <p class="text-sm text-slate-500">الفواتير الأقل دقة تدخل طابور التدقيق تلقائياً للمراجعة البشرية.</p>
             </div>
 
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
@@ -62,7 +46,7 @@
                     <span class="text-xs font-bold text-slate-600 num">د.ل</span>
                 </div>
                 <input type="number" id="setting-max-amount" min="1" value="@Model.Settings.MaxInvoiceAmountAutoApproval.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-input font-bold text-slate-900 num">
-                <p class="text-[11px] text-slate-500">المبالغ الأعلى تتطلب مراجعة وتدقيق بشري من قبل المحاسب.</p>
+                <p class="text-sm text-slate-500">المبالغ الأعلى تتطلب مراجعة وتدقيق بشري من قبل المحاسب.</p>
             </div>
 
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
@@ -71,7 +55,7 @@
                     <span class="text-xs font-bold text-slate-600 num">عمليات</span>
                 </div>
                 <input type="number" id="setting-daily-scans" min="0" max="200" value="@Model.Settings.MaxDailyScansPerCustomer" class="form-input font-bold text-slate-900 num">
-                <p class="text-[11px] text-slate-500">لمنع الإغراق والاحتيال. 0 = بدون حد.</p>
+                <p class="text-sm text-slate-500">لمنع الإغراق والاحتيال. 0 = بدون حد.</p>
             </div>
         </div>
         <label class="mt-4 flex items-center gap-2 text-sm text-slate-700">
@@ -84,8 +68,8 @@
     <div class="card overflow-hidden">
         <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
             <div>
-                <h3 class="text-sm font-bold text-slate-900">سجلات الأمان والرقابة الإدارية (Audit Logs)</h3>
-                <p class="text-xs text-slate-500 mt-0.5">تتبع زمني لكافة التعديلات والعمليات الحساسة التي نفذها المشغلون في المنظومة</p>
+                <h3 class="text-base font-bold text-slate-900">سجلات الأمان والرقابة الإدارية</h3>
+                <p class="text-sm text-slate-500 mt-0.5">تتبع زمني لكافة التعديلات والعمليات الحساسة التي نفذها المشغلون في المنظومة</p>
             </div>
             <form method="get" asp-controller="AdminDashboard" asp-action="Settings">
                 <div class="relative w-full sm:w-64">
@@ -130,19 +114,19 @@
                             <td>
                                 @if (a.Action.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    <span class="badge badge-rose font-mono">@a.Action</span>
+                                    <span class="badge badge-rose">@a.Action</span>
                                 }
                                 else if (a.Action.Contains("CREATE", StringComparison.OrdinalIgnoreCase) || a.Action.Contains("ADD", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    <span class="badge badge-emerald font-mono">@a.Action</span>
+                                    <span class="badge badge-emerald">@a.Action</span>
                                 }
                                 else if (a.Action.Contains("UPDATE", StringComparison.OrdinalIgnoreCase) || a.Action.Contains("EDIT", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    <span class="badge badge-blue font-mono">@a.Action</span>
+                                    <span class="badge badge-blue">@a.Action</span>
                                 }
                                 else
                                 {
-                                    <span class="badge badge-slate font-mono">@a.Action</span>
+                                    <span class="badge badge-slate">@a.Action</span>
                                 }
                             </td>
                             <td class="font-semibold text-slate-800">@a.EntityName @(a.EntityId != null ? $"#{a.EntityId}" : "")</td>
