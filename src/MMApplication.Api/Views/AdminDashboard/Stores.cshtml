@@ -1,375 +1,271 @@
 @model List<MMApplication.Application.DTOs.StoreTenantDto>
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "دليل المتاجر والمستأجرين";
     ViewData["ActiveTab"] = "stores";
-    var totalCount = Model.Count;
-    var mallPointsCount = Model.Count(s => s.LoyaltyType == StoreLoyaltyType.MallPoints);
-    var cashbackCount = Model.Count(s => s.LoyaltyType == StoreLoyaltyType.CashBack);
-    var storePointsCount = Model.Count(s => s.LoyaltyType == StoreLoyaltyType.StorePoints);
-    var loyaltyFilter = ViewData["LoyaltyFilter"]?.ToString() ?? "";
+    var isSuperAdmin = ViewData["IsSuperAdmin"] as bool? ?? false;
+    var profiled = ViewData["ProfiledStores"] as HashSet<string> ?? new();
+    var categories = ViewData["Categories"] as List<string> ?? new();
+    var categoryFilter = ViewData["LoyaltyFilter"]?.ToString() ?? "";
     var searchQuery = ViewData["SearchQuery"]?.ToString() ?? "";
 }
+@Html.AntiForgeryToken()
 
-<div class="space-y-6">
+<div class="space-y-5">
 
-    <!-- 1. Page Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-        <div>
-            <div class="flex items-center gap-2.5">
-                <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center font-bold">
-                    <i data-lucide="building-2" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <h1 class="text-base font-bold text-slate-900">دليل المتاجر والمستأجرين</h1>
-                    <p class="text-xs text-slate-500">إدارة بيانات المحلات، نماذج الولاء، نسب العمولة، وترويسات الكاشير والـ AI</p>
-                </div>
+    <!-- الترويسة -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center">
+                <i data-lucide="store" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold text-slate-900">@ViewData["Title"]</h1>
+                <p class="text-xs text-slate-500">بيانات المحلات المشاركة في برنامج الولاء، العمولة، ومسؤول التواصل</p>
             </div>
         </div>
-
-        <div class="flex items-center gap-2.5">
-            <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" class="btn-secondary">
-                <i data-lucide="scan-line" class="w-4 h-4 text-brand-600"></i>
-                <span>قوالب الفواتير والـ AI</span>
-            </a>
-            <button onclick="openModal('modal-add-store')" class="btn-primary">
-                <i data-lucide="plus" class="w-4 h-4"></i>
-                <span>إضافة متجر جديد</span>
-            </button>
+        <div class="flex items-center gap-2">
+            <a asp-action="InvoiceTemplates" class="btn-secondary"><i data-lucide="scan-text" class="w-4 h-4"></i> نماذج الفواتير</a>
+            @if (isSuperAdmin)
+            {
+                <button type="button" onclick="openStoreForm()" class="btn-primary"><i data-lucide="plus" class="w-4 h-4"></i> متجر جديد</button>
+            }
         </div>
     </div>
 
-    <!-- 2. KPI Summary Cards -->
+    <!-- مؤشرات -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">إجمالي المتاجر</span>
-                <i data-lucide="store" class="w-4 h-4 text-brand-500"></i>
-            </div>
-            <div class="text-xl font-bold text-slate-900 num">@totalCount</div>
-            <div class="text-[11px] text-slate-400 mt-1">تعمل بنظام المركز المتكامل</div>
+            <div class="text-xs font-semibold text-slate-500">المتاجر</div>
+            <div class="mt-2 text-xl font-bold text-slate-900 num">@Model.Count</div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">نقاط المول المشتركة</span>
-                <i data-lucide="award" class="w-4 h-4 text-amber-500"></i>
-            </div>
-            <div class="text-xl font-bold text-amber-600 num">@mallPointsCount</div>
-            <div class="text-[11px] text-amber-700 mt-1">النموذج الأكثر انتشاراً</div>
+            <div class="text-xs font-semibold text-slate-500">نشطة</div>
+            <div class="mt-2 text-xl font-bold text-emerald-700 num">@Model.Count(s => s.IsActive)</div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">متاجر الكاش باك</span>
-                <i data-lucide="wallet" class="w-4 h-4 text-emerald-500"></i>
-            </div>
-            <div class="text-xl font-bold text-emerald-600 num">@cashbackCount</div>
-            <div class="text-[11px] text-emerald-700 mt-1">استرجاع رصيد نقدي</div>
+            <div class="text-xs font-semibold text-slate-500">لها نموذج فاتورة</div>
+            <div class="mt-2 text-xl font-bold text-brand-700 num">@Model.Count(s => profiled.Contains(s.Id))</div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-xs font-semibold text-slate-500">نقاط مستقلة</span>
-                <i data-lucide="tag" class="w-4 h-4 text-purple-500"></i>
-            </div>
-            <div class="text-xl font-bold text-purple-600 num">@storePointsCount</div>
-            <div class="text-[11px] text-purple-700 mt-1">برامج ولاء معزولة</div>
+            <div class="text-xs font-semibold text-slate-500">المبيعات المعتمدة</div>
+            <div class="mt-2 text-xl font-bold text-slate-900"><span class="num">@Model.Sum(s => s.TotalSales).ToString("N0")</span> <span class="text-xs text-slate-400">د.ل</span></div>
         </div>
     </div>
 
-    <!-- 3. Stores Table Card -->
-    <div class="card p-5 space-y-4">
-        
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <!-- Filter Pills -->
-            <div class="flex flex-wrap items-center gap-2">
-                <a asp-action="Stores" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(string.IsNullOrEmpty(loyaltyFilter) ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
-                    الكل (@totalCount)
-                </a>
-                <a asp-action="Stores" asp-route-category="مطاعم وكافيهات" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "مطاعم وكافيهات" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
-                    مطاعم وكافيهات
-                </a>
-                <a asp-action="Stores" asp-route-category="أزياء وملابس" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "أزياء وملابس" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
-                    أزياء وملابس
-                </a>
-                <a asp-action="Stores" asp-route-category="سوبرماركت" class="px-3 py-1.5 rounded-lg text-xs font-semibold @(loyaltyFilter == "سوبرماركت" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200") transition">
-                    سوبرماركت
-                </a>
+    <!-- القائمة -->
+    <div class="card overflow-hidden">
+        <div class="p-4 border-b border-line flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-1.5">
+                <a asp-action="Stores" asp-route-search="@searchQuery" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(string.IsNullOrEmpty(categoryFilter) ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")">الكل</a>
+                @foreach (var c in categories)
+                {
+                    <a asp-action="Stores" asp-route-category="@c" asp-route-search="@searchQuery" class="px-3 py-1.5 rounded-xl text-xs font-bold transition @(categoryFilter == c ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")">@c</a>
+                }
             </div>
-
-            <!-- Search -->
-            <form method="get" asp-action="Stores" class="flex items-center gap-2">
-                <div class="relative w-full sm:w-64">
-                    <input type="text" name="search" value="@searchQuery" placeholder="بحث باسم المتجر أو النشاط..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-brand-600 focus:bg-white transition">
-                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5"></i>
-                </div>
+            <form method="get" asp-action="Stores" class="relative w-full md:w-72">
+                <input type="hidden" name="category" value="@categoryFilter" />
+                <input type="text" name="search" value="@searchQuery" placeholder="ابحث باسم المتجر أو الوحدة" class="form-input pr-9 text-sm">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
             </form>
         </div>
 
-        <div class="table-container">
+        <div class="overflow-x-auto">
             <table class="data-table">
                 <thead>
                     <tr>
                         <th>المتجر</th>
-                        <th>النشاط التجاري</th>
+                        <th>النشاط</th>
                         <th>الموقع</th>
-                        <th>نموذج الولاء</th>
-                        <th>نسبة العمولة</th>
-                        <th>المسؤول</th>
+                        <th>العمولة</th>
+                        <th>مسؤول التواصل</th>
+                        <th>نموذج الفاتورة</th>
                         <th>الحالة</th>
-                        <th class="text-center">الإجراءات</th>
+                        <th class="text-left">إجراءات</th>
                     </tr>
                 </thead>
                 <tbody>
                     @if (Model.Count == 0)
                     {
-                        <tr>
-                            <td colspan="8" class="p-8 text-center text-slate-400">
-                                <i data-lucide="store" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
-                                <span>لا توجد متاجر مطابقة لمعايير البحث.</span>
-                            </td>
-                        </tr>
+                        <tr><td colspan="8" class="py-12 text-center text-slate-500">لا توجد متاجر مطابقة.</td></tr>
                     }
                     @foreach (var s in Model)
                     {
-                        <tr>
+                        <tr data-store="@System.Text.Json.JsonSerializer.Serialize(new { s.Id, s.Name, s.NameEn, s.Category, s.FloorNumber, s.UnitNumber, s.CommissionRate, s.ContactPerson, s.ContactPhone, s.IsActive })"
+                            class="@(s.IsActive ? "" : "opacity-60")">
                             <td>
-                                <div class="flex items-center gap-2.5">
-                                    <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 font-bold flex items-center justify-center text-xs shrink-0">
-                                        @s.Name.Substring(0, 1)
+                                <div class="font-bold text-slate-900">@s.Name</div>
+                                @if (!string.IsNullOrEmpty(s.NameEn) && s.NameEn != s.Name)
+                                {
+                                    <div class="text-[11px] text-slate-500" dir="ltr">@s.NameEn</div>
+                                }
+                                <div class="text-[11px] text-slate-400">المبيعات: <span class="num">@s.TotalSales.ToString("N0")</span> د.ل</div>
+                            </td>
+                            <td><span class="badge badge-slate">@s.Category</span></td>
+                            <td class="text-xs text-slate-700">@(string.IsNullOrEmpty(s.FloorNumber) ? "" : s.FloorNumber + " • ")<span class="num" dir="ltr">@(string.IsNullOrEmpty(s.UnitNumber) ? "—" : s.UnitNumber)</span></td>
+                            <td class="num font-bold text-slate-900">@s.CommissionRate.ToString("0.##")%</td>
+                            <td>
+                                <div class="text-xs font-semibold text-slate-800">@(s.ContactPerson ?? "—")</div>
+                                <div class="text-[11px] text-slate-500 num" dir="ltr">@s.ContactPhone</div>
+                            </td>
+                            <td>
+                                @if (profiled.Contains(s.Id))
+                                {
+                                    <span class="badge badge-emerald">موجود</span>
+                                }
+                                else
+                                {
+                                    <a asp-action="InvoiceTemplates" class="badge badge-amber hover:underline">علّمه الآن</a>
+                                }
+                            </td>
+                            <td><span class="badge @(s.IsActive ? "badge-emerald" : "badge-rose")">@(s.IsActive ? "نشط" : "موقوف")</span></td>
+                            <td class="text-left">
+                                @if (isSuperAdmin)
+                                {
+                                    <div class="flex items-center gap-0.5 justify-end">
+                                        <button type="button" onclick="openStoreForm(this)" title="تعديل" class="btn-icon !w-8 !h-8"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                                        <button type="button" onclick="deleteStore(this)" title="حذف" class="btn-icon !w-8 !h-8 text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                                     </div>
-                                    <div>
-                                        <div class="font-bold text-slate-900 text-xs">@s.Name</div>
-                                        <div class="text-[10px] text-slate-400">
-                                            المبيعات: <span class="font-bold text-emerald-600 num">@s.TotalSales.ToString("N2") د.ل</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="badge badge-slate">@s.Category</span>
-                            </td>
-                            <td>
-                                <span class="text-slate-700 text-xs">@s.FloorNumber - </span>
-                                <span class="badge badge-blue num">@s.UnitNumber</span>
-                            </td>
-                            <td>
-                                <span class="badge @(s.LoyaltyType == StoreLoyaltyType.MallPoints ? "badge-amber" : (s.LoyaltyType == StoreLoyaltyType.CashBack ? "badge-emerald" : "badge-slate"))">
-                                    @s.LoyaltyTypeLabel
-                                </span>
-                            </td>
-                            <td>
-                                <span class="num font-bold text-slate-900 text-xs">@s.CommissionRate%</span>
-                            </td>
-                            <td>
-                                <div class="font-semibold text-slate-800 text-xs">@(s.ContactPerson ?? "-")</div>
-                                <div class="num text-[10px] text-slate-400">@(s.ContactPhone ?? "")</div>
-                            </td>
-                            <td>
-                                <span class="badge @(s.IsActive ? "badge-emerald" : "badge-rose")">
-                                    @(s.IsActive ? "نشط" : "معطل")
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                <div class="flex items-center justify-center gap-1.5">
-                                    <a asp-controller="AdminDashboard" asp-action="InvoiceTemplates" asp-route-storeId="@s.Id" title="قالب ونموذج الفاتورة" class="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 transition">
-                                        <i data-lucide="scan-line" class="w-4 h-4"></i>
-                                    </a>
-                                    <button onclick="openEditStoreModal('@s.Id', '@s.Name', '@s.Category', '@s.FloorNumber', '@s.UnitNumber', @s.CommissionRate, '@(s.ContactPerson ?? "")', @(s.IsActive ? "true" : "false"))" title="تعديل بيانات المتجر" class="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition">
-                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
+                                }
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
-
-    </div>
-
-</div>
-
-<!-- Modal: Add Store Tenant -->
-<div id="modal-add-store" class="fixed inset-0 z-50 modal-overlay hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h3 class="text-sm font-bold text-slate-900">إضافة متجر جديد في المركز</h3>
-            <button onclick="closeModal('modal-add-store')" class="text-slate-400 hover:text-slate-600">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-
-        <div class="space-y-3">
-            <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">اسم المتجر / العلامة التجارية:</label>
-                <input type="text" id="store-name" placeholder="مثال: أديداس - Adidas" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">النشاط التجاري:</label>
-                <input type="text" id="store-cat" placeholder="مثال: أزياء وملابس رياضية" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">الطابق:</label>
-                    <input type="text" id="store-floor" placeholder="الطابق الأول" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">رقم الوحدة:</label>
-                    <input type="text" id="store-unit" placeholder="Unit-12" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600 font-mono">
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">نموذج الولاء:</label>
-                    <select id="store-loyalty-type" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
-                        <option value="MallPoints">نقاط المول المشتركة</option>
-                        <option value="CashBack">كاش باك نقدي</option>
-                        <option value="StorePoints">نقاط خاصة بالمتجر</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">نسبة العمولة (%):</label>
-                    <input type="number" step="0.5" id="store-comm" value="5.0" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600 font-mono">
-                </div>
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">مسؤول التواصل والهاتف:</label>
-                <input type="text" id="store-contact" placeholder="الاسم ورقم الهاتف" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
-            </div>
-        </div>
-
-        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-            <button onclick="closeModal('modal-add-store')" class="btn-secondary">إلغاء</button>
-            <button onclick="submitCreateStore()" class="btn-primary">حفظ وإضافة المتجر</button>
-        </div>
     </div>
 </div>
 
-<!-- Modal: Edit Store -->
-<div id="modal-edit-store" class="fixed inset-0 z-50 modal-overlay hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h3 class="text-sm font-bold text-slate-900">تعديل بيانات المتجر</h3>
-            <button onclick="closeModal('modal-edit-store')" class="text-slate-400 hover:text-slate-600">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
+<!-- إضافة / تعديل متجر -->
+<div id="store-modal" class="hidden modal-overlay">
+    <div class="modal-box max-w-lg">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2"><i data-lucide="store" class="w-4 h-4 text-brand-600"></i> <span id="sf-title">متجر جديد</span></h3>
+            <button type="button" onclick="MM.closeModal('store-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
-
-        <input type="hidden" id="edit-store-id" />
-
-        <div class="space-y-3">
+        <div class="modal-body grid sm:grid-cols-2 gap-3">
             <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">اسم المتجر:</label>
-                <input type="text" id="edit-store-name" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
+                <label class="form-label">اسم المتجر (عربي)</label>
+                <input id="sf-name" class="form-input" />
             </div>
             <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">النشاط التجاري:</label>
-                <input type="text" id="edit-store-cat" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
+                <label class="form-label">الاسم بالإنجليزية</label>
+                <input id="sf-name-en" class="form-input" dir="ltr" />
             </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">الطابق:</label>
-                    <input type="text" id="edit-store-floor" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">رقم الوحدة:</label>
-                    <input type="text" id="edit-store-unit" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600 font-mono">
-                </div>
+            <div class="sm:col-span-2">
+                <label class="form-label">النشاط التجاري</label>
+                <input id="sf-category" class="form-input" list="sf-categories" placeholder="مثال: أزياء وملابس" />
+                <datalist id="sf-categories">
+                    @foreach (var c in categories)
+                    {
+                        <option value="@c"></option>
+                    }
+                </datalist>
             </div>
             <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">مسؤول التواصل:</label>
-                <input type="text" id="edit-store-contact" class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-brand-600">
+                <label class="form-label">الطابق</label>
+                <input id="sf-floor" class="form-input" placeholder="الطابق الأرضي" />
             </div>
-            <div class="flex items-center gap-2 pt-1">
-                <input type="checkbox" id="edit-store-active" class="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-0">
-                <label for="edit-store-active" class="text-xs font-medium text-slate-700">المتجر نشط في النظام</label>
+            <div>
+                <label class="form-label">رقم الوحدة</label>
+                <input id="sf-unit" class="form-input num" dir="ltr" placeholder="G-12" />
             </div>
+            <div>
+                <label class="form-label">مسؤول التواصل</label>
+                <input id="sf-contact" class="form-input" />
+            </div>
+            <div>
+                <label class="form-label">هاتف التواصل</label>
+                <input id="sf-phone" class="form-input num" dir="ltr" placeholder="09XXXXXXXX" />
+            </div>
+            <div>
+                <label class="form-label">عمولة المول (%)</label>
+                <input id="sf-commission" type="number" min="0" max="100" step="0.5" class="form-input num" value="5" />
+            </div>
+            <label id="sf-active-row" class="flex items-center gap-2 text-sm text-slate-700 self-end pb-2">
+                <input id="sf-active" type="checkbox" class="form-check" checked /> المتجر نشط (يظهر للعملاء)
+            </label>
         </div>
-
-        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-            <button onclick="closeModal('modal-edit-store')" class="btn-secondary">إلغاء</button>
-            <button onclick="submitEditStore()" class="btn-primary">حفظ التعديلات</button>
+        <div class="modal-footer">
+            <button type="button" onclick="MM.closeModal('store-modal')" class="btn-secondary">إلغاء</button>
+            <button type="button" id="sf-save" onclick="saveStore()" class="btn-primary">حفظ</button>
         </div>
     </div>
 </div>
 
+@section Scripts {
 <script>
-    function openModal(id) {
-        document.getElementById(id).classList.remove('hidden');
+    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const storeOf = btn => JSON.parse(btn.closest('tr').dataset.store);
+    let editingStore = null;
+
+    async function api(url, method, body) {
+        const res = await fetch(url, {
+            method, headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: body === undefined ? undefined : JSON.stringify(body)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) throw new Error('هذه العملية للمدير العام فقط.');
+        if (!res.ok || data.success === false) throw new Error(data.message || 'تعذّر تنفيذ العملية.');
+        return data;
     }
 
-    function closeModal(id) {
-        document.getElementById(id).classList.add('hidden');
+    function openStoreForm(btn) {
+        editingStore = btn ? storeOf(btn) : null;
+        const s = editingStore || { CommissionRate: 5, IsActive: true };
+        document.getElementById('sf-title').textContent = editingStore ? `تعديل: ${s.Name}` : 'متجر جديد';
+        document.getElementById('sf-name').value = s.Name || '';
+        document.getElementById('sf-name-en').value = s.NameEn && s.NameEn !== s.Name ? s.NameEn : '';
+        document.getElementById('sf-category').value = s.Category || '';
+        document.getElementById('sf-floor').value = s.FloorNumber || '';
+        document.getElementById('sf-unit').value = s.UnitNumber || '';
+        document.getElementById('sf-contact').value = s.ContactPerson || '';
+        document.getElementById('sf-phone').value = s.ContactPhone || '';
+        document.getElementById('sf-commission').value = s.CommissionRate;
+        document.getElementById('sf-active').checked = s.IsActive;
+        document.getElementById('sf-active-row').classList.toggle('hidden', !editingStore);
+        MM.openModal('store-modal');
     }
 
-    function openEditStoreModal(id, name, cat, floor, unit, comm, contact, isActive) {
-        document.getElementById('edit-store-id').value = id;
-        document.getElementById('edit-store-name').value = name;
-        document.getElementById('edit-store-cat').value = cat;
-        document.getElementById('edit-store-floor').value = floor;
-        document.getElementById('edit-store-unit').value = unit;
-        document.getElementById('edit-store-contact').value = contact;
-        document.getElementById('edit-store-active').checked = isActive;
-        openModal('modal-edit-store');
-    }
-
-    async function submitCreateStore() {
-        const name = document.getElementById('store-name').value.trim();
-        const category = document.getElementById('store-cat').value.trim();
-        const floorNumber = document.getElementById('store-floor').value.trim();
-        const unitNumber = document.getElementById('store-unit').value.trim();
-        const loyaltyType = document.getElementById('store-loyalty-type').value;
-        const commissionRate = parseFloat(document.getElementById('store-comm').value) || 5.0;
-        const contactPerson = document.getElementById('store-contact').value.trim();
-
-        if (!name || !category) {
-            Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال اسم ونشاط المتجر.' });
-            return;
-        }
-
+    async function saveStore() {
+        const v = id => document.getElementById(id).value.trim();
+        const body = {
+            name: v('sf-name'), nameEn: v('sf-name-en') || null, category: v('sf-category'),
+            floorNumber: v('sf-floor'), unitNumber: v('sf-unit'), contactPerson: v('sf-contact') || null,
+            contactPhone: v('sf-phone') || null, commissionRate: parseFloat(v('sf-commission')) || 0,
+            isActive: document.getElementById('sf-active').checked
+        };
+        if (!body.name || !body.category) return showToast('أدخل اسم المتجر ونشاطه.', 'warning');
+        const btn = document.getElementById('sf-save');
+        btn.disabled = true;
         try {
-            const res = await fetch('/api/superadmin/stores', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name, category, floorNumber, unitNumber, loyaltyType, commissionRate, contactPerson,
-                    logoUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200&h=200&fit=crop'
-                })
-            });
-            if (!res.ok) throw new Error('فشل إضافة المتجر');
-            Swal.fire({ icon: 'success', title: 'تمت الإضافة', text: 'تمت إضافة المتجر بنجاح!' })
-                .then(() => location.reload());
+            const d = editingStore
+                ? await api(`/api/superadmin/stores/${encodeURIComponent(editingStore.Id)}`, 'PUT', body)
+                : await api('/api/superadmin/stores', 'POST', body);
+            showToast(d.message || 'تمت إضافة المتجر.', 'success');
+            setTimeout(() => location.reload(), 500);
         } catch (e) {
-            Swal.fire({ icon: 'error', title: 'خطأ', text: e.message });
+            showToast(e.message, 'error');
+        } finally {
+            btn.disabled = false;
         }
     }
 
-    async function submitEditStore() {
-        const id = document.getElementById('edit-store-id').value;
-        const name = document.getElementById('edit-store-name').value.trim();
-        const category = document.getElementById('edit-store-cat').value.trim();
-        const floorNumber = document.getElementById('edit-store-floor').value.trim();
-        const unitNumber = document.getElementById('edit-store-unit').value.trim();
-        const contactPerson = document.getElementById('edit-store-contact').value.trim();
-        const isActive = document.getElementById('edit-store-active').checked;
-
+    async function deleteStore(btn) {
+        const s = storeOf(btn);
+        const ok = await Swal.fire({
+            title: `حذف ${s.Name}؟`,
+            text: 'إن كانت للمتجر فواتير أو موظفون يُوقَف فقط ولا يظهر للعملاء، مع الحفاظ على سجلاته.',
+            icon: 'warning', showCancelButton: true, confirmButtonText: 'حذف', cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
+        });
+        if (!ok.isConfirmed) return;
         try {
-            const res = await fetch(`/api/superadmin/stores/${encodeURIComponent(id)}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, category, floorNumber, unitNumber, contactPerson, isActive })
-            });
-            const data = await res.json();
-            if (res.ok) {
-                Swal.fire({ icon: 'success', title: 'تم الحفظ', text: 'تم حفظ التعديلات بنجاح!' })
-                    .then(() => location.reload());
-            } else {
-                Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل التعديل.' });
-            }
+            const d = await api(`/api/superadmin/stores/${encodeURIComponent(s.Id)}`, 'DELETE');
+            showToast(d.message, 'success');
+            setTimeout(() => location.reload(), 700);
         } catch (e) {
-            Swal.fire({ icon: 'error', title: 'خطأ', text: e.message });
+            showToast(e.message, 'error');
         }
     }
 </script>
+}

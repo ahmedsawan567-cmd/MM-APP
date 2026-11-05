@@ -139,12 +139,20 @@ public class InvoiceReviewService
         return new InvoiceReviewOutcome(true, $"تم اعتماد الفاتورة وإضافة {points} نقطة للعميل.", points);
     }
 
-    public async Task<InvoiceReviewOutcome> RejectAsync(Guid invoiceId, string reviewer, string reason)
+    public Task<InvoiceReviewOutcome> RejectAsync(Guid invoiceId, string reviewer, string reason) =>
+        CloseAsync(invoiceId, reviewer, reason, InvoiceStatus.REJECTED);
+
+    /// <summary>إلغاء فاتورة (مثلاً استُرجعت المشتريات): تُسترجع نقاطها ويبقى رقمها محجوزاً فلا يُعاد استخدامه.</summary>
+    public Task<InvoiceReviewOutcome> VoidAsync(Guid invoiceId, string reviewer, string reason) =>
+        CloseAsync(invoiceId, reviewer, reason, InvoiceStatus.VOIDED);
+
+    private async Task<InvoiceReviewOutcome> CloseAsync(Guid invoiceId, string reviewer, string reason, InvoiceStatus target)
     {
-        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 3) return InvoiceReviewOutcome.Fail("اكتب سبب الرفض.");
+        var voiding = target == InvoiceStatus.VOIDED;
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 3) return InvoiceReviewOutcome.Fail(voiding ? "اكتب سبب الإلغاء." : "اكتب سبب الرفض.");
         var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == invoiceId);
         if (invoice == null) return InvoiceReviewOutcome.Fail("الفاتورة غير موجودة.", 404);
-        if (invoice.ProcessingStatus == InvoiceStatus.REJECTED) return InvoiceReviewOutcome.Fail("الفاتورة مرفوضة مسبقاً.");
+        if (invoice.ProcessingStatus == target) return InvoiceReviewOutcome.Fail(voiding ? "الفاتورة ملغاة مسبقاً." : "الفاتورة مرفوضة مسبقاً.");
 
         var reversed = 0;
         await InTransactionAsync(async () =>
@@ -162,21 +170,71 @@ public class InvoiceReviewService
                     AmountChanged = -reversed,
                     BalanceAfter = wallet.CurrentBalance,
                     TransactionType = WalletTransactionType.MANUAL_ADJUSTMENT,
-                    ReferenceRemarks = $"استرجاع نقاط فاتورة مرفوضة بعد التدقيق: {invoice.ExtractedMerchant} (#{invoice.InvoiceNumber})",
+                    ReferenceRemarks = $"استرجاع نقاط فاتورة {(voiding ? "ملغاة" : "مرفوضة بعد التدقيق")}: {invoice.ExtractedMerchant} (#{invoice.InvoiceNumber})",
                     CreatedAt = DateTime.UtcNow,
                 });
                 invoice.PointsAwarded = 0;
                 invoice.CashbackAwarded = 0;
             }
 
-            invoice.ProcessingStatus = InvoiceStatus.REJECTED;
+            invoice.ProcessingStatus = target;
             invoice.RejectionReason = reason.Trim();
-            Audit(reviewer, "INVOICE_REJECT", invoice,
-                $"رفض الفاتورة {invoice.InvoiceNumber}. السبب: {reason.Trim()}" + (reversed > 0 ? $" — استرجاع {reversed} نقطة." : string.Empty));
+            Audit(reviewer, voiding ? "INVOICE_VOID" : "INVOICE_REJECT", invoice,
+                $"{(voiding ? "إلغاء" : "رفض")} الفاتورة {invoice.InvoiceNumber}. السبب: {reason.Trim()}" + (reversed > 0 ? $" — استرجاع {reversed} نقطة." : string.Empty));
         });
 
+        var verb = voiding ? "إلغاء" : "رفض";
         return new InvoiceReviewOutcome(true,
-            reversed > 0 ? $"تم رفض الفاتورة واسترجاع {reversed} نقطة من رصيد العميل." : "تم رفض الفاتورة.", -reversed);
+            reversed > 0 ? $"تم {verb} الفاتورة واسترجاع {reversed} نقطة من رصيد العميل." : $"تم {verb} الفاتورة.", -reversed);
+    }
+
+    /// <summary>
+    /// تعديل بيانات فاتورة لم تُعتمد بعد (المتجر، الرقم، التاريخ، المبلغ). الفاتورة المعتمدة لا تُعدَّل:
+    /// تُلغى (فتُسترجع نقاطها) ثم يرفعها العميل من جديد أو تُضاف يدوياً.
+    /// </summary>
+    public async Task<InvoiceReviewOutcome> UpdateDetailsAsync(Guid invoiceId, string reviewer, InvoiceCorrection correction)
+    {
+        var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == invoiceId);
+        if (invoice == null) return InvoiceReviewOutcome.Fail("الفاتورة غير موجودة.", 404);
+        if (invoice.ProcessingStatus == InvoiceStatus.APPROVED)
+            return InvoiceReviewOutcome.Fail("الفاتورة معتمدة ونقاطها مُنحت. لتصحيحها ألغِها أولاً (تُسترجع النقاط).");
+        if (invoice.ProcessingStatus == InvoiceStatus.VOIDED)
+            return InvoiceReviewOutcome.Fail("لا يمكن تعديل فاتورة ملغاة.");
+
+        var changes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(correction.TenantId) && correction.TenantId != invoice.TenantId)
+        {
+            var tenant = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.TenantId == correction.TenantId);
+            if (tenant == null) return InvoiceReviewOutcome.Fail("المتجر المحدد غير موجود.");
+            changes.Add($"المتجر: {invoice.TenantId ?? "-"} ← {tenant.NameAr}");
+            invoice.TenantId = tenant.TenantId;
+            invoice.ExtractedMerchant = tenant.NameAr;
+        }
+        if (!string.IsNullOrWhiteSpace(correction.InvoiceNumber) && correction.InvoiceNumber.Trim() != invoice.InvoiceNumber)
+        {
+            changes.Add($"الرقم: {invoice.InvoiceNumber} ← {correction.InvoiceNumber.Trim()}");
+            invoice.InvoiceNumber = correction.InvoiceNumber.Trim();
+        }
+        if (correction.InvoiceDate.HasValue && correction.InvoiceDate.Value.Date != invoice.InvoiceDate?.Date)
+        {
+            changes.Add($"التاريخ: {invoice.InvoiceDate:yyyy-MM-dd} ← {correction.InvoiceDate:yyyy-MM-dd}");
+            invoice.InvoiceDate = DateTime.SpecifyKind(correction.InvoiceDate.Value.Date, DateTimeKind.Utc);
+        }
+        if (correction.TotalAmount.HasValue && correction.TotalAmount != invoice.TotalAmount)
+        {
+            if (correction.TotalAmount <= 0) return InvoiceReviewOutcome.Fail("المبلغ يجب أن يكون أكبر من صفر.");
+            changes.Add($"المبلغ: {invoice.TotalAmount:N2} ← {correction.TotalAmount:N2}");
+            invoice.TotalAmount = correction.TotalAmount;
+        }
+        if (changes.Count == 0) return InvoiceReviewOutcome.Fail("لا توجد تغييرات.");
+
+        var duplicate = await InvoiceKeys.FindDuplicateAsync(_context, invoice.TenantId,
+            MMApplication.Application.Common.InvoiceNumbers.Key(invoice.InvoiceNumber), invoice.TotalAmount, invoice.InvoiceDate, invoice.InvoiceId, invoice.ExtractedMerchant);
+        if (duplicate != null) return InvoiceReviewOutcome.Fail("رقم الفاتورة مستخدم في فاتورة أخرى لنفس المتجر.", 409);
+
+        Audit(reviewer, "INVOICE_EDIT", invoice, $"تعديل بيانات الفاتورة: {string.Join("، ", changes)}");
+        await _context.SaveChangesAsync();
+        return new InvoiceReviewOutcome(true, "تم حفظ التعديلات.");
     }
 
     public async Task<InvoiceReviewOutcome> RequestResubmissionAsync(Guid invoiceId, string reviewer, string note)

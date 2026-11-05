@@ -5,6 +5,7 @@
     ViewData["Title"] = "سجل الفواتير والمعاملات";
     ViewData["ActiveTab"] = "invoices";
 }
+@Html.AntiForgeryToken()
 
 <div class="space-y-6">
 
@@ -242,145 +243,111 @@
 </div>
 
 <script>
+    const invToken = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const invStores = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Stores.Select(x => new { id = x.Id, name = x.Name })));
+    let currentInvoice = null;
+    const e = v => MM.esc(v);
+    const STATUS_AR = { APPROVED: 'معتمدة', REJECTED: 'مرفوضة', VOIDED: 'ملغاة', PENDING: 'قيد المعالجة', PROCESSING: 'قيد المعالجة', REVIEW_REQUIRED: 'بانتظار المراجعة', DISPUTED: 'اعتراض', RESUBMISSION_REQUESTED: 'طُلبت إعادة التصوير' };
+
     async function viewInvoiceDetails(id) {
-        document.getElementById('modal-invoice-details').classList.remove('hidden');
+        MM.openModal('modal-invoice-details');
         const container = document.getElementById('invoiceModalContent');
-        const actionsContainer = document.getElementById('modalActionButtons');
-        actionsContainer.innerHTML = '';
-        container.innerHTML = '<div class="text-center py-8 text-slate-400"><i data-lucide="loader-2" class="w-6 h-6 mx-auto animate-spin mb-2"></i><span>جاري تحميل تفاصيل الفاتورة...</span></div>';
-        if (window.lucide) lucide.createIcons();
-
+        const actions = document.getElementById('modalActionButtons');
+        actions.innerHTML = '';
+        container.innerHTML = '<div class="text-center py-8 text-slate-400 text-sm">جارٍ التحميل...</div>';
         try {
-            const resp = await fetch(`/AdminDashboard/GetInvoiceDetailsJson?id=${id}`);
-            if (!resp.ok) throw new Error('فشل جلب التفاصيل');
-            const data = await resp.json();
-
-            let itemsHtml = '';
-            if (data.lineItems && data.lineItems.length > 0) {
-                itemsHtml = `
-                    <div class="space-y-1">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase">البنود المستخرجة:</span>
-                        <table class="w-full text-right text-xs bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
-                            <thead class="bg-slate-100 text-slate-500 font-semibold">
-                                <tr>
-                                    <th class="p-2">الصنف</th>
-                                    <th class="p-2 text-center">الكمية</th>
-                                    <th class="p-2 font-mono">السعر</th>
-                                    <th class="p-2 font-mono">الإجمالي</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-200/60 font-mono">
-                                ${data.lineItems.map(item => `
-                                    <tr>
-                                        <td class="p-2 font-sans text-slate-800">${item.description}</td>
-                                        <td class="p-2 text-center text-slate-600">${item.quantity}</td>
-                                        <td class="p-2 text-slate-600">${item.unitPrice.toFixed(2)}</td>
-                                        <td class="p-2 font-bold text-slate-900">${item.totalPrice.toFixed(2)} د.ل</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            }
-
+            const resp = await fetch(`/AdminDashboard/GetInvoiceDetailsJson?id=${encodeURIComponent(id)}`);
+            if (!resp.ok) throw new Error();
+            const d = currentInvoice = await resp.json();
+            const card = (label, value, tone = 'bg-slate-50 border-slate-200') =>
+                `<div class="p-3 rounded-xl border ${tone}"><span class="text-[11px] text-slate-500 block">${label}</span><span class="font-bold text-slate-900" dir="auto">${value}</span></div>`;
+            const items = (d.lineItems || []).length === 0 ? '' : `
+                <div class="overflow-x-auto"><table class="w-full text-xs border border-line rounded-xl overflow-hidden">
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="p-2 text-right">الصنف</th><th class="p-2">الكمية</th><th class="p-2">السعر</th><th class="p-2">الإجمالي</th></tr></thead>
+                    <tbody class="divide-y divide-slate-100">${d.lineItems.map(i => `<tr><td class="p-2">${e(i.description)}</td><td class="p-2 text-center num">${Number(i.quantity)}</td><td class="p-2 num">${Number(i.unitPrice).toFixed(2)}</td><td class="p-2 num font-bold">${Number(i.totalPrice).toFixed(2)}</td></tr>`).join('')}</tbody>
+                </table></div>`;
             container.innerHTML = `
-                <div class="grid grid-cols-2 gap-3 text-xs">
-                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <span class="text-[10px] text-slate-400 block">المتجر:</span>
-                        <span class="font-bold text-slate-900">${data.storeName} (${data.storeCategory})</span>
-                    </div>
-                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <span class="text-[10px] text-slate-400 block">رقم الفاتورة:</span>
-                        <span class="font-mono font-bold text-slate-900">${data.invoiceNumber || '-'}</span>
-                    </div>
-                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <span class="text-[10px] text-slate-400 block">العميل:</span>
-                        <span class="font-bold text-slate-900">${data.customerName} (${data.customerPhone})</span>
-                    </div>
-                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                        <span class="text-[10px] text-slate-400 block">تاريخ الشراء:</span>
-                        <span class="font-mono font-bold text-slate-900">${data.invoiceDate}</span>
-                    </div>
-                    <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                        <span class="text-[10px] text-emerald-700 block">المبلغ الإجمالي:</span>
-                        <span class="font-mono font-bold text-emerald-800 text-sm">${data.amount.toFixed(2)} د.ل</span>
-                    </div>
-                    <div class="p-3 bg-brand-50 rounded-xl border border-brand-200">
-                        <span class="text-[10px] text-brand-700 block">النقاط والكاش باك:</span>
-                        <span class="font-mono font-bold text-brand-800 text-sm">+${data.points} نقطة (${data.cashback.toFixed(2)} د.ل)</span>
-                    </div>
+                <div class="grid sm:grid-cols-2 gap-3 text-sm">
+                    ${card('المتجر', `${e(d.storeName)} <span class="text-xs text-slate-500">(${e(d.storeCategory)})</span>`)}
+                    ${card('رقم الفاتورة', `<span class="num" dir="ltr">${e(d.invoiceNumber || '—')}</span>`)}
+                    ${card('العميل', `${e(d.customerName)} <span class="text-xs text-slate-500 num" dir="ltr">${e(d.customerPhone)}</span>`)}
+                    ${card('تاريخ الشراء', `<span class="num">${e(d.invoiceDate)}</span>`)}
+                    ${card('المبلغ', `<span class="num">${Number(d.amount).toFixed(2)}</span> د.ل`, 'bg-emerald-50 border-emerald-200')}
+                    ${card('النقاط', `<span class="num">+${Number(d.points)}</span> نقطة`, 'bg-brand-50 border-brand-200')}
                 </div>
-
-                ${itemsHtml}
-
-                <div class="flex items-center justify-between p-3 rounded-xl bg-slate-100 text-xs">
-                    <div>
-                        <span class="text-[10px] text-slate-500 block">حالة الفحص ودقة الـ AI:</span>
-                        <span class="font-bold text-slate-800 font-mono">${data.status} — دقة: ${data.confidence}%</span>
-                    </div>
-                    ${data.rejectionReason ? `<span class="text-rose-600 font-semibold text-xs">سبب الرفض: ${data.rejectionReason}</span>` : ''}
+                ${items}
+                <div class="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-100 text-xs">
+                    <span>الحالة: <b>${e(STATUS_AR[d.status] || d.status)}</b> — ثقة القراءة <b class="num">${Number(d.confidence)}%</b></span>
+                    ${d.rejectionReason ? `<span class="text-rose-600 font-semibold">${e(d.rejectionReason)}</span>` : ''}
                 </div>
-            `;
+                <div id="inv-edit" class="hidden grid sm:grid-cols-2 gap-3 p-4 rounded-xl border border-brand-200 bg-brand-50/40">
+                    <div class="sm:col-span-2 text-xs font-bold text-brand-800">تعديل بيانات الفاتورة</div>
+                    <div><label class="form-label">المتجر</label><select id="ie-store" class="form-select">${invStores.map(s => `<option value="${e(s.id)}" ${s.id === d.tenantId ? 'selected' : ''}>${e(s.name)}</option>`).join('')}</select></div>
+                    <div><label class="form-label">رقم الفاتورة</label><input id="ie-number" class="form-input num" dir="ltr" value="${e(d.invoiceNumber || '')}"></div>
+                    <div><label class="form-label">التاريخ</label><input id="ie-date" type="date" class="form-input num" value="${e(d.invoiceDateIso || '')}"></div>
+                    <div><label class="form-label">المبلغ (د.ل)</label><input id="ie-amount" type="number" step="0.01" min="0" class="form-input num" value="${Number(d.amount)}"></div>
+                    <div class="sm:col-span-2 flex justify-end gap-2"><button type="button" class="btn-secondary" onclick="toggleEdit(false)">إلغاء</button><button type="button" class="btn-primary" onclick="saveInvoiceEdit()">حفظ التعديلات</button></div>
+                </div>`;
 
-            if (data.status !== 'APPROVED') {
-                actionsContainer.innerHTML = `
-                    <button onclick="changeStatus('${data.id}', 'APPROVED')" class="btn-primary bg-emerald-600 hover:bg-emerald-700">
-                        اعتماد الفاتورة
-                    </button>
-                    <button onclick="changeStatus('${data.id}', 'REJECTED')" class="btn-danger">
-                        رفض الفاتورة
-                    </button>
-                `;
-            }
-        } catch (e) {
-            container.innerHTML = '<div class="text-center py-6 text-rose-500 text-xs">تعذر جلب تفاصيل الفاتورة.</div>';
+            if (!d.canReview) return;
+            const editable = !['APPROVED', 'VOIDED'].includes(d.status);
+            actions.innerHTML = [
+                editable ? `<button type="button" onclick="changeStatus('APPROVED')" class="btn-success">اعتماد</button>` : '',
+                editable && d.status !== 'REJECTED' ? `<button type="button" onclick="changeStatus('REJECTED')" class="btn-danger">رفض</button>` : '',
+                editable ? `<button type="button" onclick="toggleEdit(true)" class="btn-secondary"><i data-lucide="pencil" class="w-4 h-4"></i> تعديل</button>` : '',
+                d.status !== 'VOIDED' ? `<button type="button" onclick="changeStatus('VOIDED')" class="btn-secondary text-rose-700"><i data-lucide="ban" class="w-4 h-4"></i> إلغاء الفاتورة</button>` : ''
+            ].join('');
+            lucide.createIcons();
+        } catch {
+            container.innerHTML = '<div class="text-center py-6 text-rose-600 text-sm">تعذّر جلب تفاصيل الفاتورة.</div>';
         }
     }
 
-    function closeInvoiceModal() {
-        document.getElementById('modal-invoice-details').classList.add('hidden');
+    function closeInvoiceModal() { MM.closeModal('modal-invoice-details'); }
+    function toggleEdit(show) { document.getElementById('inv-edit').classList.toggle('hidden', !show); }
+
+    async function saveInvoiceEdit() {
+        const body = {
+            tenantId: document.getElementById('ie-store').value || null,
+            invoiceNumber: document.getElementById('ie-number').value.trim() || null,
+            invoiceDate: document.getElementById('ie-date').value || null,
+            totalAmount: parseFloat(document.getElementById('ie-amount').value) || null
+        };
+        const resp = await fetch(`/AdminDashboard/InvoiceEdit?id=${encodeURIComponent(currentInvoice.id)}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': invToken }, body: JSON.stringify(body)
+        });
+        const res = await resp.json().catch(() => ({}));
+        if (!resp.ok || !res.success) return showToast(res.message || 'تعذّر الحفظ.', 'error');
+        showToast(res.message, 'success');
+        viewInvoiceDetails(currentInvoice.id);
     }
 
-    async function changeStatus(id, newStatus) {
-        let reason = null;
-        if (newStatus === 'REJECTED') {
-            const { value: text } = await Swal.fire({
-                title: 'رفض الفاتورة',
-                input: 'textarea',
-                inputLabel: 'يرجى كتابة سبب الرفض للعميل:',
-                inputPlaceholder: 'مثال: الصورة غير واضحة، الفاتورة مكررة...',
-                showCancelButton: true,
-                confirmButtonText: 'تأكيد الرفض',
-                cancelButtonText: 'إلغاء',
-                confirmButtonColor: '#dc2626'
+    async function changeStatus(newStatus) {
+        let reason = '';
+        if (newStatus !== 'APPROVED') {
+            const voiding = newStatus === 'VOIDED';
+            const { value } = await Swal.fire({
+                title: voiding ? 'إلغاء الفاتورة' : 'رفض الفاتورة',
+                text: voiding ? 'تُسترجع نقاط الفاتورة من العميل ويبقى رقمها محجوزاً فلا يُستخدم مرة أخرى.' : undefined,
+                input: 'textarea', inputLabel: voiding ? 'سبب الإلغاء' : 'سبب الرفض (يظهر للعميل)',
+                inputPlaceholder: voiding ? 'مثال: استرجاع المشتريات' : 'مثال: الصورة غير واضحة',
+                showCancelButton: true, confirmButtonText: 'تأكيد', cancelButtonText: 'رجوع',
+                inputValidator: v => (!v || v.trim().length < 3) ? 'اكتب السبب' : undefined
             });
-            if (!text) return;
-            reason = text;
+            if (!value) return;
+            reason = value.trim();
         }
-
-        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-
         try {
-            const resp = await fetch(`/AdminDashboard/UpdateInvoiceStatus?id=${id}&status=${newStatus}&reason=${encodeURIComponent(reason || '')}`, {
-                method: 'POST',
-                headers: {
-                    'RequestVerificationToken': token || ''
-                }
+            const resp = await fetch(`/AdminDashboard/UpdateInvoiceStatus?id=${encodeURIComponent(currentInvoice.id)}&status=${newStatus}&reason=${encodeURIComponent(reason)}`, {
+                method: 'POST', headers: { 'RequestVerificationToken': invToken }
             });
-            const res = await resp.json();
-            if (resp.ok && res.success) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'تم التحديث',
-                    text: res.message,
-                    confirmButtonColor: '#047857'
-                }).then(() => window.location.reload());
-            } else {
-                Swal.fire({ icon: 'error', title: 'خطأ', text: res.message || 'حدث خطأ.' });
-            }
-        } catch (e) {
-            Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر الاتصال بالسيرفر.' });
+            const res = await resp.json().catch(() => ({}));
+            if (resp.status === 403) return showToast('ليست لديك صلاحية لهذه العملية.', 'error');
+            if (!resp.ok || !res.success) return showToast(res.message || 'حدث خطأ.', 'error');
+            showToast(res.message, 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch {
+            showToast('تعذّر الاتصال بالخادم.', 'error');
         }
     }
 </script>

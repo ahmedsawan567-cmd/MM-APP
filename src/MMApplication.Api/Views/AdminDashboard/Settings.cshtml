@@ -49,31 +49,35 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
                 <div class="flex items-center justify-between">
-                    <label class="form-label font-bold text-slate-800">حد دقة الـ OCR للاعتماد الآلي:</label>
+                    <label class="form-label font-bold text-slate-800">أقل ثقة قراءة للقبول التلقائي:</label>
                     <span class="text-xs font-bold text-emerald-600 num">%</span>
                 </div>
-                <input type="number" id="setting-ocr-conf" value="@Model.Settings.OcrConfidenceThreshold" class="form-input font-bold text-emerald-600 num">
+                <input type="number" id="setting-ocr-conf" min="50" max="100" step="1" value="@Model.Settings.OcrConfidenceThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-input font-bold text-emerald-600 num">
                 <p class="text-[11px] text-slate-500">الفواتير الأقل دقة تدخل طابور التدقيق تلقائياً للمراجعة البشرية.</p>
             </div>
 
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
                 <div class="flex items-center justify-between">
-                    <label class="form-label font-bold text-slate-800">أقصى مبلغ للفاتورة الآلية:</label>
+                    <label class="form-label font-bold text-slate-800">مراجعة الفواتير التي تتجاوز:</label>
                     <span class="text-xs font-bold text-slate-600 num">د.ل</span>
                 </div>
-                <input type="number" id="setting-max-amount" value="@Model.Settings.MaxInvoiceAmountAutoApproval" class="form-input font-bold text-slate-900 num">
+                <input type="number" id="setting-max-amount" min="1" value="@Model.Settings.MaxInvoiceAmountAutoApproval.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-input font-bold text-slate-900 num">
                 <p class="text-[11px] text-slate-500">المبالغ الأعلى تتطلب مراجعة وتدقيق بشري من قبل المحاسب.</p>
             </div>
 
             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
                 <div class="flex items-center justify-between">
-                    <label class="form-label font-bold text-slate-800">أقصى مسح يومي للعميل:</label>
+                    <label class="form-label font-bold text-slate-800">أقصى عدد فواتير للعميل خلال 24 ساعة:</label>
                     <span class="text-xs font-bold text-slate-600 num">عمليات</span>
                 </div>
-                <input type="number" id="setting-daily-scans" value="@Model.Settings.MaxDailyScansPerCustomer" class="form-input font-bold text-slate-900 num">
-                <p class="text-[11px] text-slate-500">لمنع الإغراق العشوائي والتكرار المفرط للفواتير في اليوم الواحد.</p>
+                <input type="number" id="setting-daily-scans" min="0" max="200" value="@Model.Settings.MaxDailyScansPerCustomer" class="form-input font-bold text-slate-900 num">
+                <p class="text-[11px] text-slate-500">لمنع الإغراق والاحتيال. 0 = بدون حد.</p>
             </div>
         </div>
+        <label class="mt-4 flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" id="setting-known-store" class="form-check" @(Model.Settings.RequireKnownStore ? "checked" : "") />
+            تحويل فواتير المتاجر غير المسجلة في المول للمراجعة (موصى به)
+        </label>
     </div>
 
     <!-- 3. Live System Audit Logs -->
@@ -158,6 +162,7 @@
         const ocrConfidenceThreshold = parseFloat(document.getElementById('setting-ocr-conf').value);
         const maxInvoiceAmountAutoApproval = parseFloat(document.getElementById('setting-max-amount').value);
         const maxDailyScansPerCustomer = parseInt(document.getElementById('setting-daily-scans').value, 10);
+        const requireKnownStore = document.getElementById('setting-known-store').checked;
 
         try {
             const res = await fetch('/api/superadmin/settings', {
@@ -166,12 +171,14 @@
                 body: JSON.stringify({
                     ocrConfidenceThreshold,
                     maxInvoiceAmountAutoApproval,
-                    maxDailyScansPerCustomer
+                    maxDailyScansPerCustomer,
+                    requireKnownStore
                 })
             });
 
-            if (!res.ok) throw new Error('فشل حفظ الإعدادات');
-            showToast('تم حفظ معايير الذكاء الاصطناعي والإعدادات بنجاح!', 'success');
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || 'فشل حفظ الإعدادات');
+            showToast(data.message || 'تم حفظ الإعدادات.', 'success');
             setTimeout(() => location.reload(), 600);
         } catch (err) {
             showToast(err.message, 'error');

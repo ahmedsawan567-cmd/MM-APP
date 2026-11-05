@@ -41,6 +41,7 @@ public class StoreTenantDto
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
     public string Category { get; set; } = string.Empty;
     public string FloorNumber { get; set; } = string.Empty;
     public string UnitNumber { get; set; } = string.Empty;
@@ -60,6 +61,7 @@ public class StoreTenantDto
 public class CreateStoreTenantRequest
 {
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
     public string Category { get; set; } = string.Empty;
     public string FloorNumber { get; set; } = string.Empty;
     public string UnitNumber { get; set; } = string.Empty;
@@ -73,6 +75,7 @@ public class CreateStoreTenantRequest
 public class UpdateStoreTenantRequest
 {
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
     public string Category { get; set; } = string.Empty;
     public string FloorNumber { get; set; } = string.Empty;
     public string UnitNumber { get; set; } = string.Empty;
@@ -394,6 +397,7 @@ public class SystemSettingsDto
     public int MaxDailyScansPerCustomer { get; set; } = 10;
     public decimal MaxInvoiceAmountAutoApproval { get; set; } = 5000.00m;
     public bool EnableAutomaticFraudDetection { get; set; } = true;
+    public bool RequireKnownStore { get; set; } = true;
     public string ActiveOcrProvider { get; set; } = "Mock Receipt Engine (Azure/OpenAI Ready)";
 }
 

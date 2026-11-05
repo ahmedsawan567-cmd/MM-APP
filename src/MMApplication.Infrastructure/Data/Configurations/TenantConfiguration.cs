@@ -24,11 +24,13 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         // Ignore compatibility helper properties
         builder.Ignore(t => t.Id);
         builder.Ignore(t => t.Name);
-        builder.Ignore(t => t.FloorNumber);
-        builder.Ignore(t => t.CommissionRate);
-        builder.Ignore(t => t.ContactPerson);
-        builder.Ignore(t => t.ContactPhone);
-        builder.Ignore(t => t.LoyaltyType);
+        builder.Ignore(t => t.LoyaltyType); // نوع المكافأة يُدار من قاعدة الولاء للمتجر
+
+        // بيانات تشغيلية للمتجر (تُعدَّل من صفحة المتاجر)
+        builder.Property(t => t.FloorNumber).HasMaxLength(50).HasDefaultValue("");
+        builder.Property(t => t.CommissionRate).HasPrecision(5, 2).HasDefaultValue(5.00m);
+        builder.Property(t => t.ContactPerson).HasMaxLength(150);
+        builder.Property(t => t.ContactPhone).HasMaxLength(30);
 
         builder.HasOne(t => t.LoyaltyRule)
             .WithOne(r => r.Tenant)

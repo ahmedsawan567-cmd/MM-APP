@@ -499,7 +499,7 @@ END
 
                 var type = property.GetColumnType(store);
                 var nullable = property.IsColumnNullable(store);
-                var fallback = DefaultFor(type);
+                var fallback = ModelDefault(property.GetDefaultValue()) ?? DefaultFor(type);
                 var sql = $"ALTER TABLE \"{table}\" ADD COLUMN IF NOT EXISTS \"{column}\" {type}" +
                           (!nullable && fallback != null ? $" NOT NULL DEFAULT {fallback}" : "");
                 logger.LogInformation("PostgreSQL: إضافة العمود الناقص {Table}.{Column}", table, column);
@@ -584,6 +584,15 @@ END
 
     /// <summary>فهارس استُبدلت بأخرى في نموذج البيانات وتُحذف من القواعد القديمة.</summary>
     private static readonly string[] ObsoleteIndexes = ["UQ_Tenant_InvoiceNumber"];
+
+    private static string? ModelDefault(object? value) => value switch
+    {
+        null => null,
+        string s => "'" + s.Replace("'", "''") + "'",
+        bool b => b ? "TRUE" : "FALSE",
+        decimal or int or long or double or float => Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture),
+        _ => null,
+    };
 
     private static string? DefaultFor(string type)
     {

@@ -460,6 +460,35 @@ public class AdminDashboardController : Controller
         return Json(new { success = true, message = "تم حفظ المكافأة.", id = reward.Id });
     }
 
+    /// <summary>حذف مكافأة: إن استبدلها عملاء من قبل تُوقف فقط (قسائمهم تبقى صالحة)، وإلا تُحذف نهائياً.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RewardDelete(Guid id)
+    {
+        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        var reward = await _context.Rewards.FirstOrDefaultAsync(r => r.Id == id);
+        if (reward == null) return NotFound(new { success = false, message = "المكافأة غير موجودة." });
+
+        var redeemed = await _context.Redemptions.AnyAsync(r => r.RewardId == id);
+        if (redeemed) reward.IsActive = false;
+        else _context.Rewards.Remove(reward);
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ReviewerName,
+            Action = redeemed ? "REWARD_DEACTIVATE" : "REWARD_DELETE",
+            EntityName = "Reward",
+            EntityId = id.ToString(),
+            Details = $"{(redeemed ? "إيقاف" : "حذف")} المكافأة \"{reward.Title}\"",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        return Json(new
+        {
+            success = true,
+            message = redeemed ? "استبدلها عملاء من قبل، فأُوقفت فقط (قسائمهم تبقى صالحة)." : "تم حذف المكافأة."
+        });
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RewardToggle(Guid id)
@@ -779,13 +808,14 @@ public class AdminDashboardController : Controller
             Id = s.TenantId,
             Name = s.NameAr,
             Category = s.Category,
-            FloorNumber = s.UnitNumber.StartsWith("G") ? "الطابق الأرضي" : "الطابق الأول",
+            FloorNumber = s.FloorNumber,
+            NameEn = s.NameEn,
             UnitNumber = s.UnitNumber,
             LoyaltyType = StoreLoyaltyType.MallPoints,
             LoyaltyTypeLabel = s.LoyaltyRule != null ? s.LoyaltyRule.RewardType : "نقاط المول",
-            CommissionRate = 5.0m,
-            ContactPerson = s.SystemUsers.FirstOrDefault()?.FullName ?? "مدير الفرع",
-            ContactPhone = s.SystemUsers.FirstOrDefault()?.PhoneNumber ?? "-",
+            CommissionRate = s.CommissionRate,
+            ContactPerson = s.ContactPerson,
+            ContactPhone = s.ContactPhone,
             LogoUrl = s.LogoUrl,
             IsActive = s.IsActive,
             ActiveStaffCount = s.SystemUsers.Count,
@@ -803,7 +833,10 @@ public class AdminDashboardController : Controller
         }).ToList();
 
         ViewData["ActiveTab"] = "stores";
-        ViewData["Title"] = IsStoreManager ? "بيانات وترويسات متجري (My Store & OCR)" : "إدارة المتاجر والمستأجرين (Tenants & Stores)";
+        ViewData["Title"] = IsStoreManager ? "متجري" : "المتاجر";
+        ViewData["IsSuperAdmin"] = IsDeveloperOrSuperAdmin;
+        ViewData["ProfiledStores"] = (await _context.StoreInvoiceProfiles.AsNoTracking().Select(p => p.TenantId).ToListAsync()).ToHashSet();
+        ViewData["Categories"] = await _context.Tenants.AsNoTracking().Select(t => t.Category).Distinct().OrderBy(c => c).ToListAsync();
         ViewData["LoyaltyFilter"] = category ?? "";
         ViewData["SearchQuery"] = search ?? "";
         return View(storeDtos);
@@ -1189,6 +1222,9 @@ public class AdminDashboardController : Controller
         {
             id = invoice.InvoiceId,
             invoiceNumber = invoice.InvoiceNumber,
+            tenantId = invoice.TenantId,
+            invoiceDateIso = invoice.InvoiceDate?.ToString("yyyy-MM-dd"),
+            canReview = CanReviewInvoices,
             storeName = invoice.Tenant?.NameAr ?? invoice.ExtractedMerchant ?? "متجر عام",
             storeCategory = invoice.Tenant?.Category ?? "عام",
             customerName = invoice.Customer?.FullName ?? "عميل",
@@ -1239,11 +1275,15 @@ public class AdminDashboardController : Controller
                 : await _review.RejectAsync(id, ReviewerName, string.IsNullOrWhiteSpace(reason) ? "تم الرفض بواسطة الإدارة" : reason));
         }
 
-        invoice.ProcessingStatus = status;
+        // الإلغاء يسترجع النقاط ويحجز رقم الفاتورة (للمدير العام والمدقق فقط)
         if (status == InvoiceStatus.VOIDED)
         {
-            invoice.RejectionReason = string.IsNullOrWhiteSpace(reason) ? "تم الإلغاء بواسطة الإدارة" : reason;
+            if (!CanReviewInvoices) return Forbid();
+            return ReviewResult(await _review.VoidAsync(id, ReviewerName, string.IsNullOrWhiteSpace(reason) ? "تم الإلغاء بواسطة الإدارة" : reason));
         }
+
+        if (!CanReviewInvoices) return Forbid();
+        invoice.ProcessingStatus = status;
 
         _context.AuditLogs.Add(new AuditLog
         {
@@ -1258,6 +1298,15 @@ public class AdminDashboardController : Controller
         await _context.SaveChangesAsync();
 
         return Json(new { success = true, message = "تم تحديث حالة الفاتورة بنجاح." });
+    }
+
+    /// <summary>تعديل بيانات فاتورة غير معتمدة من سجل الفواتير.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> InvoiceEdit(Guid id, [FromBody] InvoiceCorrection correction)
+    {
+        if (!CanReviewInvoices) return Forbid();
+        return ReviewResult(await _review.UpdateDetailsAsync(id, ReviewerName, correction));
     }
 
     // ----------------------------------------------------
@@ -1897,6 +1946,19 @@ public class AdminDashboardController : Controller
     // 9. ⚙️ SYSTEM SETTINGS & AUDIT LOGS (Settings View)
     // ----------------------------------------------------
     [HttpGet]
+    private async Task<SystemSettingsDto> LoadSettingsDtoAsync()
+    {
+        var config = HttpContext?.RequestServices.GetService(typeof(IConfiguration)) as IConfiguration;
+        var s = await ReviewSettings.LoadAsync(_context, config);
+        return new SystemSettingsDto
+        {
+            OcrConfidenceThreshold = (decimal)Math.Round(s.MinConfidence * 100, 1),
+            MaxInvoiceAmountAutoApproval = s.ReviewAmountAbove,
+            MaxDailyScansPerCustomer = s.MaxDailyUploads,
+            RequireKnownStore = s.RequireKnownStore,
+        };
+    }
+
     public async Task<IActionResult> Settings([FromQuery] string? search)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
@@ -1931,12 +1993,7 @@ public class AdminDashboardController : Controller
 
         var viewModel = new SettingsPageViewModel
         {
-            Settings = new SystemSettingsDto
-            {
-                OcrConfidenceThreshold = 85.0m,
-                MaxInvoiceAmountAutoApproval = 5000.0m,
-                MaxDailyScansPerCustomer = 10
-            },
+            Settings = await LoadSettingsDtoAsync(),
             AuditLogs = logDtos,
             SearchQuery = search
         };

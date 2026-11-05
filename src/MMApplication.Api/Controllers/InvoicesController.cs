@@ -53,8 +53,9 @@ public class InvoicesController : ControllerBase
         ExtractedReceiptDto extracted, string? tenantId, DateTime invoiceDate, decimal totalAmount, int fraudRiskScore)
     {
         var reasons = new List<string>();
-        var minConfidence = _configuration?.GetValue<double?>("InvoiceReview:MinAutoApproveConfidence") ?? 0.85;
-        var amountThreshold = _configuration?.GetValue<decimal?>("InvoiceReview:ReviewAmountAbove") ?? 3000m;
+        var settings = await ReviewSettings.LoadAsync(_context, _configuration);
+        var minConfidence = settings.MinConfidence;
+        var amountThreshold = settings.ReviewAmountAbove;
 
         if (extracted.RequiresManualReview)
         {
@@ -66,7 +67,7 @@ public class InvoicesController : ControllerBase
         if (fraudRiskScore >= 35) reasons.Add("الجهاز مستخدم من حسابات عملاء أخرى");
         if (extracted.Confidence < minConfidence) reasons.Add($"ثقة القراءة منخفضة ({extracted.Confidence:P0})");
         reasons.AddRange(extracted.AuthenticityConcerns.Select(c => $"ملاحظة الذكاء الاصطناعي: {c}"));
-        var requireKnownStore = _configuration?.GetValue<bool?>("InvoiceReview:RequireKnownStore") ?? true;
+        var requireKnownStore = settings.RequireKnownStore;
         if (requireKnownStore && string.IsNullOrEmpty(tenantId)) reasons.Add("المتجر غير معروف ضمن متاجر المول");
 
         // مطابقة بصمة فاتورة المتجر (إن تعلّمها النظام)
@@ -171,6 +172,22 @@ public class InvoicesController : ControllerBase
                 success = false,
                 message = "حساب العميل موقوف أو مؤرشف، يرجى مراجعة إدارة المول (Customer account is suspended or archived)."
             });
+        }
+
+        // --- حد يومي لعدد الفواتير لكل عميل (مكافحة الإغراق والاحتيال) ---
+        var dailyLimit = (await ReviewSettings.LoadAsync(_context, _configuration)).MaxDailyUploads;
+        if (dailyLimit > 0)
+        {
+            var since = DateTime.UtcNow.AddHours(-24);
+            var todayCount = await _context.Invoices.CountAsync(i => i.CustomerId == customer.CustomerId && i.CreatedAt >= since);
+            if (todayCount >= dailyLimit)
+            {
+                return StatusCode(StatusCodes.Status429TooManyRequests, new
+                {
+                    success = false,
+                    message = $"وصلت للحد الأقصى ({dailyLimit} فواتير خلال 24 ساعة). حاول لاحقاً أو راجع خدمة العملاء."
+                });
+            }
         }
 
         // --- 1. Device Tracking & Anti-Sybil Check ---

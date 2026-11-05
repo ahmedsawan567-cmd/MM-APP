@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     public DbSet<PromotionBanner> PromotionBanners => Set<PromotionBanner>();
     public DbSet<LoyaltyCampaign> LoyaltyCampaigns => Set<LoyaltyCampaign>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
     // Legacy aliases for backward compatibility if needed
     public DbSet<Tenant> StoreTenants => Set<Tenant>();

@@ -111,6 +111,10 @@
                                         class="flex-1 px-3 py-2 rounded-xl text-xs font-bold @(r.IsActive ? "bg-rose-50 hover:bg-rose-100 text-rose-700" : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700")">
                                     @(r.IsActive ? "إيقاف" : "تفعيل")
                                 </button>
+                                <button type="button" onclick="deleteReward('@r.Id', this.dataset.title)" data-title="@r.Title" title="حذف"
+                                        class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-rose-600" aria-label="حذف">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
                             </div>
                         }
                     </div>
@@ -290,6 +294,17 @@
         });
         if (ok) { closeEditor(); Swal.fire({ icon: 'success', title: 'تم الحفظ', timer: 1200, showConfirmButton: false }).then(() => location.reload()); }
         else Swal.fire({ icon: 'error', title: 'تعذر الحفظ', text: data.message || 'تحقق من البيانات.' });
+    }
+
+    async function deleteReward(id, title) {
+        const c = await Swal.fire({
+            title: `حذف "${title}"؟`, text: 'إن استبدلها عملاء من قبل تُوقف فقط وتبقى قسائمهم صالحة.', icon: 'warning',
+            showCancelButton: true, confirmButtonText: 'حذف', cancelButtonText: 'إلغاء'
+        });
+        if (!c.isConfirmed) return;
+        const { ok, data } = await call(`/AdminDashboard/RewardDelete?id=${id}`, { method: 'POST', headers: { 'RequestVerificationToken': token } });
+        if (ok) { showToast(data.message, 'success'); setTimeout(() => location.reload(), 700); }
+        else Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || '' });
     }
 
     async function toggleReward(id) {

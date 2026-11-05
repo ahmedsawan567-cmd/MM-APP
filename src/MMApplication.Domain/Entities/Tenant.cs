@@ -16,7 +16,7 @@ public class Tenant
     // Helper compatibility properties
     public string Id { get => TenantId; set => TenantId = value; }
     public string Name { get => NameAr; set => NameAr = value; }
-    public string FloorNumber { get; set; } = "الطابق الأول";
+    public string FloorNumber { get; set; } = string.Empty;
     public decimal CommissionRate { get; set; } = 5.00m;
     public string? ContactPerson { get; set; }
     public string? ContactPhone { get; set; }

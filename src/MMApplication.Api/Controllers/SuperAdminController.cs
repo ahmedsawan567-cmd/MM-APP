@@ -151,13 +151,14 @@ public class SuperAdminController : ControllerBase
             Id = t.TenantId,
             Name = t.NameAr,
             Category = t.Category,
-            FloorNumber = t.UnitNumber.StartsWith("G") ? "الطابق الأرضي" : "الطابق الأول",
+            FloorNumber = t.FloorNumber,
+            NameEn = t.NameEn,
             UnitNumber = t.UnitNumber,
             LoyaltyType = StoreLoyaltyType.MallPoints,
             LoyaltyTypeLabel = t.LoyaltyRule != null ? t.LoyaltyRule.RewardType : "نقاط المول المشتركة (Mall Points)",
-            CommissionRate = 5.0m,
-            ContactPerson = t.SystemUsers.FirstOrDefault() != null ? t.SystemUsers.First().FullName : "مدير الفرع",
-            ContactPhone = t.SystemUsers.FirstOrDefault() != null ? t.SystemUsers.First().PhoneNumber : "-",
+            CommissionRate = t.CommissionRate,
+            ContactPerson = t.ContactPerson,
+            ContactPhone = t.ContactPhone,
             LogoUrl = t.LogoUrl,
             IsActive = t.IsActive,
             ActiveStaffCount = t.SystemUsers.Count,
@@ -177,118 +178,165 @@ public class SuperAdminController : ControllerBase
         return Ok(storeDtos);
     }
 
+    private static string? ValidateStore(string? name, string? category, decimal commission)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length < 2) return "اسم المتجر مطلوب.";
+        if (string.IsNullOrWhiteSpace(category)) return "النشاط التجاري مطلوب.";
+        if (commission is < 0 or > 100) return "نسبة العمولة يجب أن تكون بين 0 و 100.";
+        return null;
+    }
+
     [HttpPost("stores")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     [ProducesResponseType(typeof(StoreTenantDto), StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateStore([FromBody] CreateStoreTenantRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.Category))
-        {
-            return BadRequest(new { success = false, message = "اسم المتجر والنشاط التجاري حقول مطلوبة." });
-        }
+        if (ValidateStore(req.Name, req.Category, req.CommissionRate) is { } error)
+            return BadRequest(new { success = false, message = error });
 
-        var tenantId = $"TEN-{req.Name.Trim().ToUpper().Replace(" ", "-")}-{Guid.NewGuid().ToString()[..4].ToUpper()}";
+        var name = req.Name.Trim();
+        if (await _context.Tenants.AnyAsync(t => t.NameAr == name))
+            return BadRequest(new { success = false, message = "يوجد متجر بنفس الاسم." });
 
         var tenant = new Tenant
         {
-            TenantId = tenantId,
-            NameAr = req.Name.Trim(),
-            NameEn = req.Name.Trim(),
+            TenantId = $"TEN-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}",
+            NameAr = name,
+            NameEn = string.IsNullOrWhiteSpace(req.NameEn) ? name : req.NameEn.Trim(),
             Category = req.Category.Trim(),
-            UnitNumber = string.IsNullOrWhiteSpace(req.UnitNumber) ? "G-01" : req.UnitNumber.Trim(),
-            LogoUrl = req.LogoUrl?.Trim(),
+            FloorNumber = req.FloorNumber?.Trim() ?? "",
+            UnitNumber = req.UnitNumber?.Trim() ?? "",
+            CommissionRate = req.CommissionRate,
+            ContactPerson = string.IsNullOrWhiteSpace(req.ContactPerson) ? null : req.ContactPerson.Trim(),
+            ContactPhone = PhoneNumbers.Normalize(req.ContactPhone) ?? (string.IsNullOrWhiteSpace(req.ContactPhone) ? null : req.ContactPhone.Trim()),
+            LogoUrl = string.IsNullOrWhiteSpace(req.LogoUrl) ? null : req.LogoUrl.Trim(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
-
         await _context.Tenants.AddAsync(tenant);
 
-        var rule = new TenantLoyaltyRule
+        await _context.TenantLoyaltyRules.AddAsync(new TenantLoyaltyRule
         {
-            TenantId = tenantId,
+            TenantId = tenant.TenantId,
             RewardType = "POINTS",
             ConversionRate = 1.00m,
             MinInvoiceTotal = 10.00m,
             MaxPointsCap = 500,
             PointsExpiryDays = 90,
-            MaxInvoiceAgeDays = 3,
+            MaxInvoiceAgeDays = 7,
             UpdatedAt = DateTime.UtcNow
-        };
-        await _context.TenantLoyaltyRules.AddAsync(rule);
+        });
+        // اسم المتجر يُستخدم أيضاً للتعرف عليه في الفواتير
+        await _context.StoreAliases.AddAsync(new StoreAlias { TenantId = tenant.TenantId, AliasName = tenant.NameAr, MatchType = "CONTAINS", IsActive = true, CreatedAt = DateTime.UtcNow });
+        if (tenant.NameEn != tenant.NameAr)
+            await _context.StoreAliases.AddAsync(new StoreAlias { TenantId = tenant.TenantId, AliasName = tenant.NameEn, MatchType = "CONTAINS", IsActive = true, CreatedAt = DateTime.UtcNow });
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "STORE_CREATE",
             EntityName = "Tenant",
             EntityId = tenant.TenantId,
-            Details = $"إضافة متجر جديد: {tenant.NameAr} ({tenant.UnitNumber})",
+            Details = $"إضافة متجر: {tenant.NameAr} ({tenant.UnitNumber})",
             CreatedAt = DateTime.UtcNow
         });
-
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetStores), new { id = tenant.TenantId }, new StoreTenantDto
         {
             Id = tenant.TenantId,
             Name = tenant.NameAr,
+            NameEn = tenant.NameEn,
             Category = tenant.Category,
-            FloorNumber = "الطابق الأرضي",
+            FloorNumber = tenant.FloorNumber,
             UnitNumber = tenant.UnitNumber,
-            LoyaltyType = StoreLoyaltyType.MallPoints,
-            LoyaltyTypeLabel = "نقاط المول",
-            CommissionRate = 5.0m,
-            ContactPerson = req.ContactPerson,
-            ContactPhone = req.ContactPhone,
-            LogoUrl = tenant.LogoUrl,
-            IsActive = tenant.IsActive,
+            CommissionRate = tenant.CommissionRate,
+            ContactPerson = tenant.ContactPerson,
+            ContactPhone = tenant.ContactPhone,
+            IsActive = true,
             CreatedAt = tenant.CreatedAt
         });
     }
 
     [HttpPut("stores/{id}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> UpdateStore(string id, [FromBody] UpdateStoreTenantRequest req)
     {
         var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.TenantId == id);
-        if (tenant == null)
-        {
-            return NotFound(new { success = false, message = "المتجر غير موجود." });
-        }
+        if (tenant == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
+        if (ValidateStore(req.Name, req.Category, req.CommissionRate) is { } error)
+            return BadRequest(new { success = false, message = error });
 
-        tenant.NameAr = req.Name.Trim();
-        tenant.NameEn = req.Name.Trim();
+        var name = req.Name.Trim();
+        if (await _context.Tenants.AnyAsync(t => t.NameAr == name && t.TenantId != id))
+            return BadRequest(new { success = false, message = "يوجد متجر آخر بنفس الاسم." });
+
+        tenant.NameAr = name;
+        if (!string.IsNullOrWhiteSpace(req.NameEn)) tenant.NameEn = req.NameEn.Trim();
         tenant.Category = req.Category.Trim();
-        tenant.UnitNumber = req.UnitNumber.Trim();
+        tenant.FloorNumber = req.FloorNumber?.Trim() ?? "";
+        tenant.UnitNumber = req.UnitNumber?.Trim() ?? "";
+        tenant.CommissionRate = req.CommissionRate;
+        tenant.ContactPerson = string.IsNullOrWhiteSpace(req.ContactPerson) ? null : req.ContactPerson.Trim();
+        tenant.ContactPhone = PhoneNumbers.Normalize(req.ContactPhone) ?? (string.IsNullOrWhiteSpace(req.ContactPhone) ? null : req.ContactPhone.Trim());
         tenant.IsActive = req.IsActive;
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "STORE_UPDATE",
             EntityName = "Tenant",
             EntityId = tenant.TenantId,
-            Details = $"تعديل بيانات المتجر: {tenant.NameAr}",
+            Details = $"تعديل بيانات المتجر: {tenant.NameAr} ({(tenant.IsActive ? "نشط" : "موقوف")})",
             CreatedAt = DateTime.UtcNow
         });
-
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, message = "تم تحديث بيانات المتجر بنجاح." });
+        return Ok(new { success = true, message = "تم حفظ بيانات المتجر." });
     }
 
+    /// <summary>
+    /// حذف متجر: إن كانت له فواتير أو موظفون أو أرصدة يُوقَف فقط (للحفاظ على السجلات)،
+    /// وإلا يُحذف نهائياً مع أسمائه وقواعده ونموذج فاتورته.
+    /// </summary>
     [HttpDelete("stores/{id}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> DeleteStore(string id)
     {
         var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.TenantId == id);
-        if (tenant == null)
+        if (tenant == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
+
+        var inUse = await _context.Invoices.AnyAsync(i => i.TenantId == id)
+                    || await _context.SystemUsers.AnyAsync(u => u.TenantId == id)
+                    || await _context.CustomerWallets.AnyAsync(w => w.TenantId == id)
+                    || await _context.TenantSettlements.AnyAsync(s => s.TenantId == id);
+
+        string message;
+        if (inUse)
         {
-            return NotFound(new { success = false, message = "المتجر غير موجود." });
+            tenant.IsActive = false;
+            message = "للمتجر فواتير أو موظفون مرتبطون، فتم إيقافه (لا يظهر للعملاء) مع الحفاظ على سجلاته.";
+        }
+        else
+        {
+            _context.StoreAliases.RemoveRange(_context.StoreAliases.Where(a => a.TenantId == id));
+            _context.ProductBoosterRules.RemoveRange(_context.ProductBoosterRules.Where(b => b.TenantId == id));
+            _context.Tenants.Remove(tenant);
+            message = "تم حذف المتجر نهائياً.";
         }
 
-        _context.Tenants.Remove(tenant);
+        await _context.AuditLogs.AddAsync(new AuditLog
+        {
+            PerformedBy = ActorName,
+            Action = inUse ? "STORE_DEACTIVATE" : "STORE_DELETE",
+            EntityName = "Tenant",
+            EntityId = id,
+            Details = $"{(inUse ? "إيقاف" : "حذف")} المتجر {tenant.NameAr}",
+            CreatedAt = DateTime.UtcNow
+        });
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, message = "تم حذف المتجر بنجاح." });
+        return Ok(new { success = true, message, deactivated = inUse });
     }
 
-    // --- Store OCR Aliases & Header Matching ---
     [HttpGet("stores/{tenantId}/aliases")]
     [ProducesResponseType(typeof(IEnumerable<StoreAliasDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStoreAliases(string tenantId)
@@ -1559,46 +1607,67 @@ public class SuperAdminController : ControllerBase
         return Ok(new { success = true, message = "تم إتمام التسوية وصرف المستحقات بنجاح." });
     }
 
+    /// <summary>
+    /// توليد كشوف التسوية من القسائم المستخدمة فعلاً في كل متجر خلال الفترة:
+    /// قيمة القسائم − عمولة المول (حسب نسبة المتجر) = المستحق للمتجر. لا تُكرر فترة سبق توليدها.
+    /// </summary>
     [HttpPost("settlements/generate-batch")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> GenerateSettlementBatch([FromBody] GenerateSettlementBatchRequest req)
     {
-        var stores = await _context.Tenants.Where(s => s.IsActive).ToListAsync();
-        var generatedCount = 0;
+        var end = (req.PeriodEnd ?? DateTime.UtcNow).ToUniversalTime();
+        var start = (req.PeriodStart ?? end.AddDays(-7)).ToUniversalTime();
+        if (start >= end) return BadRequest(new { success = false, message = "بداية الفترة يجب أن تسبق نهايتها." });
 
+        var used = await _context.Redemptions.AsNoTracking()
+            .Include(r => r.Reward)
+            .Where(r => r.Status == RedemptionStatus.USED && r.UsedAt >= start && r.UsedAt < end && r.UsedByMerchant != null)
+            .ToListAsync();
+
+        var stores = await _context.Tenants.AsNoTracking().ToListAsync();
+        var generated = 0;
+        var skipped = 0;
         foreach (var store in stores)
         {
-            var totalRedemptions = 35;
-            var totalVal = totalRedemptions * 25.00m;
-            var comm = totalVal * 0.05m;
-            var net = totalVal - comm;
+            var mine = used.Where(r => string.Equals(r.UsedByMerchant, store.NameAr, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (mine.Count == 0) continue;
 
-            var batch = new TenantSettlement
+            var overlaps = await _context.TenantSettlements.AnyAsync(t =>
+                t.TenantId == store.TenantId && t.SettlementStatus != SettlementStatus.Canceled &&
+                t.PeriodStartDate < end && t.PeriodEndDate > start);
+            if (overlaps) { skipped++; continue; }
+
+            var value = mine.Sum(r => r.Reward?.DiscountValue ?? 0m);
+            var fee = Math.Round(value * store.CommissionRate / 100m, 2);
+            await _context.TenantSettlements.AddAsync(new TenantSettlement
             {
                 SettlementId = Guid.NewGuid(),
                 TenantId = store.TenantId,
-                PeriodStartDate = req.PeriodStart ?? DateTime.UtcNow.AddDays(-7),
-                PeriodEndDate = req.PeriodEnd ?? DateTime.UtcNow,
-                TotalVouchersRedeemedValue = totalVal,
-                MallServiceFee = comm,
-                NetPayableToTenant = net,
+                PeriodStartDate = start,
+                PeriodEndDate = end,
+                TotalVouchersRedeemedValue = value,
+                MallServiceFee = fee,
+                NetPayableToTenant = value - fee,
                 SettlementStatus = SettlementStatus.Pending,
                 CreatedAt = DateTime.UtcNow
-            };
-            await _context.TenantSettlements.AddAsync(batch);
-            generatedCount++;
+            });
+            generated++;
         }
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "SETTLEMENT_BATCH_GENERATE",
             EntityName = "TenantSettlement",
-            Details = $"توليد دورة تسوية مالية جديدة لعدد ({generatedCount}) متاجر نشطة",
+            Details = $"توليد تسويات الفترة {start:yyyy-MM-dd} إلى {end:yyyy-MM-dd}: {generated} كشف" + (skipped > 0 ? $"، تُجوهل {skipped} لوجود تسوية سابقة للفترة" : ""),
             CreatedAt = DateTime.UtcNow
         });
-
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, message = $"تم توليد ({generatedCount}) كشوفات تسوية جديدة بنجاح." });
+
+        var message = generated == 0
+            ? (skipped > 0 ? "توجد تسويات سابقة لهذه الفترة لكل المتاجر التي استُخدمت فيها قسائم." : "لا توجد قسائم مستخدمة في المتاجر خلال هذه الفترة.")
+            : $"تم توليد {generated} كشف تسوية من القسائم المستخدمة فعلاً.";
+        return Ok(new { success = true, message, generated });
     }
 
     /// <summary>
@@ -2258,25 +2327,43 @@ public class SuperAdminController : ControllerBase
     // ==========================================
     [HttpGet("settings")]
     [ProducesResponseType(typeof(SystemSettingsDto), StatusCodes.Status200OK)]
-    public IActionResult GetSettings()
+    public async Task<IActionResult> GetSettings([FromServices] IConfiguration configuration)
     {
-        return Ok(new SystemSettingsDto());
+        var s = await ReviewSettings.LoadAsync(_context, configuration);
+        return Ok(new SystemSettingsDto
+        {
+            OcrConfidenceThreshold = (decimal)Math.Round(s.MinConfidence * 100, 1),
+            MaxInvoiceAmountAutoApproval = s.ReviewAmountAbove,
+            MaxDailyScansPerCustomer = s.MaxDailyUploads,
+            RequireKnownStore = s.RequireKnownStore,
+        });
     }
 
     [HttpPut("settings")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> UpdateSettings([FromBody] SystemSettingsDto req)
     {
+        if (req.OcrConfidenceThreshold is < 50 or > 100)
+            return BadRequest(new { success = false, message = "حد ثقة القراءة يجب أن يكون بين 50% و 100%." });
+        if (req.MaxInvoiceAmountAutoApproval <= 0)
+            return BadRequest(new { success = false, message = "حد المبلغ يجب أن يكون أكبر من صفر." });
+        if (req.MaxDailyScansPerCustomer is < 0 or > 200)
+            return BadRequest(new { success = false, message = "الحد اليومي يجب أن يكون بين 0 (بلا حد) و 200." });
+
+        var settings = new ReviewSettings((double)req.OcrConfidenceThreshold / 100, req.MaxInvoiceAmountAutoApproval,
+            req.MaxDailyScansPerCustomer, req.RequireKnownStore);
+        await ReviewSettings.SaveAsync(_context, settings, ActorName);
+
         await _context.AuditLogs.AddAsync(new AuditLog
         {
-            PerformedBy = "Super Admin",
+            PerformedBy = ActorName,
             Action = "SETTINGS_UPDATE",
             EntityName = "SystemSettings",
-            Details = $"تحديث معايير الذكاء الاصطناعي (حد دقة OCR: {req.OcrConfidenceThreshold}%) ومحددات مخاطر الاحتيال",
+            Details = $"إعدادات القبول التلقائي: ثقة القراءة ≥ {req.OcrConfidenceThreshold}%، مراجعة المبالغ فوق {req.MaxInvoiceAmountAutoApproval:N0} د.ل، حد يومي {req.MaxDailyScansPerCustomer} فواتير، متجر معروف إلزامي: {(req.RequireKnownStore ? "نعم" : "لا")}",
             CreatedAt = DateTime.UtcNow
         });
-
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, message = "تم حفظ إعدادات النظام وتحديث محرك الفحص الذكي بنجاح." });
+        return Ok(new { success = true, message = "تم حفظ الإعدادات وتطبيقها على الفواتير الجديدة." });
     }
 
     [HttpGet("audit-logs")]
