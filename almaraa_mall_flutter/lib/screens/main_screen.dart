@@ -36,6 +36,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // تحديث عدد الإشعارات كل دقيقة أثناء فتح التطبيق
     _poll = Timer.periodic(const Duration(minutes: 1), (_) => Session.instance.refreshUnread());
     AppNotifications.openInbox.addListener(_openInboxIfRequested);
+    Session.instance.requestedTab.addListener(_onTabRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openInboxIfRequested();
       _askForPermissionOnce();
@@ -46,6 +47,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void dispose() {
     _poll?.cancel();
     AppNotifications.openInbox.removeListener(_openInboxIfRequested);
+    Session.instance.requestedTab.removeListener(_onTabRequested);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -53,6 +55,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) Session.instance.refreshUnread();
+  }
+
+  void _onTabRequested() {
+    final tab = Session.instance.requestedTab.value;
+    if (tab == null || !mounted) return;
+    Session.instance.requestedTab.value = null;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    _go(tab);
   }
 
   void _openInboxIfRequested() {

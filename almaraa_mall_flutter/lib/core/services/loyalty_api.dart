@@ -5,6 +5,7 @@ import '../../models/invoice.dart';
 import '../../models/json_utils.dart';
 import '../../models/mall.dart';
 import '../../models/reward.dart';
+import '../../models/store_details.dart';
 import '../../models/user_profile.dart';
 import '../../models/wallet.dart';
 import 'api_client.dart';
@@ -63,6 +64,9 @@ class LoyaltyApi {
 
   // ---------- الرئيسية والمتاجر ----------
   static Future<HomeData> getHome() async => HomeData.fromJson(await _api.get('/v1/mobile/home'));
+
+  static Future<StoreDetails> getStoreDetails(String id) async =>
+      StoreDetails.fromJson(await _api.get('/v1/mobile/stores/$id'));
 
   static Future<List<Store>> getStores({String? search, String? category}) async =>
       jList(await _api.get('/v1/mobile/stores', query: {'search': search, 'category': category}), Store.fromJson);

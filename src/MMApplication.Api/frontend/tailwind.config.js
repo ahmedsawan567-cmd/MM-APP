@@ -19,7 +19,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"IBM Plex Sans Arabic"', 'system-ui', '-apple-system', 'Segoe UI', 'Tahoma', 'sans-serif'],
+        sans: ['"Cairo"', 'system-ui', '-apple-system', 'Segoe UI', 'Tahoma', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       colors: {

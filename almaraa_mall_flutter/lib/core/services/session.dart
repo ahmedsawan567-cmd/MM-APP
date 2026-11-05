@@ -29,6 +29,9 @@ class Session extends ChangeNotifier {
   /// عدد الإشعارات غير المقروءة (للجرس في الرئيسية).
   final ValueNotifier<int> unreadNotifications = ValueNotifier<int>(0);
 
+  /// طلب التنقل لتبويب في الشاشة الرئيسية من صفحة فرعية (مثل: صوّر فاتورة من صفحة المتجر).
+  final ValueNotifier<int?> requestedTab = ValueNotifier<int?>(null);
+
   Future<void> refreshUnread() async {
     if (!isLoggedIn) return;
     try {

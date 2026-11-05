@@ -225,7 +225,7 @@ public class MobileHomeController : ControllerBase
                 UnitNumber = t.UnitNumber,
                 Category = t.Category,
                 LogoUrl = t.LogoUrl,
-                FloorLabel = t.UnitNumber.StartsWith("G") ? "الطابق الأرضي" : "الطابق الأول",
+                FloorLabel = t.FloorNumber != "" ? t.FloorNumber : (t.UnitNumber.StartsWith("G") ? "الطابق الأرضي" : "الطابق الأول"),
                 RewardType = t.LoyaltyRule != null ? t.LoyaltyRule.RewardType : "POINTS",
                 ConversionRate = t.LoyaltyRule != null ? t.LoyaltyRule.ConversionRate : 0.1m
             })
@@ -233,4 +233,127 @@ public class MobileHomeController : ControllerBase
 
         return Ok(stores);
     }
+
+    /// <summary>
+    /// صفحة المتجر في التطبيق: كيف أكسب النقاط هنا، رصيدي، وكم يتبقى لي لكل جائزة
+    /// (مع تقدير المشتريات اللازمة للوصول إليها). بيانات العميل تظهر فقط إن كان مسجلاً دخوله.
+    /// </summary>
+    [HttpGet("stores/{id}")]
+    public async Task<IActionResult> GetStoreDetails(string id)
+    {
+        var store = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.TenantId == id && t.IsActive);
+        if (store == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
+
+        // قاعدة الكسب الفعلية: الخاصة بالمتجر، ثم العامة للمول، ثم الافتراضية (نفس محرك احتساب النقاط)
+        var rule = await _context.LoyaltyEarningRules.AsNoTracking()
+                       .Where(r => r.IsActive && r.StoreTenantId == id).OrderByDescending(r => r.CreatedAt).FirstOrDefaultAsync()
+                   ?? await _context.LoyaltyEarningRules.AsNoTracking()
+                       .Where(r => r.IsActive && r.StoreTenantId == null).OrderByDescending(r => r.CreatedAt).FirstOrDefaultAsync();
+        var calc = rule?.CalculationType?.ToUpperInvariant() ?? "SPEND_RATIO";
+        var ratio = rule?.SpendRatioRate ?? 0.1m;
+        var fixedPoints = rule?.FixedPointsPerInvoice ?? 0;
+        var minSpend = rule?.MinInvoiceAmount ?? 0m;
+        var tenantRule = await _context.TenantLoyaltyRules.AsNoTracking().FirstOrDefaultAsync(r => r.TenantId == id);
+        var maxAge = tenantRule?.MaxInvoiceAgeDays is > 0 ? tenantRule.MaxInvoiceAgeDays : 7;
+
+        string Lyd(decimal v) => v == Math.Round(v) ? v.ToString("N0") : v.ToString("N2");
+        var earn = new List<string>();
+        if (calc is "SPEND_RATIO" or "HYBRID" && ratio > 0) earn.Add($"نقطة واحدة لكل {Lyd(1 / ratio)} د.ل تشتريها");
+        if (calc is "FIXED_PER_INVOICE" or "HYBRID" && fixedPoints > 0) earn.Add($"{fixedPoints} نقطة مع كل فاتورة");
+        if (minSpend > 0) earn.Add($"أقل مبلغ للفاتورة {Lyd(minSpend)} د.ل");
+        if (rule?.MaxPointsCap is > 0) earn.Add($"حتى {rule.MaxPointsCap} نقطة للفاتورة الواحدة");
+        earn.Add($"صوّر الفاتورة خلال {maxAge} أيام من الشراء");
+
+        var now = DateTime.UtcNow;
+        var boosters = await _context.ProductBoosterRules.AsNoTracking()
+            .Where(b => b.IsActive && b.StartDate <= now && b.EndDate >= now && (b.TenantId == id || b.TenantId == null))
+            .OrderByDescending(b => b.BonusPoints)
+            .Select(b => new { b.Title, b.BonusPoints, endsAt = b.EndDate })
+            .Take(5)
+            .ToListAsync();
+
+        // جوائز هذا المتجر أولاً، ثم جوائز المول العامة
+        var rewards = await _context.Rewards.AsNoTracking()
+            .Where(r => r.IsActive && (r.ValidUntil == null || r.ValidUntil > now) && (r.StockQuantity == null || r.StockQuantity > 0))
+            .ToListAsync();
+        bool ForStore(string? merchant) => !string.IsNullOrWhiteSpace(merchant) &&
+            (merchant.Contains(store.NameAr, StringComparison.OrdinalIgnoreCase) || store.NameAr.Contains(merchant, StringComparison.OrdinalIgnoreCase) ||
+             (!string.IsNullOrWhiteSpace(store.NameEn) && (merchant.Contains(store.NameEn, StringComparison.OrdinalIgnoreCase) || store.NameEn.Contains(merchant, StringComparison.OrdinalIgnoreCase))));
+        var relevant = rewards.Where(r => ForStore(r.MerchantName)).Select(r => (r, here: true))
+            .Concat(rewards.Where(r => string.IsNullOrWhiteSpace(r.MerchantName)).Select(r => (r, here: false)))
+            .ToList();
+
+        // بيانات العميل (اختيارية)
+        int? balance = null;
+        object? mine = null;
+        var customerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (User.Identity?.IsAuthenticated == true && customerId != null)
+        {
+            balance = (int)(await _context.CustomerWallets.AsNoTracking()
+                .Where(w => w.CustomerId == customerId && w.BalanceType == BalanceType.POINTS)
+                .Select(w => (decimal?)w.CurrentBalance).FirstOrDefaultAsync() ?? 0);
+            var invoices = await _context.Invoices.AsNoTracking()
+                .Where(i => i.CustomerId == customerId && i.TenantId == id)
+                .Select(i => new { i.ProcessingStatus, i.TotalAmount, i.PointsAwarded, i.CreatedAt })
+                .ToListAsync();
+            var approved = invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).ToList();
+            mine = new
+            {
+                invoicesCount = invoices.Count,
+                approvedCount = approved.Count,
+                totalSpent = approved.Sum(i => i.TotalAmount ?? 0),
+                pointsEarned = approved.Sum(i => i.PointsAwarded),
+                lastVisit = invoices.OrderByDescending(i => i.CreatedAt).Select(i => (DateTime?)i.CreatedAt).FirstOrDefault(),
+            };
+        }
+
+        decimal? SpendNeeded(int points) => calc is "SPEND_RATIO" or "HYBRID" && ratio > 0 && points > 0
+            ? Math.Ceiling(points / ratio)
+            : null;
+
+        var rewardItems = relevant
+            .OrderBy(x => x.r.PointsCost)
+            .Select(x =>
+            {
+                var remaining = balance.HasValue ? Math.Max(0, x.r.PointsCost - balance.Value) : x.r.PointsCost;
+                return new
+                {
+                    id = x.r.Id,
+                    title = x.r.Title,
+                    description = x.r.Description,
+                    imageUrl = x.r.ImageUrl,
+                    pointsCost = x.r.PointsCost,
+                    discountValue = x.r.DiscountValue,
+                    atThisStore = x.here,
+                    remainingPoints = remaining,
+                    progress = x.r.PointsCost <= 0 ? 1.0 : Math.Min(1.0, (double)(balance ?? 0) / x.r.PointsCost),
+                    canRedeem = balance.HasValue && remaining == 0,
+                    estimatedSpend = SpendNeeded(remaining),
+                };
+            })
+            .ToList();
+        var next = rewardItems.FirstOrDefault(r => !r.canRedeem);
+
+        return Ok(new
+        {
+            store = new
+            {
+                id = store.TenantId,
+                nameAr = store.NameAr,
+                nameEn = store.NameEn,
+                category = store.Category,
+                floor = store.FloorNumber,
+                unitNumber = store.UnitNumber,
+                logoUrl = store.LogoUrl,
+                phone = store.ContactPhone,
+            },
+            howToEarn = earn,
+            boosters,
+            pointsBalance = balance,
+            mine,
+            nextReward = next,
+            rewards = rewardItems,
+        });
+    }
 }
+

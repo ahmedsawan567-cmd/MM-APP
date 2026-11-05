@@ -7,6 +7,7 @@ import '../core/services/loyalty_api.dart';
 import '../core/theme/app_theme.dart';
 import '../models/mall.dart';
 import '../widgets/common.dart';
+import 'store_details_screen.dart';
 
 class StoresTab extends StatefulWidget {
   const StoresTab({super.key});
@@ -150,6 +151,7 @@ class _StoreCard extends StatelessWidget {
     final p = context.palette;
     return AppCard(
       padding: const EdgeInsets.all(14),
+      onTap: () => pushPage(context, StoreDetailsScreen(storeId: store.tenantId, store: store)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
