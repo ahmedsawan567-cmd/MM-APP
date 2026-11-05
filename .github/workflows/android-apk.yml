@@ -43,7 +43,11 @@ jobs:
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
             python3 tool/firebase_defines.py google-services.json > firebase-defines.json
-            echo "Firebase: مفعّل"
+            echo "Firebase: مفعّل (من السر)"
+          elif [ -f firebase/google-services.json ]; then
+            # إعدادات تطبيق أندرويد العامة (تُضمَّن داخل الـ APK أصلاً، وليست سراً)
+            python3 tool/firebase_defines.py firebase/google-services.json > firebase-defines.json
+            echo "Firebase: مفعّل (من firebase/google-services.json)"
           else
             echo '{}' > firebase-defines.json
             echo "Firebase: غير مضبوط — التطبيق يعتمد على الفحص الدوري للإشعارات"
