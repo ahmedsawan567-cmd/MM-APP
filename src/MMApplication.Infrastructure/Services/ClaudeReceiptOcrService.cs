@@ -170,7 +170,7 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
         return string.IsNullOrWhiteSpace(shortDetail) ? reason : $"{reason} (تفاصيل: {shortDetail})";
     }
 
-    private const string SystemPrompt =
+    public const string SystemPrompt =
         """
         You read photos and PDFs of purchase receipts for a shopping-mall loyalty program in Libya.
         Customers earn points from these receipts, so accuracy matters and some customers may try to cheat.
@@ -195,7 +195,7 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
         - confidence: 0 to 1, how sure you are that the merchant, invoice number, date and total are all correct.
         """;
 
-    private static string BuildUserPrompt(ReceiptExtractionContext context)
+    public static string BuildUserPrompt(ReceiptExtractionContext context)
     {
         var sb = new StringBuilder("Read this receipt.");
         if (context.KnownStores.Count > 0)
@@ -296,7 +296,10 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
         return doc.RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone());
     }
 
-    public static ExtractedReceiptDto Parse(string json, ReceiptExtractionContext context)
+    public static ExtractedReceiptDto Parse(string json, ReceiptExtractionContext context) => Parse(json, context, ProviderName);
+
+    /// <summary>يحوّل رد JSON (بنفس المخطط) إلى بيانات الفاتورة. يُستخدم لـ Claude و Gemini.</summary>
+    public static ExtractedReceiptDto Parse(string json, ReceiptExtractionContext context, string provider)
     {
         using var doc = JsonDocument.Parse(json);
         var r = doc.RootElement;
@@ -347,7 +350,7 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
 
         return new ExtractedReceiptDto
         {
-            Provider = ProviderName,
+            Provider = provider,
             RawPayload = json,
             IsReceipt = !r.TryGetProperty("is_receipt", out var isR) || isR.ValueKind != JsonValueKind.False,
             MerchantName = Str("merchant_name"),

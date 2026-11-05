@@ -27,7 +27,7 @@ public class ClaudeInvoiceProfileAnalyzer : IInvoiceProfileAnalyzer
         _logger = logger;
     }
 
-    private const string SystemPrompt =
+    public const string SystemPrompt =
         """
         You study one sample purchase receipt from a specific store in a Libyan shopping mall, so that future receipts
         from the same store can be recognised reliably and their invoice numbers read correctly (each invoice number
@@ -107,7 +107,7 @@ public class ClaudeInvoiceProfileAnalyzer : IInvoiceProfileAnalyzer
         }
     }
 
-    public static InvoiceProfileSuggestionDto Parse(string json)
+    public static InvoiceProfileSuggestionDto Parse(string json, string provider = ClaudeReceiptOcrService.ProviderName)
     {
         using var doc = JsonDocument.Parse(json);
         var r = doc.RootElement;
@@ -119,7 +119,7 @@ public class ClaudeInvoiceProfileAnalyzer : IInvoiceProfileAnalyzer
         var example = Str("invoice_number_example");
         return new InvoiceProfileSuggestionDto
         {
-            Provider = ClaudeReceiptOcrService.ProviderName,
+            Provider = provider,
             IsReceipt = !r.TryGetProperty("is_receipt", out var isR) || isR.ValueKind != JsonValueKind.False,
             PrintedName = Str("printed_name"),
             OtherNames = r.TryGetProperty("other_names", out var names) && names.ValueKind == JsonValueKind.Array
@@ -183,6 +183,6 @@ public class ManualInvoiceProfileAnalyzer : IInvoiceProfileAnalyzer
         {
             Provider = "Manual",
             PrintedName = storeName,
-            Warning = "التحليل بالذكاء الاصطناعي غير مفعّل (لم يُضبط مفتاح Claude). حُفظت الصورة، أكمل الحقول يدوياً.",
+            Warning = "التحليل بالذكاء الاصطناعي غير مفعّل (لم يُضبط مفتاح Gemini). حُفظت الصورة، أكمل الحقول يدوياً.",
         });
 }

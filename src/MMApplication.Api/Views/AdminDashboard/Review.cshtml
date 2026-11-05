@@ -20,7 +20,7 @@
         "RESUBMISSION_REQUESTED" => "bg-slate-100 text-slate-600 ring-slate-200",
         _ => "bg-amber-50 text-amber-700 ring-amber-200"
     };
-    var aiIsReal = Model.AiProvider == "Claude";
+    var aiIsReal = Model.AiProvider is "Claude" or "Gemini";
 }
 @Html.AntiForgeryToken()
 
@@ -35,7 +35,7 @@
         <div class="page-actions">
             <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ring-1 @(aiIsReal ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-700 ring-amber-200")">
                 <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-                @(aiIsReal ? "القراءة بواسطة Claude" : "القراءة الآلية تجريبية (أضف مفتاح Claude)")
+                @(aiIsReal ? $"القراءة بواسطة {Model.AiProvider}" : "القراءة الآلية تجريبية (أضف مفتاح Gemini)")
             </span>
             <button type="button" onclick="openAiLab()" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-ink text-surface hover:opacity-90">
                 <i data-lucide="flask-conical" class="w-4 h-4"></i>

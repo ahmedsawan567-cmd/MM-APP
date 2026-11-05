@@ -45,32 +45,35 @@ else
 }
 
 // 3. Dependency Injection (Services)
-// محرك قراءة الفواتير: Claude إذا وُجد مفتاح Anthropic، وإلا المحرك الوهمي (للتطوير فقط —
-// خارج بيئة التطوير تُحوّل نتائجه لمراجعة الموظفين ولا تُمنح نقاط تلقائياً).
-// يمكن فرض محرك معيّن بالإعداد "OcrProvider": Claude | Mock | Azure | OpenAI
+// محرك قراءة الفواتير والذكاء الاصطناعي: Gemini إذا وُجد مفتاحه، ثم Claude، وإلا المحرك الوهمي
+// (للتطوير فقط — خارج بيئة التطوير تُحوّل نتائجه لمراجعة الموظفين ولا تُمنح نقاط تلقائياً).
+// يمكن فرض محرك معيّن بالإعداد "OcrProvider": Gemini | Claude | Mock | Azure | OpenAI
 var ocrProvider = builder.Configuration.GetValue<string>("OcrProvider")
-    ?? (ClaudeReceiptOcrService.IsConfigured(builder.Configuration) ? "Claude" : "Mock");
+    ?? (GeminiClient.IsConfigured(builder.Configuration) ? "Gemini"
+        : ClaudeReceiptOcrService.IsConfigured(builder.Configuration) ? "Claude" : "Mock");
 switch (ocrProvider.ToLowerInvariant())
 {
+    case "gemini":
+        builder.Services.AddHttpClient<IReceiptOcrService, GeminiReceiptOcrService>();
+        builder.Services.AddHttpClient<IInvoiceProfileAnalyzer, GeminiInvoiceProfileAnalyzer>();
+        break;
     case "claude":
         builder.Services.AddScoped<IReceiptOcrService, ClaudeReceiptOcrService>();
+        builder.Services.AddScoped<IInvoiceProfileAnalyzer, ClaudeInvoiceProfileAnalyzer>();
         break;
     case "azure":
         builder.Services.AddScoped<IReceiptOcrService, AzureDocumentIntelligenceOcrService>();
+        builder.Services.AddScoped<IInvoiceProfileAnalyzer, ManualInvoiceProfileAnalyzer>();
         break;
     case "openai":
         builder.Services.AddScoped<IReceiptOcrService, OpenAiVisionOcrService>();
+        builder.Services.AddScoped<IInvoiceProfileAnalyzer, ManualInvoiceProfileAnalyzer>();
         break;
     default:
         builder.Services.AddScoped<IReceiptOcrService, MockReceiptOcrService>();
+        builder.Services.AddScoped<IInvoiceProfileAnalyzer, ManualInvoiceProfileAnalyzer>();
         break;
 }
-
-// تعلّم بصمة فاتورة كل متجر من صورة نموذجية (لوحة التحكم ← نماذج الفواتير)
-if (ClaudeReceiptOcrService.IsConfigured(builder.Configuration) || builder.Configuration["Claude:BaseUrl"] is { Length: > 0 })
-    builder.Services.AddScoped<IInvoiceProfileAnalyzer, ClaudeInvoiceProfileAnalyzer>();
-else
-    builder.Services.AddScoped<IInvoiceProfileAnalyzer, ManualInvoiceProfileAnalyzer>();
 
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
