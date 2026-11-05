@@ -34,14 +34,29 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
+      # إشعارات فورية عبر Firebase (اختياري): Settings ← Secrets and variables ← Actions ← Secrets
+      #   GOOGLE_SERVICES_JSON = محتوى ملف google-services.json كاملاً
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
+            python3 tool/firebase_defines.py google-services.json > firebase-defines.json
+            echo "Firebase: مفعّل"
+          else
+            echo '{}' > firebase-defines.json
+            echo "Firebase: غير مضبوط — التطبيق يعتمد على الفحص الدوري للإشعارات"
+          fi
+
       # عنوان افتراضي للخادم (اختياري): Settings ← Secrets and variables ← Actions ← Variables ← API_BASE_URL
       # بدونه يضبط المستخدم العنوان من داخل التطبيق (إعدادات الخادم).
       - name: Build release APK
         run: |
           if [ -n "${{ vars.API_BASE_URL }}" ]; then
-            flutter build apk --release --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+            flutter build apk --release --dart-define-from-file=firebase-defines.json --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
           else
-            flutter build apk --release
+            flutter build apk --release --dart-define-from-file=firebase-defines.json
           fi
 
       - uses: actions/upload-artifact@v4

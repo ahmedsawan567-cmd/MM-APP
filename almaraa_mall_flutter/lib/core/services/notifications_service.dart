@@ -16,6 +16,8 @@ void notificationsCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
       await ServerConfig.load();
+      // الإشعارات الفورية (Firebase) مفعّلة: النظام يعرضها مباشرة ولا حاجة للفحص الدوري
+      if ((await SharedPreferences.getInstance()).getBool('push_active') ?? false) return true;
       await AppNotifications.init();
       await AppNotifications.checkAndNotify();
     } catch (_) {
@@ -39,6 +41,11 @@ class AppNotifications {
 
   /// يُضبط عند الضغط على إشعار: يفتح التطبيق صفحة الإشعارات.
   static final ValueNotifier<bool> openInbox = ValueNotifier(false);
+
+  /// يزيد مع كل إشعار فوري يصل والتطبيق مفتوح (لتحديث العدّاد).
+  static final ValueNotifier<int> onRemoteMessage = ValueNotifier(0);
+
+  static bool _checking = false;
 
   static const _channel = AndroidNotificationDetails(
     'mm_updates',
@@ -115,7 +122,19 @@ class AppNotifications {
 
   /// يجلب الإشعارات الجديدة غير المقروءة منذ آخر عرض ويُظهرها على الهاتف.
   static Future<int> checkAndNotify() async {
+    if (_checking) return 0;
+    _checking = true;
+    try {
+      return await _checkAndNotify();
+    } finally {
+      _checking = false;
+    }
+  }
+
+  static Future<int> _checkAndNotify() async {
     final prefs = await SharedPreferences.getInstance();
+    // قد تكون مهمة الخلفية حدّثت آخر وقت عرض
+    await prefs.reload();
     final token = prefs.getString(_tokenKey);
     if (token == null) return 0;
     final since = prefs.getString(_lastShownKey);
@@ -143,20 +162,34 @@ class AppNotifications {
   static Future<void> show(List<AppNotification> items) async {
     if (kIsWeb || !(await isEnabled())) return;
     for (final n in items.take(5)) {
-      await _plugin.show(
-        id: n.id.hashCode & 0x7fffffff,
-        title: n.title,
-        body: n.body,
-        notificationDetails: NotificationDetails(android: _channel.copyWithBody(n.body)),
-        payload: n.link,
-      );
+      await showOne(id: n.id, title: n.title, body: n.body, link: n.link, checkPermission: false);
     }
+  }
+
+  /// عرض إشعار واحد. الوسم (tag) = معرّف الإشعار في المنظومة، وهو نفس وسم إشعار Firebase،
+  /// فلا يتكرر الإشعار نفسه مرتين على الهاتف.
+  static Future<void> showOne({
+    required String id,
+    required String title,
+    required String body,
+    String? link,
+    bool checkPermission = true,
+  }) async {
+    if (kIsWeb) return;
+    if (checkPermission && !(await isEnabled())) return;
+    await _plugin.show(
+      id: 0,
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(android: _channel.copyWith(body: body, tag: id)),
+      payload: link,
+    );
   }
 }
 
 extension on AndroidNotificationDetails {
   /// نص طويل يظهر كاملاً عند سحب الإشعار
-  AndroidNotificationDetails copyWithBody(String body) => AndroidNotificationDetails(
+  AndroidNotificationDetails copyWith({required String body, String? tag}) => AndroidNotificationDetails(
         channelId,
         channelName,
         channelDescription: channelDescription,
@@ -165,5 +198,6 @@ extension on AndroidNotificationDetails {
         icon: icon,
         color: color,
         styleInformation: BigTextStyleInformation(body),
+        tag: tag,
       );
 }

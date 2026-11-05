@@ -62,6 +62,12 @@ class LoyaltyApi {
 
   static Future<void> markAllNotificationsRead() async => _api.post('/Notifications/read-all');
 
+  static Future<void> registerDeviceToken(String token) async =>
+      _api.post('/Notifications/device-token', {'token': token, 'platform': 'android'});
+
+  static Future<void> unregisterDeviceToken(String token) async =>
+      _api.delete('/Notifications/device-token', query: {'token': token});
+
   // ---------- الرئيسية والمتاجر ----------
   static Future<HomeData> getHome() async => HomeData.fromJson(await _api.get('/v1/mobile/home'));
 

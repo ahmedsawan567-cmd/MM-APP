@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/services/notifications_service.dart';
+import 'core/services/push_service.dart';
 import 'core/services/server_config.dart';
 import 'core/services/session.dart';
 import 'core/theme/app_theme.dart';
@@ -28,6 +29,8 @@ void main() async {
   try {
     await AppNotifications.init();
   } catch (_) {}
+  // إشعارات فورية عبر Firebase (إن كانت مضبوطة وقت البناء)
+  await PushService.init();
   var onboardingSeen = true;
   try {
     onboardingSeen = (await SharedPreferences.getInstance()).getBool(OnboardingScreen.seenKey) ?? false;

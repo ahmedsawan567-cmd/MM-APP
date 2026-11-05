@@ -64,6 +64,9 @@ class ApiClient {
         body: body == null ? null : jsonEncode(body),
       ));
 
+  Future<dynamic> delete(String path, {Map<String, String?>? query}) =>
+      _send(() => _http.delete(_uri(path, query), headers: _headers()));
+
   /// رفع ملف (صورة فاتورة) كـ multipart/form-data.
   Future<dynamic> uploadFile(
     String path, {

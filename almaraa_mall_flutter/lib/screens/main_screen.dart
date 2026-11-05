@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/services/notifications_service.dart';
+import '../core/services/push_service.dart';
 import '../core/services/session.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common.dart';
@@ -32,10 +33,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    Session.instance.refreshUnread();
-    // تحديث عدد الإشعارات كل دقيقة أثناء فتح التطبيق
-    _poll = Timer.periodic(const Duration(minutes: 1), (_) => Session.instance.refreshUnread());
+    _checkNow();
+    // أثناء فتح التطبيق: فحص كل 30 ثانية، وأي إشعار جديد يظهر على الهاتف فوراً
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _checkNow());
     AppNotifications.openInbox.addListener(_openInboxIfRequested);
+    AppNotifications.onRemoteMessage.addListener(Session.instance.refreshUnread);
     Session.instance.requestedTab.addListener(_onTabRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openInboxIfRequested();
@@ -47,6 +49,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void dispose() {
     _poll?.cancel();
     AppNotifications.openInbox.removeListener(_openInboxIfRequested);
+    AppNotifications.onRemoteMessage.removeListener(Session.instance.refreshUnread);
     Session.instance.requestedTab.removeListener(_onTabRequested);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -54,7 +57,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) Session.instance.refreshUnread();
+    if (state == AppLifecycleState.resumed) _checkNow();
+  }
+
+  /// يعرض على الهاتف الإشعارات الجديدة (إن لم تكن الإشعارات الفورية مفعّلة) ثم يحدّث العدّاد.
+  Future<void> _checkNow() async {
+    if (!PushService.active) {
+      try {
+        await AppNotifications.checkAndNotify();
+      } catch (_) {}
+    }
+    await Session.instance.refreshUnread();
   }
 
   void _onTabRequested() {

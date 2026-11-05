@@ -5,6 +5,7 @@ import '../../models/user_profile.dart';
 import 'api_client.dart';
 import 'loyalty_api.dart';
 import 'notifications_service.dart';
+import 'push_service.dart';
 
 /// يدير جلسة العميل: تسجيل الدخول، إنشاء الحساب، الاستعادة عند فتح التطبيق، وتسجيل الخروج.
 class Session extends ChangeNotifier {
@@ -53,6 +54,7 @@ class Session extends ChangeNotifier {
         ApiClient.instance.setToken(token);
         _user = await LoyaltyApi.getProfile();
         AppNotifications.startBackground();
+        PushService.register();
         refreshUnread();
       }
     } on ApiException catch (e) {
@@ -94,6 +96,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await PushService.unregister();
     await AppNotifications.stopBackground();
     unreadNotifications.value = 0;
     await _clear();
@@ -111,6 +114,7 @@ class Session extends ChangeNotifier {
     await prefs.setString(_expiryKey, auth.expiresAt.toIso8601String());
     _user = await LoyaltyApi.getProfile();
     AppNotifications.startBackground();
+    PushService.register();
     refreshUnread();
     notifyListeners();
   }
