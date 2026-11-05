@@ -1142,7 +1142,7 @@ public class SuperAdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.Body))
             return BadRequest(new { success = false, message = "عنوان ونص الإشعار مطلوبان." });
 
-        var count = await Notifier.BroadcastAsync(_context, req.TargetAudience ?? "ALL", req.Title.Trim(), req.Body.Trim());
+        var count = await Notifier.BroadcastAsync(_context, req.TargetAudience ?? "ALL", req.Title.Trim(), req.Body.Trim(), ActorName);
         await _context.AuditLogs.AddAsync(new AuditLog
         {
             PerformedBy = ActorName,

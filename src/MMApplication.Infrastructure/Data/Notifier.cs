@@ -48,7 +48,7 @@ public static class Notifier
     }
 
     /// <summary>إعلان من الإدارة لشريحة من العملاء. يرجع عدد المستلمين.</summary>
-    public static async Task<int> BroadcastAsync(AppDbContext db, string segment, string title, string body)
+    public static async Task<int> BroadcastAsync(AppDbContext db, string segment, string title, string body, string sentBy = "الإدارة")
     {
         var query = db.Customers.AsNoTracking().Where(c => !c.IsArchived && !c.IsFrozen);
         query = segment switch
@@ -60,8 +60,19 @@ public static class Notifier
         };
         var ids = await query.Select(c => c.CustomerId).ToListAsync();
         var now = DateTime.UtcNow;
+        var broadcast = new NotificationBroadcast
+        {
+            Title = Trim(title, 150),
+            Body = Trim(body, 600),
+            Audience = string.IsNullOrWhiteSpace(segment) ? "ALL" : segment,
+            RecipientsCount = ids.Count,
+            SentBy = Trim(string.IsNullOrWhiteSpace(sentBy) ? "الإدارة" : sentBy, 100),
+            SentAt = now,
+        };
+        db.NotificationBroadcasts.Add(broadcast);
         db.Notifications.AddRange(ids.Select(id => new Notification
         {
+            BroadcastId = broadcast.Id,
             RecipientType = Notification.ToCustomer,
             RecipientId = id,
             Type = "BROADCAST",
@@ -70,6 +81,34 @@ public static class Notifier
             CreatedAt = now,
         }));
         return ids.Count;
+    }
+
+    /// <summary>
+    /// الإشعارات الجماعية المرسلة قبل وجود سجل الإرسال: تُجمع حسب (العنوان، النص، وقت الإرسال) ويُنشأ لها سجل.
+    /// </summary>
+    public static async Task<int> BackfillBroadcastsAsync(AppDbContext db)
+    {
+        var legacy = await db.Notifications
+            .Where(n => n.Type == "BROADCAST" && n.BroadcastId == null && n.RecipientType == Notification.ToCustomer)
+            .ToListAsync();
+        if (legacy.Count == 0) return 0;
+        var groups = legacy.GroupBy(n => new { n.Title, n.Body, n.CreatedAt }).ToList();
+        foreach (var g in groups)
+        {
+            var b = new NotificationBroadcast
+            {
+                Title = g.Key.Title,
+                Body = g.Key.Body,
+                Audience = "ALL",
+                RecipientsCount = g.Count(),
+                SentBy = "الإدارة",
+                SentAt = g.Key.CreatedAt,
+            };
+            db.NotificationBroadcasts.Add(b);
+            foreach (var n in g) n.BroadcastId = b.Id;
+        }
+        await db.SaveChangesAsync();
+        return groups.Count;
     }
 
     /// <summary>حذف الإشعارات الأقدم من مدة الاحتفاظ (عند تشغيل الخادم).</summary>

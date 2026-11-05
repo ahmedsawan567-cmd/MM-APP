@@ -22,4 +22,8 @@ public class Notification
     public bool IsRead { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ReadAt { get; set; }
+    /// <summary>الإشعار الجماعي الذي أُنشئ منه هذا الإشعار (إن وُجد).</summary>
+    public Guid? BroadcastId { get; set; }
+    /// <summary>وقت إرساله لهاتف العميل عبر Firebase (null = لم يُرسل بعد أو Firebase غير مفعّل).</summary>
+    public DateTime? PushSentAt { get; set; }
 }

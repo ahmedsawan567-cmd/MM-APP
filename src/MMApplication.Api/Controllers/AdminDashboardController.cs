@@ -1339,6 +1339,84 @@ public class AdminDashboardController : Controller
     }
 
     // ----------------------------------------------------
+    // الإشعارات المرسلة للعملاء (سجل الإرسال الجماعي)
+    // ----------------------------------------------------
+    public record SentNotificationRow(Guid Id, string Title, string Body, string Audience, int Recipients, int Read, int Pushed,
+        string SentBy, DateTime SentAt, DateTime? RetractedAt);
+
+    public class SentNotificationsViewModel
+    {
+        public List<SentNotificationRow> Items { get; set; } = new();
+        public int Page { get; set; } = 1;
+        public int TotalPages { get; set; } = 1;
+        public int TotalSent { get; set; }
+        public int CustomersWithDevices { get; set; }
+        public bool PushEnabled { get; set; }
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> SentNotifications([FromQuery] int page = 1)
+    {
+        if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (!IsDeveloperOrSuperAdmin) return RedirectToAction(nameof(Index));
+
+        const int pageSize = 20;
+        var total = await _context.NotificationBroadcasts.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var broadcasts = await _context.NotificationBroadcasts.AsNoTracking()
+            .OrderByDescending(b => b.SentAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        var ids = broadcasts.Select(b => (Guid?)b.Id).ToList();
+        var stats = await _context.Notifications.AsNoTracking()
+            .Where(n => ids.Contains(n.BroadcastId))
+            .GroupBy(n => n.BroadcastId)
+            .Select(g => new { Id = g.Key, Read = g.Count(n => n.IsRead), Pushed = g.Count(n => n.PushSentAt != null) })
+            .ToListAsync();
+
+        var vm = new SentNotificationsViewModel
+        {
+            Page = page,
+            TotalPages = totalPages,
+            TotalSent = total,
+            CustomersWithDevices = await _context.DeviceTokens.Select(d => d.CustomerId).Distinct().CountAsync(),
+            PushEnabled = HttpContext?.RequestServices.GetService(typeof(FcmSender)) != null,
+            Items = broadcasts.Select(b =>
+            {
+                var st = stats.FirstOrDefault(x => x.Id == b.Id);
+                return new SentNotificationRow(b.Id, b.Title, b.Body, b.Audience, b.RecipientsCount, st?.Read ?? 0, st?.Pushed ?? 0,
+                    b.SentBy, b.SentAt, b.RetractedAt);
+            }).ToList(),
+        };
+        return View(vm);
+    }
+
+    /// <summary>سحب إشعار جماعي: يُحذف من تطبيقات العملاء ويبقى في السجل كمسحوب.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RetractNotification(Guid id)
+    {
+        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        var b = await _context.NotificationBroadcasts.FirstOrDefaultAsync(x => x.Id == id);
+        if (b == null) return NotFound(new { message = "الإشعار غير موجود." });
+        if (b.RetractedAt != null) return Json(new { success = true, removed = 0 });
+
+        var rows = await _context.Notifications.Where(n => n.BroadcastId == id).ToListAsync();
+        _context.Notifications.RemoveRange(rows);
+        b.RetractedAt = DateTime.UtcNow;
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = User?.Identity?.Name ?? "admin",
+            Action = "NOTIFICATION_RETRACT",
+            EntityName = "NotificationBroadcast",
+            EntityId = id.ToString(),
+            Details = $"سحب الإشعار «{b.Title}» من {rows.Count} عميل",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        return Json(new { success = true, removed = rows.Count });
+    }
+
+    // ----------------------------------------------------
     // 3. 🛡️ FRAUD & REVIEW HUB (Fraud View)
     // ----------------------------------------------------
     [HttpGet]

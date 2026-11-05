@@ -1,0 +1,243 @@
+@model MMApplication.Api.Controllers.AdminDashboardController.SentNotificationsViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "الإشعارات المرسلة";
+    ViewData["ActiveTab"] = "sent_notifications";
+    string AudienceLabel(string a) => a switch
+    {
+        "VIP_GOLD" => "الذهبية و VIP",
+        "SILVER" => "الفضية",
+        "BRONZE" => "البرونزية",
+        _ => "كل العملاء",
+    };
+    var totalRecipients = Model.Items.Sum(i => i.Recipients);
+    var totalRead = Model.Items.Sum(i => i.Read);
+}
+
+<div class="space-y-6">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">الإشعارات المرسلة</h1>
+            <p class="page-subtitle">كل إشعار أرسلته للعملاء، ومن قرأه منهم</p>
+        </div>
+        <div class="page-actions">
+            <button onclick="openModal('modal-send-notification')" class="btn-primary">
+                <i data-lucide="send" class="w-4 h-4"></i>
+                <span>إرسال إشعار جديد</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="text-sm font-semibold text-slate-500 mb-2">إجمالي الإشعارات المرسلة</div>
+            <div class="text-2xl font-bold text-slate-900 num">@Model.TotalSent</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-sm font-semibold text-slate-500 mb-2">نسبة القراءة (هذه الصفحة)</div>
+            <div class="text-2xl font-bold text-brand-700 num">@(totalRecipients == 0 ? "—" : $"{Math.Round(100.0 * totalRead / totalRecipients)}%")</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-sm font-semibold text-slate-500 mb-2">عملاء أجهزتهم مسجلة</div>
+            <div class="text-2xl font-bold text-slate-900 num">@Model.CustomersWithDevices</div>
+        </div>
+        <div class="stat-card">
+            <div class="text-sm font-semibold text-slate-500 mb-2">إشعارات الهاتف الفورية</div>
+            @if (Model.PushEnabled)
+            {
+                <span class="badge badge-emerald"><i data-lucide="check" class="w-3.5 h-3.5"></i>Firebase مفعّل</span>
+            }
+            else
+            {
+                <span class="badge badge-amber">غير مفعّلة</span>
+                <p class="text-xs text-slate-500 mt-2 leading-relaxed">تصل الإشعارات عبر الفحص الدوري للتطبيق. فعّل Firebase لتصل فوراً.</p>
+            }
+        </div>
+    </div>
+
+    <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>الإشعار</th>
+                        <th>الشريحة</th>
+                        <th>المستلمون</th>
+                        <th>قرأه</th>
+                        <th>تاريخ الإرسال</th>
+                        <th>أرسله</th>
+                        <th class="text-left">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-12">
+                                <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                                    <i data-lucide="bell-off" class="w-6 h-6"></i>
+                                </div>
+                                <div class="font-bold text-slate-700">لم ترسل أي إشعار بعد</div>
+                                <p class="text-sm text-slate-500 mt-1">اضغط "إرسال إشعار جديد" ليصل لتطبيقات العملاء</p>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var n in Model.Items)
+                    {
+                        var pct = n.Recipients == 0 ? 0 : (int)Math.Round(100.0 * n.Read / n.Recipients);
+                        <tr class="@(n.RetractedAt != null ? "opacity-60" : "")">
+                            <td class="max-w-md">
+                                <div class="font-bold text-slate-900">@n.Title</div>
+                                <div class="text-sm text-slate-500 mt-0.5 line-clamp-2">@n.Body</div>
+                            </td>
+                            <td><span class="badge badge-brand">@AudienceLabel(n.Audience)</span></td>
+                            <td class="num font-semibold">@n.Recipients</td>
+                            <td style="min-width: 9rem">
+                                @if (n.RetractedAt != null)
+                                {
+                                    <span class="badge badge-slate">مسحوب</span>
+                                }
+                                else
+                                {
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                                            <div class="h-full bg-brand-600 rounded-full" style="width: @pct%"></div>
+                                        </div>
+                                        <span class="num text-sm font-semibold text-slate-700">@n.Read</span>
+                                    </div>
+                                    <div class="text-xs text-slate-500 mt-1 num">@pct%@(Model.PushEnabled ? $" • وصل للهاتف: {n.Pushed}" : "")</div>
+                                }
+                            </td>
+                            <td class="num text-sm whitespace-nowrap">@n.SentAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                            <td class="text-sm">@n.SentBy</td>
+                            <td class="text-left">
+                                <div class="flex items-center justify-end gap-1">
+                                    <button class="btn-ghost btn-sm" title="إعادة الإرسال"
+                                            onclick="resend(@Json.Serialize(n.Title), @Json.Serialize(n.Body), '@n.Audience')">
+                                        <i data-lucide="repeat" class="w-4 h-4"></i>
+                                    </button>
+                                    @if (n.RetractedAt == null)
+                                    {
+                                        <button class="btn-ghost btn-sm text-rose-600" title="سحب من التطبيقات"
+                                                onclick="retract('@n.Id', @Json.Serialize(n.Title))">
+                                            <i data-lucide="undo-2" class="w-4 h-4"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.TotalPages > 1)
+        {
+            <div class="p-4 border-t border-slate-100 flex items-center justify-between text-sm">
+                <span class="text-slate-500">صفحة <span class="num">@Model.Page</span> من <span class="num">@Model.TotalPages</span></span>
+                <div class="flex gap-2">
+                    @if (Model.Page > 1) { <a class="btn-secondary btn-sm" href="?page=@(Model.Page - 1)">السابق</a> }
+                    @if (Model.Page < Model.TotalPages) { <a class="btn-secondary btn-sm" href="?page=@(Model.Page + 1)">التالي</a> }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div id="modal-send-notification" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="send" class="w-4 h-4 text-brand-600"></i>
+                <span>إرسال إشعار للعملاء</span>
+            </h3>
+            <button onclick="closeModal('modal-send-notification')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="modal-body space-y-4">
+            <div>
+                <label class="form-label">العنوان</label>
+                <input type="text" id="notif-title" maxlength="150" placeholder="مثال: خصومات نهاية الأسبوع بدأت!" class="form-input">
+            </div>
+            <div>
+                <label class="form-label">النص</label>
+                <textarea id="notif-body" rows="3" maxlength="600" placeholder="احصل على نقاط مضاعفة عند التسوق اليوم..." class="form-input"></textarea>
+            </div>
+            <div>
+                <label class="form-label">الشريحة</label>
+                <select id="notif-audience" class="form-select">
+                    <option value="ALL">كل العملاء</option>
+                    <option value="VIP_GOLD">الذهبية و VIP</option>
+                    <option value="SILVER">الفضية</option>
+                    <option value="BRONZE">البرونزية</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeModal('modal-send-notification')" class="btn-secondary">إلغاء</button>
+            <button id="notif-send-btn" onclick="sendNotification()" class="btn-primary">إرسال الآن</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const afToken = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+    function resend(title, body, audience) {
+        document.getElementById('notif-title').value = title;
+        document.getElementById('notif-body').value = body;
+        document.getElementById('notif-audience').value = audience || 'ALL';
+        openModal('modal-send-notification');
+    }
+
+    async function sendNotification() {
+        const title = document.getElementById('notif-title').value.trim();
+        const body = document.getElementById('notif-body').value.trim();
+        const targetAudience = document.getElementById('notif-audience').value;
+        if (!title || !body) return showToast('اكتب العنوان والنص.', 'warning');
+        const btn = document.getElementById('notif-send-btn');
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/SuperAdmin/notifications/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, body, targetAudience })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || 'فشل إرسال الإشعار');
+            closeModal('modal-send-notification');
+            showToast(data.message || 'تم الإرسال.', 'success');
+            setTimeout(() => location.reload(), 700);
+        } catch (e) {
+            showToast(e.message, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function retract(id, title) {
+        const r = await Swal.fire({
+            title: 'سحب الإشعار؟',
+            text: `سيُحذف «${title}» من تطبيقات كل العملاء الذين لم يفتحوه بعد أو فتحوه. يبقى في هذا السجل كمسحوب.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'سحب',
+            cancelButtonText: 'إلغاء',
+            buttonsStyling: false,
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
+        });
+        if (!r.isConfirmed) return;
+        try {
+            const res = await fetch(`/AdminDashboard/RetractNotification?id=${id}`, {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': afToken() }
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || 'تعذّر السحب');
+            showToast(`سُحب الإشعار من ${data.removed} عميل.`, 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+</script>
+}

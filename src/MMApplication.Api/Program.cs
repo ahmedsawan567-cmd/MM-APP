@@ -45,6 +45,20 @@ else
 }
 
 // 3. Dependency Injection (Services)
+// إشعارات الهاتف الفورية عبر Firebase (اختياري): تُفعَّل بضبط حساب الخدمة في user-secrets
+//   dotnet user-secrets set "Firebase:ServiceAccountPath" "C:\MMApp\firebase-service-account.json"
+var firebaseAccount = FirebaseServiceAccount.FromConfiguration(builder.Configuration);
+if (firebaseAccount != null)
+{
+    builder.Services.AddSingleton(firebaseAccount);
+    builder.Services.AddHttpClient(nameof(FcmSender));
+    builder.Services.AddSingleton(sp => new FcmSender(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(FcmSender)),
+        firebaseAccount,
+        sp.GetRequiredService<ILogger<FcmSender>>()));
+    builder.Services.AddHostedService<PushDispatchService>();
+}
+
 // محرك قراءة الفواتير والذكاء الاصطناعي: Gemini إذا وُجد مفتاحه، ثم Claude، وإلا المحرك الوهمي
 // (للتطوير فقط — خارج بيئة التطوير تُحوّل نتائجه لمراجعة الموظفين ولا تُمنح نقاط تلقائياً).
 // يمكن فرض محرك معيّن بالإعداد "OcrProvider": Gemini | Claude | Mock | Azure | OpenAI
@@ -270,6 +284,7 @@ using (var scope = app.Services.CreateScope())
         }
 
         await Notifier.PurgeOldAsync(db);
+        await Notifier.BackfillBroadcastsAsync(db);
 
         var keyed = await InvoiceKeys.BackfillAsync(db, logger);
         if (keyed > 0) logger.LogInformation("حُسبت الصيغة الموحّدة لأرقام {Count} فاتورة سابقة.", keyed);

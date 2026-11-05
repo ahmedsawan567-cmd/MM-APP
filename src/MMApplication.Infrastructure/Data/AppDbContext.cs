@@ -37,6 +37,8 @@ public class AppDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<NotificationBroadcast> NotificationBroadcasts => Set<NotificationBroadcast>();
+    public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
 
     // Legacy aliases for backward compatibility if needed
     public DbSet<Tenant> StoreTenants => Set<Tenant>();

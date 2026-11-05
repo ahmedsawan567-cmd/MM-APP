@@ -114,6 +114,99 @@ public class NotificationFlowTests
         Assert.Equal(1, await Notifier.BroadcastAsync(db, "VIP_GOLD", "عرض", "خصم"));
         Assert.Equal(2, await Notifier.BroadcastAsync(db, "ALL", "عرض", "خصم"));
     }
+
+    [Fact]
+    public async Task Broadcast_IsRecordedInHistory_AndLegacyRowsAreBackfilled()
+    {
+        await using var db = NewDb();
+        db.Customers.Add(new Customer { CustomerId = "C1", FullName = "a", PhoneNumber = "0911000011" });
+        // إشعار جماعي قديم قبل وجود السجل
+        var old = DateTime.UtcNow.AddDays(-2);
+        db.Notifications.Add(new Notification { RecipientId = "C1", Type = "BROADCAST", Title = "قديم", Body = "x", CreatedAt = old });
+        await db.SaveChangesAsync();
+
+        await Notifier.BroadcastAsync(db, "ALL", "جديد", "نص", "المدير");
+        await db.SaveChangesAsync();
+        var b = Assert.Single(db.NotificationBroadcasts);
+        Assert.Equal(("جديد", 1, "المدير"), (b.Title, b.RecipientsCount, b.SentBy));
+        Assert.Single(db.Notifications, n => n.BroadcastId == b.Id);
+
+        Assert.Equal(1, await Notifier.BackfillBroadcastsAsync(db));
+        Assert.Equal(0, await Notifier.BackfillBroadcastsAsync(db));
+        Assert.Contains(db.NotificationBroadcasts, x => x.Title == "قديم" && x.SentAt == old);
+    }
+}
+
+public class PushDispatchTests
+{
+    private sealed class FakeGoogle : HttpMessageHandler
+    {
+        public List<string> Sent { get; } = new();
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            if (req.RequestUri!.Host == "oauth2.googleapis.com")
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { access_token = "at", expires_in = 3600 }) };
+            var body = await req.Content!.ReadAsStringAsync(ct);
+            Sent.Add(body);
+            Assert.Equal("Bearer at", req.Headers.Authorization!.ToString());
+            return body.Contains("dead-token")
+                ? new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent("{\"error\":{\"status\":\"NOT_FOUND\",\"details\":[{\"errorCode\":\"UNREGISTERED\"}]}}") }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"name\":\"m\"}") };
+        }
+    }
+
+    private static FirebaseServiceAccount Account()
+    {
+        using var rsa = System.Security.Cryptography.RSA.Create(2048);
+        var json = JsonSerializer.Serialize(new
+        {
+            type = "service_account",
+            project_id = "mm-test",
+            client_email = "push@mm-test.iam.gserviceaccount.com",
+            private_key = rsa.ExportPkcs8PrivateKeyPem(),
+            token_uri = "https://oauth2.googleapis.com/token",
+        });
+        return FirebaseServiceAccount.Parse(json)!;
+    }
+
+    [Fact]
+    public void ServiceAccount_RejectsIncompleteJson()
+    {
+        Assert.Null(FirebaseServiceAccount.Parse("{\"project_id\":\"x\"}"));
+        Assert.Null(FirebaseServiceAccount.Parse("not json"));
+        Assert.Equal("mm-test", Account().ProjectId);
+    }
+
+    [Fact]
+    public async Task Dispatch_SendsNewNotifications_SkipsOldOnes_AndDropsDeadTokens()
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.DeviceTokens.AddRange(
+            new DeviceToken { CustomerId = "C1", Token = "good-token" },
+            new DeviceToken { CustomerId = "C1", Token = "dead-token" });
+        db.Notifications.AddRange(
+            new Notification { RecipientId = "C1", Type = "INVOICE_APPROVED", Title = "أُضيفت نقاطك", Body = "+50", Link = "invoice:1" },
+            new Notification { RecipientId = "C1", Type = "BROADCAST", Title = "قديم", Body = "x", CreatedAt = DateTime.UtcNow.AddHours(-2) },
+            new Notification { RecipientId = "C2", Type = "BROADCAST", Title = "بدون جهاز", Body = "x" },
+            new Notification { RecipientType = Notification.ToStaff, RecipientId = "ADMIN", Type = "REVIEW_NEEDED", Title = "موظف", Body = "x" });
+        await db.SaveChangesAsync();
+
+        var google = new FakeGoogle();
+        var sender = new FcmSender(new HttpClient(google), Account(), NullLogger<FcmSender>.Instance);
+        Assert.Equal(2, await PushDispatchService.DispatchOnceAsync(db, sender));
+
+        Assert.Equal(2, google.Sent.Count); // جهازان لإشعار واحد
+        Assert.Contains("\"channel_id\":\"mm_updates\"", google.Sent[0]);
+        Assert.Contains("invoice:1", google.Sent[0]);
+        Assert.Single(db.DeviceTokens); // الرمز الميت حُذف
+        Assert.NotNull(db.Notifications.Single(n => n.Title == "أُضيفت نقاطك").PushSentAt);
+        Assert.NotNull(db.Notifications.Single(n => n.Title == "بدون جهاز").PushSentAt);
+        Assert.Null(db.Notifications.Single(n => n.Title == "قديم").PushSentAt);
+        Assert.Null(db.Notifications.Single(n => n.Title == "موظف").PushSentAt);
+
+        // لا يُعاد الإرسال
+        Assert.Equal(0, await PushDispatchService.DispatchOnceAsync(db, sender));
+    }
 }
 
 public class NotificationApiTests : IClassFixture<WebApplicationFactory<Program>>
@@ -158,6 +251,23 @@ public class NotificationApiTests : IClassFixture<WebApplicationFactory<Program>
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/Notifications/{item.GetProperty("id").GetString()}/read", null)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/Notifications/read-all", null)).StatusCode);
         Assert.Equal(0, (await client.GetFromJsonAsync<JsonElement>("/api/Notifications/unread-count")).GetProperty("unread").GetInt32());
+
+        // تسجيل جهاز للإشعارات الفورية (مرتين = صف واحد)
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/Notifications/device-token", new { token = "fcm-abc", platform = "android" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/Notifications/device-token", new { token = "fcm-abc", platform = "android" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/Notifications/device-token", new { token = "" })).StatusCode);
+        Assert.Equal(1, (await client.DeleteFromJsonAsync<JsonElement>("/api/Notifications/device-token?token=fcm-abc")).GetProperty("removed").GetInt32());
+
+        // سجل الإشعارات المرسلة في المنصة + السحب
+        var page = await admin.GetStringAsync("/AdminDashboard/SentNotifications");
+        Assert.Contains("عرض نهاية الأسبوع", page);
+        var id = Regex.Match(page, @"retract\('([0-9a-f-]{36})'").Groups[1].Value;
+        var af = Regex.Match(page, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""").Groups[1].Value;
+        var req = new HttpRequestMessage(HttpMethod.Post, $"/AdminDashboard/RetractNotification?id={id}");
+        req.Headers.Add("RequestVerificationToken", af);
+        Assert.Equal(HttpStatusCode.OK, (await admin.SendAsync(req)).StatusCode);
+        var after = await client.GetFromJsonAsync<JsonElement>("/api/Notifications");
+        Assert.DoesNotContain(after.GetProperty("items").EnumerateArray(), i => i.GetProperty("title").GetString() == "عرض نهاية الأسبوع");
 
         // الموظف: جرس المنصة يعمل
         var staff = await admin.GetFromJsonAsync<JsonElement>("/AdminDashboard/NotificationsJson");

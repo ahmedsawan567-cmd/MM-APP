@@ -61,4 +61,45 @@ public class NotificationsController : ControllerBase
         await _context.SaveChangesAsync();
         return Ok(new { success = true, count = unread.Count });
     }
+
+    public record DeviceTokenRequest(string Token, string? Platform);
+
+    /// <summary>تسجيل رمز جهاز العميل لإشعارات Firebase (يُستدعى عند فتح التطبيق وعند تغيّر الرمز).</summary>
+    [HttpPost("device-token")]
+    public async Task<IActionResult> RegisterDevice([FromBody] DeviceTokenRequest req)
+    {
+        if (CustomerId == null) return Unauthorized();
+        var token = req.Token?.Trim();
+        if (string.IsNullOrEmpty(token) || token.Length > 512) return BadRequest(new { message = "رمز الجهاز غير صالح." });
+
+        var existing = await _context.DeviceTokens.FirstOrDefaultAsync(d => d.Token == token);
+        if (existing == null)
+        {
+            _context.DeviceTokens.Add(new DeviceToken
+            {
+                CustomerId = CustomerId,
+                Token = token,
+                Platform = string.IsNullOrWhiteSpace(req.Platform) ? "android" : req.Platform.Trim().ToLowerInvariant()[..Math.Min(20, req.Platform.Trim().Length)],
+            });
+        }
+        else
+        {
+            // نفس الجهاز سجّل دخوله بحساب آخر: ينتقل الرمز للحساب الحالي
+            existing.CustomerId = CustomerId;
+            existing.LastSeenAt = DateTime.UtcNow;
+        }
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true });
+    }
+
+    /// <summary>إلغاء تسجيل الجهاز (عند تسجيل الخروج).</summary>
+    [HttpDelete("device-token")]
+    public async Task<IActionResult> UnregisterDevice([FromQuery] string token)
+    {
+        if (CustomerId == null) return Unauthorized();
+        var rows = await _context.DeviceTokens.Where(d => d.Token == token && d.CustomerId == CustomerId).ToListAsync();
+        _context.DeviceTokens.RemoveRange(rows);
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, removed = rows.Count });
+    }
 }
