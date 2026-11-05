@@ -138,15 +138,36 @@ public class ClaudeReceiptOcrService : IReceiptOcrService
         }
         catch (AnthropicApiException ex)
         {
-            // 400/401/403/404: غالباً مشكلة إعداد (مفتاح خاطئ أو نموذج غير متاح)
+            // 400/401/403/404: مشكلة إعداد (مفتاح، رصيد، صلاحية، نموذج) — نوضح السبب للموظفين
             _logger.LogError(ex, "Claude API error while reading receipt");
-            return ManualReview("خطأ في إعداد خدمة القراءة الآلية.");
+            return ManualReview(DescribeSetupError(ex));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             _logger.LogError(ex, "Receipt reading failed");
             return ManualReview("تعذّر الاتصال بخدمة القراءة الآلية.");
         }
+    }
+
+    /// <summary>
+    /// سبب واضح بالعربي لخطأ إعداد في Claude (يظهر للموظفين في شاشة المراجعة وفي سجل الخادم).
+    /// </summary>
+    public static string DescribeSetupError(AnthropicApiException ex)
+    {
+        var detail = ex.Message ?? string.Empty;
+        var reason = ex switch
+        {
+            AnthropicUnauthorizedException => "مفتاح Claude غير صحيح أو ملغى. أنشئ مفتاحاً جديداً من console.anthropic.com وضعه بأمر user-secrets ثم أعد تشغيل الخادم.",
+            AnthropicForbiddenException => "مفتاح Claude لا يملك صلاحية استخدام هذا النموذج أو هذه الخاصية.",
+            AnthropicNotFoundException => "النموذج المحدد غير متاح لحساب Anthropic هذا (تحقق من الإعداد Claude:Model).",
+            _ when detail.Contains("credit balance", StringComparison.OrdinalIgnoreCase)
+                || detail.Contains("billing", StringComparison.OrdinalIgnoreCase)
+                => "رصيد حساب Anthropic غير كافٍ. اشحن الرصيد من console.anthropic.com ← Billing.",
+            _ => "خطأ في طلب خدمة القراءة الآلية.",
+        };
+        // نرفق بداية رسالة الخادم الأصلية لتسهيل التشخيص (بدون أي مفاتيح)
+        var shortDetail = detail.Length > 180 ? detail[..180] + "…" : detail;
+        return string.IsNullOrWhiteSpace(shortDetail) ? reason : $"{reason} (تفاصيل: {shortDetail})";
     }
 
     private const string SystemPrompt =

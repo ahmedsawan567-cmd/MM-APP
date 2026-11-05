@@ -126,6 +126,20 @@ public class ClaudeReceiptOcrServiceTests
         Assert.Null(result.TotalAmount);
     }
 
+    [Theory]
+    [InlineData(401, "authentication_error", "invalid x-api-key", "مفتاح Claude غير صحيح")]
+    [InlineData(400, "invalid_request_error", "Your credit balance is too low to access the Anthropic API.", "رصيد حساب Anthropic غير كافٍ")]
+    [InlineData(404, "not_found_error", "model: claude-x", "النموذج المحدد غير متاح")]
+    public async Task SetupErrors_ExplainTheCause(int status, string type, string message, string expected)
+    {
+        await using var server = new FakeAnthropicServer(_ =>
+            (status, JsonSerializer.Serialize(new { type = "error", error = new { type, message } })));
+        var result = await CreateService(server.BaseUrl).ExtractReceiptDataAsync(new MemoryStream(TinyPng), Context);
+
+        Assert.True(result.RequiresManualReview);
+        Assert.Contains(result.AuthenticityConcerns, c => c.Contains(expected));
+    }
+
     [Fact]
     public async Task UnsupportedFile_GoesToManualReview_WithoutCallingApi()
     {

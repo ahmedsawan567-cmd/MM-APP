@@ -95,6 +95,11 @@ public class ClaudeInvoiceProfileAnalyzer : IInvoiceProfileAnalyzer
             var json = string.Concat(response.Content.Select(b => b.Value).OfType<BetaTextBlock>().Select(t => t.Text));
             return Parse(json);
         }
+        catch (AnthropicApiException ex) when (ex is not AnthropicRateLimitException and not Anthropic5xxException)
+        {
+            _logger.LogError(ex, "Invoice profile analysis failed (setup)");
+            return Failed(ClaudeReceiptOcrService.DescribeSetupError(ex));
+        }
         catch (Exception ex) when (ex is AnthropicApiException or HttpRequestException or TaskCanceledException or JsonException)
         {
             _logger.LogError(ex, "Invoice profile analysis failed");
