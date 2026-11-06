@@ -129,9 +129,19 @@ public class AuthController : ControllerBase
 
         if (staffUser != null)
         {
+            if (StaffLoginGuard.IsLocked(staffUser, out var minutesLeft))
+                return Unauthorized(new { success = false, message = StaffLoginGuard.LockedMessage(minutesLeft) });
+
             var isValidStaffPassword = _passwordHasher.VerifyPassword(request.Password, staffUser.PasswordHash);
+            if (!isValidStaffPassword)
+            {
+                StaffLoginGuard.RegisterFailure(_context, staffUser, HttpContext?.Connection.RemoteIpAddress?.ToString());
+                await _context.SaveChangesAsync();
+            }
             if (isValidStaffPassword && staffUser.IsActive)
             {
+                StaffLoginGuard.RegisterSuccess(staffUser);
+                await _context.SaveChangesAsync();
                 var staffToken = _jwtService.GenerateToken(staffUser, out var staffExpiry);
                 return Ok(new AuthResponseDto
                 {

@@ -127,6 +127,9 @@ public static class DisplayLabels
         ["STAFF_PASSWORD_RESET"] = "كلمة مرور جديدة لموظف",
         ["STAFF_LOGIN"] = "دخول موظف",
         ["STAFF_LOGIN_FAILED"] = "محاولة دخول فاشلة",
+        ["STAFF_LOCKED"] = "قفل حساب موظف مؤقتاً",
+        ["STAFF_ACTIVATE"] = "تفعيل حساب موظف",
+        ["STAFF_DEACTIVATE"] = "تعطيل حساب موظف",
         ["STORE_ALIAS_CREATE"] = "إضافة اسم بديل لمتجر",
         ["STORE_CREATE"] = "إضافة متجر",
         ["STORE_UPDATE"] = "تعديل متجر",
@@ -144,7 +147,7 @@ public static class DisplayLabels
     public static string ActionBadge(string? action)
     {
         var a = (action ?? "").ToUpperInvariant();
-        if (a.Contains("DELETE") || a.Contains("REJECT") || a.Contains("VOID") || a.Contains("FRAUD") || a.Contains("FREEZE") || a.Contains("SUSPEND") || a.Contains("FAILED")) return "badge-rose";
+        if (a.Contains("DELETE") || a.Contains("REJECT") || a.Contains("VOID") || a.Contains("FRAUD") || a.Contains("FREEZE") || a.Contains("SUSPEND") || a.Contains("FAILED") || a.Contains("LOCKED") || a.Contains("DEACTIVATE")) return "badge-rose";
         if (a.Contains("CREATE") || a.Contains("APPROVE") || a.Contains("SETTLE") || a.Contains("UNSUSPEND")) return "badge-emerald";
         if (a.Contains("PASSWORD") || a.Contains("ADJUST") || a.Contains("SETTINGS")) return "badge-amber";
         return "badge-slate";

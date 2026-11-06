@@ -376,6 +376,9 @@ public class StaffUserDto
     public bool IsActive { get; set; } = true;
     public bool IsCurrentUser { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+    public DateTime? LockedUntil { get; set; }
+    public string? Email { get; set; }
 }
 
 public class CreateStaffUserRequest

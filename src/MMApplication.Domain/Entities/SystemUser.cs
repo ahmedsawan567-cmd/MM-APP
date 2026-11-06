@@ -14,6 +14,12 @@ public class SystemUser
     public string? PinCodeHash { get; set; } // 4-digit quick cashier pin
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>آخر دخول ناجح للمنصة أو التطبيق.</summary>
+    public DateTime? LastLoginAt { get; set; }
+    /// <summary>محاولات الدخول الفاشلة المتتالية (تُصفّر عند النجاح أو القفل).</summary>
+    public int FailedLoginCount { get; set; }
+    /// <summary>الحساب مقفل مؤقتاً حتى هذا الوقت بعد محاولات فاشلة متكررة.</summary>
+    public DateTime? LockedUntil { get; set; }
 
     // Navigation
     public Tenant? Tenant { get; set; }

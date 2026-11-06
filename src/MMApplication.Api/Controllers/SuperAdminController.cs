@@ -37,6 +37,7 @@ public class SuperAdminController : ControllerBase
     // 1. 📊 لوحة التحكم الرئيسية (Overview & Analytics)
     // ==========================================
     [HttpGet("overview")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     [ProducesResponseType(typeof(SuperAdminOverviewDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetOverview()
     {
@@ -338,6 +339,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpGet("stores/{tenantId}/aliases")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     [ProducesResponseType(typeof(IEnumerable<StoreAliasDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStoreAliases(string tenantId)
     {
@@ -359,6 +361,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("stores/{tenantId}/aliases")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     [ProducesResponseType(typeof(StoreAliasDto), StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateStoreAlias(string tenantId, [FromBody] CreateStoreAliasRequest req)
     {
@@ -407,6 +410,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpDelete("stores/aliases/{aliasId:int}")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> DeleteStoreAlias(int aliasId)
     {
         var alias = await _context.StoreAliases.FirstOrDefaultAsync(a => a.Id == aliasId);
@@ -418,6 +422,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("stores/aliases/{aliasId:int}/toggle")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> ToggleStoreAlias(int aliasId)
     {
         var alias = await _context.StoreAliases.FirstOrDefaultAsync(a => a.Id == aliasId);
@@ -432,6 +437,7 @@ public class SuperAdminController : ControllerBase
     // 3. 🛡️ مركز مكافحة الاحتيال والتدقيق (Fraud & Review Hub)
     // ==========================================
     [HttpGet("fraud/queue")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     [ProducesResponseType(typeof(IEnumerable<FraudInvoiceItemDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetFraudQueue([FromQuery] string? statusFilter)
     {
@@ -538,6 +544,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("fraud/invoices/{id:guid}/request-rescan")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> RequestRescan(Guid id, [FromBody] RequestRescanRequest req)
     {
         var invoice = await _context.Invoices
@@ -577,6 +584,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("fraud/invoices/{id:guid}/review")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> ReviewFraudInvoice(Guid id, [FromBody] ReviewInvoiceRequest req)
     {
         var invoice = await _context.Invoices
@@ -778,6 +786,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpGet("fraud/hash-compare/{invoiceId:guid}")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     [ProducesResponseType(typeof(PhotoHashComparisonResultDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> ComparePhotoHash(Guid invoiceId)
     {
@@ -819,6 +828,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("invoices/manual")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> CreateManualInvoice([FromBody] CreateManualInvoiceRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.CustomerId) || req.TotalAmount <= 0)
@@ -907,6 +917,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPut("invoices/{id:guid}")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> UpdateInvoice(Guid id, [FromBody] UpdateInvoiceRequest req)
     {
         var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == id);
@@ -938,6 +949,7 @@ public class SuperAdminController : ControllerBase
     /// الإلغاء المالي والرفض النهائي للفاتورة مع استرجاع النقاط وحفظ البصمة الرقمية (Financial Soft Voiding).
     /// </summary>
     [HttpPost("invoices/{id:guid}/void")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     public async Task<IActionResult> VoidInvoice(Guid id, [FromQuery] string? reason)
     {
         var invoice = await _context.Invoices
@@ -954,6 +966,7 @@ public class SuperAdminController : ControllerBase
     /// الحذف يتم توجيهه إلى الإلغاء المالي (Soft Void) لضمان عدم مسح البصمة الرقمية ودفتر الأستاذ.
     /// </summary>
     [HttpDelete("invoices/{id:guid}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> DeleteInvoice(Guid id)
     {
         return await VoidInvoice(id, "إلغاء واعتماد الرفض المالي النهائي من لوحة الإدارة");
@@ -1023,6 +1036,7 @@ public class SuperAdminController : ControllerBase
     // 4. 📢 الإعلانات والعروض الترويجية (Ads & Offers Hub)
     // ==========================================
     [HttpGet("banners")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     [ProducesResponseType(typeof(IEnumerable<PromotionBannerDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetBanners()
     {
@@ -1051,6 +1065,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("banners")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     [ProducesResponseType(typeof(PromotionBannerDto), StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateBanner([FromBody] CreatePromotionBannerRequest req)
     {
@@ -1092,6 +1107,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPut("banners/{id:guid}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> UpdateBanner(Guid id, [FromBody] UpdatePromotionBannerRequest req)
     {
         var banner = await _context.PromotionBanners.FirstOrDefaultAsync(b => b.Id == id);
@@ -1124,6 +1140,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpDelete("banners/{id:guid}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> DeleteBanner(Guid id)
     {
         var banner = await _context.PromotionBanners.FirstOrDefaultAsync(b => b.Id == id);
@@ -1166,6 +1183,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPut("loyalty/rules")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> UpdateLoyaltyRules([FromBody] LoyaltyRulesDto req)
     {
         await _context.AuditLogs.AddAsync(new AuditLog
@@ -1188,6 +1206,7 @@ public class SuperAdminController : ControllerBase
     {
         var rules = await _context.LoyaltyEarningRules
             .Include(r => r.StoreTenant)
+            .Where(r => !IsStoreScopedStaff || r.StoreTenantId == StaffTenantId)
             .OrderByDescending(r => r.CreatedAt)
             .Select(r => new LoyaltyEarningRuleDto
             {
@@ -1220,7 +1239,7 @@ public class SuperAdminController : ControllerBase
 
         var rule = new LoyaltyEarningRule
         {
-            StoreTenantId = string.IsNullOrWhiteSpace(req.StoreTenantId) ? null : req.StoreTenantId.Trim(),
+            StoreTenantId = IsStoreScopedStaff ? StaffTenantId : (string.IsNullOrWhiteSpace(req.StoreTenantId) ? null : req.StoreTenantId.Trim()),
             RuleName = req.RuleName.Trim(),
             CalculationType = string.IsNullOrWhiteSpace(req.CalculationType) ? "SPEND_RATIO" : req.CalculationType.Trim().ToUpper(),
             FixedPointsPerInvoice = req.FixedPointsPerInvoice,
@@ -1264,9 +1283,10 @@ public class SuperAdminController : ControllerBase
     {
         var rule = await _context.LoyaltyEarningRules.FirstOrDefaultAsync(r => r.RuleId == id);
         if (rule == null) return NotFound(new { success = false, message = "قاعدة احتساب النقاط غير موجودة." });
+        if (OutsideMyStore(rule.StoreTenantId)) return NotMyStore();
 
         if (!string.IsNullOrWhiteSpace(req.RuleName)) rule.RuleName = req.RuleName.Trim();
-        rule.StoreTenantId = string.IsNullOrWhiteSpace(req.StoreTenantId) ? null : req.StoreTenantId.Trim();
+        rule.StoreTenantId = IsStoreScopedStaff ? StaffTenantId : (string.IsNullOrWhiteSpace(req.StoreTenantId) ? null : req.StoreTenantId.Trim());
         if (!string.IsNullOrWhiteSpace(req.CalculationType)) rule.CalculationType = req.CalculationType.Trim().ToUpper();
         rule.FixedPointsPerInvoice = req.FixedPointsPerInvoice;
         rule.SpendRatioRate = req.SpendRatioRate;
@@ -1294,6 +1314,7 @@ public class SuperAdminController : ControllerBase
     {
         var rule = await _context.LoyaltyEarningRules.FirstOrDefaultAsync(r => r.RuleId == id);
         if (rule == null) return NotFound(new { success = false, message = "قاعدة احتساب النقاط غير موجودة." });
+        if (OutsideMyStore(rule.StoreTenantId)) return NotMyStore();
 
         _context.LoyaltyEarningRules.Remove(rule);
         await _context.SaveChangesAsync();
@@ -1305,6 +1326,7 @@ public class SuperAdminController : ControllerBase
     {
         var rule = await _context.LoyaltyEarningRules.FirstOrDefaultAsync(r => r.RuleId == id);
         if (rule == null) return NotFound(new { success = false, message = "قاعدة احتساب النقاط غير موجودة." });
+        if (OutsideMyStore(rule.StoreTenantId)) return NotMyStore();
 
         rule.IsActive = !rule.IsActive;
         rule.UpdatedAt = DateTime.UtcNow;
@@ -1336,6 +1358,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("loyalty/campaigns")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     [ProducesResponseType(typeof(LoyaltyCampaignDto), StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateCampaign([FromBody] CreateLoyaltyCampaignRequest req)
     {
@@ -1368,6 +1391,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPut("loyalty/campaigns/{id:guid}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> UpdateCampaign(Guid id, [FromBody] UpdateLoyaltyCampaignRequest req)
     {
         var camp = await _context.LoyaltyCampaigns.FirstOrDefaultAsync(c => c.Id == id);
@@ -1396,6 +1420,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpDelete("loyalty/campaigns/{id:guid}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> DeleteCampaign(Guid id)
     {
         var camp = await _context.LoyaltyCampaigns.FirstOrDefaultAsync(c => c.Id == id);
@@ -1413,6 +1438,7 @@ public class SuperAdminController : ControllerBase
     {
         var rules = await _context.ProductBoosterRules
             .Include(r => r.Tenant)
+            .Where(r => !IsStoreScopedStaff || r.TenantId == StaffTenantId)
             .OrderByDescending(r => r.CreatedAt)
             .Select(r => new ProductBoosterRuleDto
             {
@@ -1450,7 +1476,7 @@ public class SuperAdminController : ControllerBase
             Title = req.Title.Trim(),
             BrandOrItemKeyword = req.BrandOrItemKeyword.Trim(),
             TargetCategory = req.TargetCategory?.Trim(),
-            TenantId = string.IsNullOrWhiteSpace(req.TenantId) ? null : req.TenantId.Trim(),
+            TenantId = IsStoreScopedStaff ? StaffTenantId : (string.IsNullOrWhiteSpace(req.TenantId) ? null : req.TenantId.Trim()),
             BonusPoints = req.BonusPoints > 0 ? req.BonusPoints : 20,
             PointsMultiplier = req.PointsMultiplier > 0 ? req.PointsMultiplier : 1.0m,
             SponsorName = req.SponsorName?.Trim(),
@@ -1480,11 +1506,12 @@ public class SuperAdminController : ControllerBase
     {
         var booster = await _context.ProductBoosterRules.FirstOrDefaultAsync(r => r.Id == id);
         if (booster == null) return NotFound(new { success = false, message = "محفز الصنف غير موجود." });
+        if (OutsideMyStore(booster.TenantId)) return NotMyStore();
 
         if (!string.IsNullOrWhiteSpace(req.Title)) booster.Title = req.Title.Trim();
         if (!string.IsNullOrWhiteSpace(req.BrandOrItemKeyword)) booster.BrandOrItemKeyword = req.BrandOrItemKeyword.Trim();
         booster.TargetCategory = req.TargetCategory?.Trim();
-        booster.TenantId = string.IsNullOrWhiteSpace(req.TenantId) ? null : req.TenantId.Trim();
+        booster.TenantId = IsStoreScopedStaff ? StaffTenantId : (string.IsNullOrWhiteSpace(req.TenantId) ? null : req.TenantId.Trim());
         booster.BonusPoints = req.BonusPoints;
         booster.PointsMultiplier = req.PointsMultiplier;
         booster.SponsorName = req.SponsorName?.Trim();
@@ -1511,6 +1538,7 @@ public class SuperAdminController : ControllerBase
     {
         var booster = await _context.ProductBoosterRules.FirstOrDefaultAsync(r => r.Id == id);
         if (booster == null) return NotFound(new { success = false, message = "محفز الصنف غير موجود." });
+        if (OutsideMyStore(booster.TenantId)) return NotMyStore();
 
         _context.ProductBoosterRules.Remove(booster);
         await _context.SaveChangesAsync();
@@ -1522,6 +1550,7 @@ public class SuperAdminController : ControllerBase
     {
         var booster = await _context.ProductBoosterRules.FirstOrDefaultAsync(r => r.Id == id);
         if (booster == null) return NotFound(new { success = false, message = "محفز الصنف غير موجود." });
+        if (OutsideMyStore(booster.TenantId)) return NotMyStore();
 
         booster.IsActive = !booster.IsActive;
         await _context.SaveChangesAsync();
@@ -1532,6 +1561,7 @@ public class SuperAdminController : ControllerBase
     // 6. 💳 التسويات والمقاصة المالية (Settlements & Clearing)
     // ==========================================
     [HttpGet("settlements")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     [ProducesResponseType(typeof(IEnumerable<StoreSettlementDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSettlements([FromQuery] SettlementStatus? status)
     {
@@ -1568,6 +1598,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpPost("settlements/{id:guid}/settle")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> SettleStoreBatch(Guid id)
     {
         var batch = await _context.TenantSettlements
@@ -1660,6 +1691,7 @@ public class SuperAdminController : ControllerBase
     /// الإلغاء المحاسبي لكشف التسوية (Financial Cancellation) بدلاً من الحذف الفيزيائي لسلامة القيود.
     /// </summary>
     [HttpPost("settlements/{id:guid}/cancel")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> CancelSettlement(Guid id)
     {
         var settlement = await _context.TenantSettlements.FirstOrDefaultAsync(s => s.SettlementId == id);
@@ -1682,6 +1714,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpDelete("settlements/{id:guid}")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     public async Task<IActionResult> DeleteSettlement(Guid id)
     {
         return await CancelSettlement(id);
@@ -1691,6 +1724,7 @@ public class SuperAdminController : ControllerBase
     // 7. 📱 عملاء التطبيق (App Shoppers / Customers)
     // ==========================================
     [HttpGet("customers")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
     [ProducesResponseType(typeof(IEnumerable<SuperAdminCustomerDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCustomers([FromQuery] string? search, [FromQuery] string? tier)
     {
@@ -2154,6 +2188,18 @@ public class SuperAdminController : ControllerBase
     private const int MinStaffPasswordLength = 8;
 
     private string ActorName => User?.Identity?.Name is { Length: > 0 } n ? n : "المدير العام";
+
+    /// <summary>مدير متجر (أو أي موظف متجر): تُقصر عملياته على متجره. المدير العام والمدقق غير مقيدين.</summary>
+    private bool IsStoreScopedStaff => User != null && User.Identity?.IsAuthenticated == true &&
+        !(User.IsInRole("superadmin") || User.IsInRole("SUPER_ADMIN") || User.IsInRole("Admin") || User.IsInRole("auditor") || User.IsInRole("FRAUD_AUDITOR"));
+
+    private string StaffTenantId =>
+        (User?.FindFirst("TenantId")?.Value is { Length: > 0 } t ? t : User?.FindFirst("tenant_id")?.Value) is { Length: > 0 } id ? id : "__no_store__";
+
+    private bool OutsideMyStore(string? tenantId) => IsStoreScopedStaff && tenantId != StaffTenantId;
+
+    private IActionResult NotMyStore() => StatusCode(StatusCodes.Status403Forbidden,
+        new { success = false, message = "يمكنك إدارة قواعد متجرك فقط." });
     private string? ActorId => User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
     private static SystemUserRole MapStaffRole(StaffRole role) => role switch
@@ -2254,6 +2300,7 @@ public class SuperAdminController : ControllerBase
             if (req.Password.Length < MinStaffPasswordLength)
                 return Fail($"كلمة المرور يجب ألا تقل عن {MinStaffPasswordLength} أحرف.");
             staff.PasswordHash = _passwordHasher.HashPassword(req.Password);
+            StaffLoginGuard.Unlock(staff);
         }
 
         var storeId = newRole is SystemUserRole.STORE_MANAGER or SystemUserRole.CASHIER ? req.StoreTenantId : null;
@@ -2276,6 +2323,31 @@ public class SuperAdminController : ControllerBase
 
         await _context.SaveChangesAsync();
         return Ok(new { success = true, message = "تم تحديث بيانات الموظف بنجاح." });
+    }
+
+    /// <summary>كلمة مرور جديدة مولّدة لموظف (تظهر مرة واحدة) وفك قفل الحساب.</summary>
+    [HttpPost("staff/{id}/reset-password")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
+    public async Task<IActionResult> ResetStaffPassword(string id)
+    {
+        var staff = await _context.SystemUsers.FirstOrDefaultAsync(u => u.UserId == id);
+        if (staff == null) return NotFound(new { success = false, message = "الموظف غير موجود." });
+
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+        var password = new string(System.Security.Cryptography.RandomNumberGenerator.GetItems<char>(chars, 12));
+        staff.PasswordHash = _passwordHasher.HashPassword(password);
+        StaffLoginGuard.Unlock(staff);
+        await _context.AuditLogs.AddAsync(new AuditLog
+        {
+            PerformedBy = ActorName,
+            Action = "STAFF_PASSWORD_RESET",
+            EntityName = "SystemUser",
+            EntityId = staff.UserId,
+            Details = $"كلمة مرور جديدة للموظف: {staff.FullName}",
+            CreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, password, message = "تم ضبط كلمة مرور جديدة." });
     }
 
     [HttpPost("staff/{id}/toggle-active")]
@@ -2342,6 +2414,7 @@ public class SuperAdminController : ControllerBase
     // 9. ⚙️ إعدادات النظام العامة (System Settings & Audit Logs)
     // ==========================================
     [HttpGet("settings")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     [ProducesResponseType(typeof(SystemSettingsDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSettings([FromServices] IConfiguration configuration)
     {
@@ -2383,6 +2456,7 @@ public class SuperAdminController : ControllerBase
     }
 
     [HttpGet("audit-logs")]
+    [Authorize(Roles = StaffRoles.SuperAdmin)]
     [ProducesResponseType(typeof(IEnumerable<AuditLogDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAuditLogs([FromQuery] string? search, [FromQuery] int limit = 50)
     {

@@ -626,8 +626,24 @@ public class AdminDashboardController : Controller
             .Include(u => u.Tenant)
             .FirstOrDefaultAsync(u => u.UserId == input || u.Email == input || u.PhoneNumber == input);
 
+        if (user != null && StaffLoginGuard.IsLocked(user, out var minutesLeft))
+        {
+            model.ErrorMessage = StaffLoginGuard.LockedMessage(minutesLeft);
+            return View(model);
+        }
+
         if (user == null || !_passwordHasher.VerifyPassword(model.Password, user.PasswordHash))
         {
+            if (user != null)
+            {
+                var locked = StaffLoginGuard.RegisterFailure(_context, user, HttpContext?.Connection.RemoteIpAddress?.ToString());
+                await _context.SaveChangesAsync();
+                if (locked)
+                {
+                    model.ErrorMessage = StaffLoginGuard.LockedMessage((int)StaffLoginGuard.LockDuration.TotalMinutes);
+                    return View(model);
+                }
+            }
             model.ErrorMessage = "بيانات تسجيل الدخول غير صحيحة. يرجى التحقق من صحة اسم المستخدم وكلمة المرور.";
             return View(model);
         }
@@ -638,6 +654,8 @@ public class AdminDashboardController : Controller
             return View(model);
         }
 
+        StaffLoginGuard.RegisterSuccess(user);
+        await _context.SaveChangesAsync();
         await SignInUserAsync(user, model.RememberMe);
 
         if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
@@ -803,6 +821,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Stores([FromQuery] string? category, [FromQuery] string? search)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (!(IsDeveloperOrSuperAdmin || IsAuditor || IsStoreManager)) return RedirectToAction(nameof(Index)); // المتاجر: المدير العام، المدقق للاطلاع، ومدير المتجر لمتجره
 
         var query = _context.Tenants
             .Include(t => t.LoyaltyRule)
@@ -878,6 +897,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> InvoiceTemplates([FromServices] IInvoiceProfileAnalyzer? analyzer = null)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (!(CanReviewInvoices || IsStoreManager)) return RedirectToAction(nameof(Index)); // نماذج الفواتير
 
         var query = _context.Tenants.AsNoTracking();
         if (IsStoreScoped) query = query.Where(t => t.TenantId == ScopeTenantId);
@@ -1449,6 +1469,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Fraud([FromQuery] string? statusFilter)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (!(CanReviewInvoices)) return RedirectToAction(nameof(Index)); // تدقيق الاحتيال للإدارة والمدققين
 
         var filter = statusFilter?.ToUpperInvariant() ?? "ALL";
         var query = _context.Invoices
@@ -1604,6 +1625,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Loyalty()
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (!(IsDeveloperOrSuperAdmin || IsStoreManager)) return RedirectToAction(nameof(Index)); // قواعد النقاط: المدير العام ومدير المتجر لمتجره
 
         var campaigns = await _context.LoyaltyCampaigns
             .AsNoTracking()
@@ -1764,6 +1786,7 @@ public class AdminDashboardController : Controller
         [FromQuery] string? sort, [FromQuery] int page = 1, [FromQuery] string? export = null)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (!(IsDeveloperOrSuperAdmin || IsAuditor)) return RedirectToAction(nameof(Index)); // بيانات العملاء الشخصية للإدارة والمدققين
 
         var query = _context.Customers
             .Include(c => c.Wallets)
@@ -1992,6 +2015,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> GetCustomerDetailsJson(string id)
     {
         if (IsExplicitlyUnauthenticated) return Unauthorized();
+        if (!(IsDeveloperOrSuperAdmin || IsAuditor)) return Forbid();
         if (string.IsNullOrWhiteSpace(id)) return BadRequest("Invalid ID");
 
         var customer = await _context.Customers
@@ -2112,7 +2136,10 @@ public class AdminDashboardController : Controller
             StoreName = s.Tenant != null ? s.Tenant.NameAr : "إدارة المول المركزية",
             IsActive = s.IsActive,
             IsCurrentUser = s.UserId == CurrentUserId,
-            CreatedAt = s.CreatedAt
+            CreatedAt = s.CreatedAt,
+            LastLoginAt = s.LastLoginAt,
+            LockedUntil = s.LockedUntil > DateTime.UtcNow ? s.LockedUntil : null,
+            Email = s.Email,
         }).ToList();
 
         var storeDtos = stores.Select(st => new StoreTenantDto

@@ -2,187 +2,168 @@
 @using MMApplication.Domain.Enums
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "طاقم العمل";
+    ViewData["Title"] = "طاقم العمل والصلاحيات";
     ViewData["ActiveTab"] = "staff";
-    var totalStaff = Model.StaffMembers.Count;
-    var adminCount = Model.StaffMembers.Count(s => s.StaffRole == StaffRole.SuperAdmin);
-    var auditorCount = Model.StaffMembers.Count(s => s.StaffRole == StaffRole.Auditor);
-    var merchantCount = Model.StaffMembers.Count(s => s.StaffRole == StaffRole.StoreManager || s.StaffRole == StaffRole.Cashier);
+    var staff = Model.StaffMembers;
+    var now = DateTime.UtcNow;
+    int CountRole(StaffRole r) => staff.Count(s => s.StaffRole == r);
+    var activeCount = staff.Count(s => s.IsActive);
+    var lockedCount = staff.Count(s => s.LockedUntil.HasValue);
+    var neverLogged = staff.Count(s => s.IsActive && !s.LastLoginAt.HasValue);
+    string Ago(DateTime? d)
+    {
+        if (!d.HasValue) return "لم يدخل بعد";
+        var span = now - d.Value;
+        if (span.TotalMinutes < 2) return "الآن";
+        if (span.TotalHours < 1) return $"منذ {(int)span.TotalMinutes} دقيقة";
+        if (span.TotalDays < 1) return $"منذ {(int)span.TotalHours} ساعة";
+        if (span.TotalDays < 30) return $"منذ {(int)span.TotalDays} يوم";
+        return d.Value.ToLocalTime().ToString("yyyy/MM/dd");
+    }
+    var roles = new[]
+    {
+        (StaffRole.SuperAdmin, "المدير العام", "shield", "badge-purple", "صلاحيات كاملة على المنظومة وإدارة الحسابات"),
+        (StaffRole.Auditor, "مدقق الفواتير", "scan-search", "badge-brand", "مراجعة الفواتير ومكافحة الاحتيال وخدمة العملاء"),
+        (StaffRole.StoreManager, "مدير متجر", "store", "badge-amber", "بيانات متجره ومبيعاته وقواعد نقاطه فقط"),
+        (StaffRole.Cashier, "كاشير", "calculator", "badge-slate", "التحقق من قسائم العملاء وفواتير متجره"),
+    };
+    // مصفوفة الصلاحيات كما يطبقها النظام فعلياً: ✓ كامل، ◐ على متجره فقط، — لا يملك
+    var matrix = new (string Area, string Permission, string Admin, string Auditor, string Manager, string Cashier)[]
+    {
+        ("الرئيسية", "لوحة المؤشرات", "full", "full", "store", "store"),
+        ("الرئيسية", "التقارير والتصدير", "full", "full", "store", "none"),
+        ("الفواتير", "مراجعة الفواتير واعتمادها ورفضها", "full", "full", "none", "none"),
+        ("الفواتير", "سجل الفواتير", "full", "full", "store", "store"),
+        ("الفواتير", "تدقيق الاحتيال", "full", "full", "none", "none"),
+        ("الفواتير", "نماذج فواتير المتاجر", "full", "full", "store", "none"),
+        ("العملاء", "عرض ملفات العملاء وتعديل بياناتهم", "full", "full", "none", "none"),
+        ("العملاء", "تجميد الحساب وكلمة مرور جديدة وإشعار العميل", "full", "full", "none", "none"),
+        ("العملاء", "تعديل النقاط وحذف العملاء", "full", "none", "none", "none"),
+        ("المكافآت", "إدارة كتالوج المكافآت", "full", "none", "none", "none"),
+        ("المكافآت", "سجل القسائم الصادرة", "full", "full", "none", "none"),
+        ("المكافآت", "التحقق من القسائم وتأكيد استخدامها", "full", "view", "full", "full"),
+        ("الولاء", "قواعد النقاط والعروض المضاعفة", "full", "none", "store", "none"),
+        ("الولاء", "الإعلانات والإشعارات الجماعية", "full", "none", "none", "none"),
+        ("المتاجر", "بيانات المتاجر وأسماؤها البديلة", "full", "view", "store", "none"),
+        ("المتاجر", "التسويات المالية", "full", "view", "store", "none"),
+        ("الإدارة", "طاقم العمل والصلاحيات", "full", "none", "none", "none"),
+        ("الإدارة", "الإعدادات وسجل العمليات", "full", "none", "none", "none"),
+    };
 }
+@Html.AntiForgeryToken()
 
-<div class="space-y-6">
+<div class="space-y-5">
 
-    <!-- 1. Page Header -->
     <div class="page-header">
         <div>
-            <h1 class="page-title">طاقم العمل</h1>
-            <p class="page-subtitle">حسابات الموظفين وصلاحياتهم</p>
+            <h1 class="page-title">طاقم العمل والصلاحيات</h1>
+            <p class="page-subtitle">حسابات الموظفين، أدوارهم، وما يستطيع كل دور فعله في المنظومة</p>
         </div>
         <div class="page-actions">
-            <button onclick="exportStaffCsv()" class="btn-secondary" @(totalStaff == 0 ? "disabled" : "")>
-                <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
-                <span>تصدير القائمة</span>
-            </button>
-            <button onclick="openModal('modal-add-staff')" class="btn-primary">
-                <i data-lucide="user-plus" class="w-4 h-4"></i>
-                <span>إضافة مستخدم جديد</span>
-            </button>
+            <button onclick="exportStaffCsv()" class="btn-secondary" @(staff.Count == 0 ? "disabled" : "")><i data-lucide="download" class="w-4 h-4"></i> تصدير</button>
+            <button onclick="openModal('modal-add-staff')" class="btn-primary"><i data-lucide="user-plus" class="w-4 h-4"></i> موظف جديد</button>
         </div>
     </div>
 
-    <!-- 2. KPI Metrics -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">إجمالي الحسابات</span>
-                <i data-lucide="users" class="w-4 h-4 text-slate-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-slate-900 num">@totalStaff</div>
-            <div class="text-xs text-emerald-700 mt-1 font-medium">@Model.StaffMembers.Count(x => x.IsActive) نشط</div>
+            <div class="flex items-center justify-between"><span class="stat-label">الحسابات</span><span class="stat-icon bg-brand-50 text-brand-600"><i data-lucide="users" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@staff.Count</div>
+            <div class="stat-meta"><span class="num">@activeCount</span> نشط • <span class="num">@(staff.Count - activeCount)</span> معطل</div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">مسؤولو النظام</span>
-                <i data-lucide="shield" class="w-4 h-4 text-purple-600"></i>
-            </div>
-            <div class="text-2xl font-bold text-purple-600 num">@adminCount</div>
-            <div class="text-xs text-purple-700 mt-1 font-medium">المدير العام</div>
+            <div class="flex items-center justify-between"><span class="stat-label">الإدارة</span><span class="stat-icon bg-purple-50 text-purple-600"><i data-lucide="shield" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@(CountRole(StaffRole.SuperAdmin) + CountRole(StaffRole.Auditor))</div>
+            <div class="stat-meta">مدير عام <span class="num">@CountRole(StaffRole.SuperAdmin)</span> • مدقق <span class="num">@CountRole(StaffRole.Auditor)</span></div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">مدققو الفواتير</span>
-                <i data-lucide="check-square" class="w-4 h-4 text-brand-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-brand-600 num">@auditorCount</div>
-            <div class="text-xs text-slate-400 mt-1">مراجعة الفواتير</div>
+            <div class="flex items-center justify-between"><span class="stat-label">موظفو المتاجر</span><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="store" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@(CountRole(StaffRole.StoreManager) + CountRole(StaffRole.Cashier))</div>
+            <div class="stat-meta">مدير متجر <span class="num">@CountRole(StaffRole.StoreManager)</span> • كاشير <span class="num">@CountRole(StaffRole.Cashier)</span></div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">موظفو المتاجر</span>
-                <i data-lucide="store" class="w-4 h-4 text-amber-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-amber-600 num">@merchantCount</div>
-            <div class="text-xs text-slate-400 mt-1">مديرو المتاجر والكاشير</div>
+            <div class="flex items-center justify-between"><span class="stat-label">تنبيهات أمنية</span><span class="stat-icon bg-rose-50 text-rose-600"><i data-lucide="shield-alert" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num @(lockedCount > 0 ? "text-rose-600" : "")">@lockedCount</div>
+            <div class="stat-meta">حساب مقفل مؤقتاً • <span class="num">@neverLogged</span> لم يدخل بعد</div>
         </div>
     </div>
 
-    <!-- 3. Staff Directory Table -->
-    <div class="card overflow-hidden">
-        <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
-            <div>
-                <h3 class="text-base font-bold text-slate-900">دليل مستخدمي النظام والموظفين</h3>
-                <p class="text-sm text-slate-500 mt-0.5">توزيع صلاحيات المسؤولين، مدققي الفواتير، ومديري وكاشير المتاجر في المول</p>
+    <div class="tabs w-fit max-w-full" role="tablist">
+        <button type="button" class="tab tab-active" data-tab="staff" onclick="showTab('staff')"><i data-lucide="users" class="w-4 h-4"></i> الموظفون <span class="text-xs text-slate-400 num">@staff.Count</span></button>
+        <button type="button" class="tab" data-tab="roles" onclick="showTab('roles')"><i data-lucide="key-square" class="w-4 h-4"></i> الأدوار والصلاحيات</button>
+    </div>
+
+    <!-- الموظفون -->
+    <section data-panel="staff" class="card overflow-hidden">
+        <div class="p-4 border-b border-line flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-1">
+                <input type="search" id="sq" oninput="filterStaff()" placeholder="ابحث بالاسم أو الهاتف أو المتجر" class="form-input pr-9">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
             </div>
-
+            <select id="sr" onchange="filterStaff()" class="form-select sm:w-48">
+                <option value="">كل الأدوار</option>
+                @foreach (var r in roles) { <option value="@r.Item1">@r.Item2</option> }
+            </select>
+            <select id="ss" onchange="filterStaff()" class="form-select sm:w-40">
+                <option value="">كل الحالات</option>
+                <option value="active">نشط</option>
+                <option value="inactive">معطل</option>
+                <option value="locked">مقفل مؤقتاً</option>
+            </select>
         </div>
-
         <div class="overflow-x-auto">
             <table class="data-table">
                 <thead>
-                    <tr>
-                        <th>اسم الموظف</th>
-                        <th>الهاتف المسجل</th>
-                        <th>المسمى الوظيفي والدور</th>
-                        <th>المتجر المرتبط</th>
-                        <th>الحالة</th>
-                        <th>تاريخ الإنشاء</th>
-                        <th class="text-left">الإجراءات</th>
-                    </tr>
+                    <tr><th>الموظف</th><th>الدور</th><th>المتجر</th><th>آخر دخول</th><th>الحالة</th><th class="text-left"></th></tr>
                 </thead>
                 <tbody id="staff-tbody">
-                    @if (Model.StaffMembers.Count == 0)
+                    @if (staff.Count == 0)
                     {
-                        <tr>
-                            <td colspan="7" class="text-center py-12 text-slate-400">
-                                <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
-                                    <i data-lucide="user-x" class="w-6 h-6"></i>
-                                </div>
-                                <div class="font-bold text-slate-700">لا يوجد موظفون مسجلون حالياً</div>
-                                <p class="text-xs text-slate-400 mt-1">أضف حسابات جديدة لتوزيع الصلاحيات التشغيلية</p>
-                            </td>
-                        </tr>
+                        <tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon"><i data-lucide="user-x" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا يوجد موظفون بعد</div></div></td></tr>
                     }
-                    @foreach (var s in Model.StaffMembers)
+                    @foreach (var s in staff)
                     {
-                        <tr data-name="@s.FullName" data-phone="@s.PhoneNumber" data-role="@s.StaffRoleLabel" data-store="@(s.StoreName ?? "إدارة المول المركزية")" data-active="@(s.IsActive ? "نشط" : "معطل")" data-created="@s.CreatedAt.ToString("yyyy-MM-dd")" class="@(s.IsActive ? "" : "opacity-60")">
+                        var role = roles.FirstOrDefault(r => r.Item1 == s.StaffRole);
+                        var statusKey = s.LockedUntil.HasValue ? "locked" : s.IsActive ? "active" : "inactive";
+                        <tr data-name="@s.FullName" data-phone="@s.PhoneNumber" data-role="@(role.Item2 ?? s.StaffRoleLabel)" data-rolekey="@s.StaffRole" data-status="@statusKey"
+                            data-store="@(s.StoreName ?? "إدارة المول")" data-active="@(s.IsActive ? "نشط" : "معطل")" data-created="@s.CreatedAt.ToString("yyyy-MM-dd")"
+                            data-lastlogin="@(s.LastLoginAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "")"
+                            data-text="@($"{s.FullName} {s.PhoneNumber} {s.StoreName}".ToLowerInvariant())" class="@(s.IsActive ? "" : "opacity-60")">
                             <td>
-                                <div class="flex items-center gap-2.5">
-                                    <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center font-bold text-xs shrink-0">
-                                        @(string.IsNullOrWhiteSpace(s.FullName) ? "م" : s.FullName.Substring(0, 1))
-                                    </div>
-                                    <div>
-                                        <div class="font-bold text-slate-900">@s.FullName @if (s.IsCurrentUser) { <span class="badge badge-slate mr-1">أنت</span> }</div>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 font-bold flex items-center justify-center shrink-0">@(string.IsNullOrWhiteSpace(s.FullName) ? "م" : s.FullName.Trim()[..1])</div>
+                                    <div class="min-w-0">
+                                        <div class="font-bold text-slate-900 flex items-center gap-1.5">@s.FullName @if (s.IsCurrentUser) { <span class="badge badge-slate !py-0.5">أنت</span> }</div>
+                                        <div class="text-xs text-slate-500 num" dir="ltr">@s.PhoneNumber</div>
                                     </div>
                                 </div>
                             </td>
-                            <td class="num font-semibold text-slate-700" dir="ltr">@s.PhoneNumber</td>
-                            <td>
-                                @switch (s.StaffRole)
-                                {
-                                    case StaffRole.SuperAdmin:
-                                        <span class="badge badge-purple">
-                                            <i data-lucide="shield" class="w-3 h-3"></i> مسؤول نظام
-                                        </span>
-                                        break;
-                                    case StaffRole.Auditor:
-                                        <span class="badge badge-blue">
-                                            <i data-lucide="check-square" class="w-3 h-3"></i> مدقق فواتير
-                                        </span>
-                                        break;
-                                    case StaffRole.StoreManager:
-                                        <span class="badge badge-amber">
-                                            <i data-lucide="store" class="w-3 h-3"></i> مدير متجر
-                                        </span>
-                                        break;
-                                    case StaffRole.Cashier:
-                                        <span class="badge badge-slate">
-                                            <i data-lucide="calculator" class="w-3 h-3"></i> كاشير
-                                        </span>
-                                        break;
-                                    default:
-                                        <span class="badge badge-slate">@(s.StaffRoleLabel ?? s.Role.ToString())</span>
-                                        break;
-                                }
+                            <td><span class="badge @(role.Item4 ?? "badge-slate")"><i data-lucide="@(role.Item3 ?? "user")" class="w-3 h-3"></i> @(role.Item2 ?? s.StaffRoleLabel)</span></td>
+                            <td class="text-sm text-slate-700">
+                                <span class="inline-flex items-center gap-1.5"><i data-lucide="@(s.StoreTenantId == null ? "building-2" : "store")" class="w-3.5 h-3.5 text-slate-400"></i>@(s.StoreTenantId == null ? "إدارة المول" : s.StoreName)</span>
                             </td>
+                            <td class="text-sm whitespace-nowrap @(s.LastLoginAt.HasValue ? "text-slate-700" : "text-slate-400")" title="@(s.LastLoginAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm"))">@Ago(s.LastLoginAt)</td>
                             <td>
-                                <div class="flex items-center gap-1.5 text-slate-700 font-medium text-xs">
-                                    <i data-lucide="@(string.IsNullOrEmpty(s.StoreName) ? "building-2" : "shopping-bag")" class="w-3.5 h-3.5 text-slate-400"></i>
-                                    <span>@(s.StoreName ?? "إدارة المول المركزية")</span>
-                                </div>
+                                @if (s.LockedUntil.HasValue) { <span class="badge badge-rose" title="حتى @s.LockedUntil.Value.ToLocalTime().ToString("HH:mm")"><i data-lucide="lock" class="w-3 h-3"></i> مقفل مؤقتاً</span> }
+                                else if (s.IsActive) { <span class="badge badge-emerald">نشط</span> }
+                                else { <span class="badge badge-slate">معطل</span> }
                             </td>
-                            <td>
-                                @if (s.IsActive)
-                                {
-                                    <span class="badge badge-emerald">نشط</span>
-                                }
-                                else
-                                {
-                                    <span class="badge badge-rose">معطل</span>
-                                }
-                            </td>
-                            <td class="text-slate-500 text-xs num">@s.CreatedAt.ToString("yyyy/MM/dd")</td>
                             <td class="text-left">
-                                <div class="flex items-center gap-1 justify-end">
-                                    <button type="button" onclick="openEditStaffModal(this)"
-                                            data-id="@s.Id" data-name="@s.FullName" data-phone="@s.PhoneNumber"
-                                            data-role="@(s.StaffRole?.ToString() ?? "Auditor")" data-store="@(s.StoreTenantId ?? "")"
-                                            title="تعديل البيانات أو كلمة المرور" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
-                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                    </button>
-                                    @if (!s.IsCurrentUser)
-                                    {
-                                        <button type="button" onclick="toggleActiveStaff(this)" data-id="@s.Id" data-name="@s.FullName" data-active="@(s.IsActive ? "1" : "0")"
-                                                title="@(s.IsActive ? "تعطيل الحساب" : "تفعيل الحساب")" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
-                                            <i data-lucide="@(s.IsActive ? "power-off" : "power")" class="w-4 h-4"></i>
-                                        </button>
-                                        <button type="button" onclick="deleteStaff(this)" data-id="@s.Id" data-name="@s.FullName"
-                                                title="حذف الحساب" class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition">
-                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                        </button>
-                                    }
+                                <div class="relative inline-block">
+                                    <button type="button" class="btn-icon !w-8 !h-8" onclick="MM.dropdown('s-@s.Id')" aria-haspopup="menu" aria-label="إجراءات"><i data-lucide="ellipsis" class="w-4 h-4"></i></button>
+                                    <div id="s-@s.Id" class="dropdown left-0 hidden text-right" role="menu">
+                                        <button type="button" class="dropdown-item" onclick="openEditStaffModal(this)"
+                                                data-id="@s.Id" data-name="@s.FullName" data-phone="@s.PhoneNumber"
+                                                data-role="@(s.StaffRole?.ToString() ?? "Auditor")" data-store="@(s.StoreTenantId ?? "")"><i data-lucide="pencil" class="w-4 h-4"></i> تعديل البيانات والدور</button>
+                                        <button type="button" class="dropdown-item" onclick="resetStaffPassword(this)" data-id="@s.Id" data-name="@s.FullName" data-phone="@s.PhoneNumber"><i data-lucide="key-round" class="w-4 h-4"></i> كلمة مرور جديدة@(s.LockedUntil.HasValue ? " وفك القفل" : "")</button>
+                                        <a class="dropdown-item" href="/AdminDashboard/Settings?tab=audit&amp;search=@Uri.EscapeDataString(s.FullName)"><i data-lucide="history" class="w-4 h-4"></i> سجل عملياته</a>
+                                        @if (!s.IsCurrentUser)
+                                        {
+                                            <button type="button" class="dropdown-item" onclick="toggleActiveStaff(this)" data-id="@s.Id" data-name="@s.FullName" data-active="@(s.IsActive ? "1" : "0")"><i data-lucide="@(s.IsActive ? "power-off" : "power")" class="w-4 h-4"></i> @(s.IsActive ? "تعطيل الحساب" : "تفعيل الحساب")</button>
+                                            <div class="my-1 border-t border-line"></div>
+                                            <button type="button" class="dropdown-item !text-rose-600" onclick="deleteStaff(this)" data-id="@s.Id" data-name="@s.FullName"><i data-lucide="trash-2" class="w-4 h-4"></i> حذف الحساب</button>
+                                        }
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -190,8 +171,73 @@
                 </tbody>
             </table>
         </div>
-    </div>
+        <div class="p-4 border-t border-line text-sm text-slate-500 flex items-center gap-2">
+            <i data-lucide="info" class="w-4 h-4 shrink-0"></i>
+            يُقفل حساب الموظف <span class="num">15</span> دقيقة تلقائياً بعد <span class="num">5</span> محاولات دخول خاطئة. كلمة المرور الجديدة تفك القفل فوراً.
+        </div>
+    </section>
 
+    <!-- الأدوار والصلاحيات -->
+    <section data-panel="roles" class="space-y-4 hidden">
+        <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            @foreach (var r in roles)
+            {
+                <div class="card p-5">
+                    <div class="flex items-center justify-between">
+                        <span class="badge @r.Item4"><i data-lucide="@r.Item3" class="w-3 h-3"></i> @r.Item2</span>
+                        <span class="text-sm text-slate-500"><span class="num font-bold text-slate-900">@CountRole(r.Item1)</span> حساب</span>
+                    </div>
+                    <p class="mt-3 text-sm text-slate-600 leading-relaxed">@r.Item5</p>
+                </div>
+            }
+        </div>
+
+        <div class="card overflow-hidden">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">مصفوفة الصلاحيات</h3>
+                    <p class="card-subtitle">ما يستطيع كل دور فعله، كما يطبقه النظام على كل صفحة وعملية</p>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>الصلاحية</th>
+                            @foreach (var r in roles) { <th class="text-center whitespace-nowrap">@r.Item2</th> }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ string? lastArea = null; }
+                        @foreach (var row in matrix)
+                        {
+                            if (row.Area != lastArea)
+                            {
+                                lastArea = row.Area;
+                                <tr class="bg-slate-50"><td colspan="5" class="!py-2 text-xs font-bold text-slate-500">@row.Area</td></tr>
+                            }
+                            <tr>
+                                <td class="text-slate-800">@row.Permission</td>
+                                @foreach (var level in new[] { row.Admin, row.Auditor, row.Manager, row.Cashier })
+                                {
+                                    <td class="text-center">
+                                        @switch (level)
+                                        {
+                                            case "full": <span class="inline-flex w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 items-center justify-center" title="كامل"><i data-lucide="check" class="w-4 h-4"></i></span> break;
+                                            case "store": <span class="badge badge-amber" title="بيانات متجره فقط">متجره فقط</span> break;
+                                            case "view": <span class="badge badge-slate" title="اطلاع بدون تعديل">اطلاع</span> break;
+                                            default: <span class="text-slate-300">—</span> break;
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 border-t border-line text-sm text-slate-500">لتغيير صلاحيات شخص غيّر دوره من "تعديل البيانات والدور". موظفو المتاجر يرون بيانات متجرهم فقط مهما كانت الصفحة.</div>
+        </div>
+    </section>
 </div>
 
 <!-- ======================================================== -->
@@ -467,14 +513,49 @@
 
     function exportStaffCsv() {
         const rows = [...document.querySelectorAll('#staff-tbody tr[data-name]')];
-        const header = ['الاسم', 'الهاتف', 'الدور', 'المتجر', 'الحالة', 'تاريخ الإنشاء'];
+        const header = ['الاسم', 'الهاتف', 'الدور', 'المتجر', 'الحالة', 'آخر دخول', 'تاريخ الإنشاء'];
         const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-        const lines = [header, ...rows.map(r => [r.dataset.name, r.dataset.phone, r.dataset.role, r.dataset.store, r.dataset.active, r.dataset.created])]
+        const lines = [header, ...rows.map(r => [r.dataset.name, r.dataset.phone, r.dataset.role, r.dataset.store, r.dataset.active, r.dataset.lastlogin, r.dataset.created])]
             .map(cols => cols.map(cell).join(','));
         const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `staff-${new Date().toISOString().slice(0, 10)}.csv` });
         a.click();
         URL.revokeObjectURL(a.href);
+    }
+
+    function showTab(key) {
+        document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('tab-active', b.dataset.tab === key));
+        document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== key));
+        history.replaceState(null, '', '#' + key);
+    }
+    if (location.hash === '#roles') showTab('roles');
+
+    function filterStaff() {
+        const q = document.getElementById('sq').value.trim().toLowerCase();
+        const role = document.getElementById('sr').value;
+        const st = document.getElementById('ss').value;
+        document.querySelectorAll('#staff-tbody tr[data-name]').forEach(r => {
+            r.classList.toggle('hidden', (q && !r.dataset.text.includes(q)) || (role && r.dataset.rolekey !== role) || (st && r.dataset.status !== st));
+        });
+    }
+
+    async function resetStaffPassword(btn) {
+        const { id, name, phone } = btn.dataset;
+        const ok = await Swal.fire({
+            title: 'كلمة مرور جديدة؟', text: `ستُلغى كلمة مرور (${name}) الحالية ويُفك قفل الحساب إن كان مقفلاً.`,
+            icon: 'question', showCancelButton: true, confirmButtonText: 'توليد كلمة مرور', cancelButtonText: 'إلغاء'
+        });
+        if (!ok.isConfirmed) return;
+        try {
+            const d = await staffRequest(`/api/superadmin/staff/${encodeURIComponent(id)}/reset-password`, 'POST');
+            await Swal.fire({
+                icon: 'success', title: 'تم ضبط كلمة المرور', confirmButtonText: 'تم',
+                html: `الدخول برقم الهاتف <b dir="ltr">${esc(phone)}</b> وكلمة المرور:<br><br><b dir="ltr" style="font-size:1.25rem">${esc(d.password)}</b><br><br><small>سلّمها للموظف؛ لن تظهر مرة أخرى.</small>`
+            });
+            location.reload();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
     }
 
     syncStoreField('staff');
