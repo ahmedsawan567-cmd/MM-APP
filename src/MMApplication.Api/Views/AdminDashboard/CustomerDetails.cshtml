@@ -1,510 +1,414 @@
-@model MMApplication.Api.ViewModels.CustomerDetailsPageViewModel
+@model MMApplication.Api.ViewModels.CustomerProfileViewModel
+@using MMApplication.Api.ViewModels
+@using MMApplication.Domain.Enums
 @{
     Layout = "_Layout";
-    ViewData["Title"] = $"كشف حساب العميل: {Model.FullName}";
+    ViewData["Title"] = Model.FullName;
     ViewData["ActiveTab"] = "customers";
+    var m = Model;
+    var initial = m.FullName.Trim().Length > 0 ? m.FullName.Trim()[..1] : "ع";
+    var customerJson = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        Id = m.CustomerId, m.MembershipNumber, m.FullName, m.PhoneNumber, m.Email,
+        BirthDate = m.BirthDate?.ToString("yyyy-MM-dd"), m.Gender, Tier = m.Tier.ToUpperInvariant(),
+        CurrentPoints = m.PointsBalance, IsSuspended = m.IsFrozen
+    });
+    string Money(decimal v) => v.ToString("N2");
+    string Local(DateTime d) => d.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+    string Day(DateTime d) => d.ToLocalTime().ToString("yyyy/MM/dd");
+    var tabs = new[]
+    {
+        ("invoices", "الفواتير", "receipt-text", m.Invoices.Count),
+        ("ledger", "حركة النقاط", "coins", m.Ledger.Count),
+        ("vouchers", "القسائم", "ticket", m.Vouchers.Count),
+        ("stores", "المتاجر", "store", m.Stores.Count),
+        ("notifications", "الإشعارات", "bell", m.Notifications.Count),
+        ("devices", "الأجهزة", "smartphone", m.Devices.Count),
+        ("audit", "السجل", "history", m.Audit.Count),
+    };
 }
+@Html.AntiForgeryToken()
 
-<div class="space-y-6">
+<div class="space-y-5">
+    <nav class="flex items-center gap-1.5 text-sm text-slate-500 print:hidden">
+        <a asp-action="Customers" class="hover:text-brand-700">العملاء</a>
+        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+        <span class="text-slate-800 font-semibold">@m.FullName</span>
+    </nav>
 
-    <!-- 1. Breadcrumbs & Page Header -->
-    <div class="space-y-3">
-        <!-- Breadcrumbs -->
-        <div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
-            <a asp-action="Index" class="hover:text-slate-900 transition">الرئيسية</a>
-            <i data-lucide="chevron-left" class="w-3.5 h-3.5 text-slate-400"></i>
-            <a asp-action="Customers" class="hover:text-slate-900 transition">سجل العملاء</a>
-            <i data-lucide="chevron-left" class="w-3.5 h-3.5 text-slate-400"></i>
-            <span class="text-slate-900 font-bold">@Model.FullName</span>
-        </div>
-
-        <div class="page-header">
-            <div>
-                <h1 class="page-title flex items-center gap-3 flex-wrap">
-                    <span>@Model.FullName</span>
-                    <span class="text-base font-semibold text-brand-700 num" dir="ltr">@(Model.MembershipNumber ?? Model.CustomerId)</span>
-                </h1>
-                <div class="mt-2 flex items-center gap-x-4 gap-y-2 flex-wrap text-sm text-ink-3">
-                    @{
-                        var tierUp = (Model.Tier ?? "").ToUpperInvariant();
-                        var tierLabel = tierUp switch { "VIP" => "VIP", "GOLD" => "ذهبية", "SILVER" => "فضية", _ => "برونزية" };
-                    }
-                    <span class="badge @(tierUp == "VIP" ? "badge-purple" : tierUp == "GOLD" ? "badge-amber" : "badge-slate")">عضوية @tierLabel</span>
-                    @if (Model.IsSuspended)
-                    {
-                        <span class="badge badge-rose">مجمّد</span>
-                    }
-                    else
-                    {
-                        <span class="badge badge-emerald">نشط</span>
-                    }
-                    <span class="num" dir="ltr">@Model.PhoneNumber</span>
-                    @if (!string.IsNullOrEmpty(Model.Email))
-                    {
-                        <span class="num" dir="ltr">@Model.Email</span>
-                    }
-                    <span>منذ <span class="num">@Model.RegisteredAt.ToString("yyyy/MM/dd")</span></span>
+    <!-- بطاقة العميل -->
+    <div class="card p-5 sm:p-6">
+        <div class="flex flex-col lg:flex-row lg:items-center gap-5">
+            <div class="flex items-center gap-4 min-w-0 flex-1">
+                <div class="w-16 h-16 shrink-0 rounded-2xl bg-gradient-to-br from-brand-600 to-fuchsia-500 text-white text-2xl font-bold flex items-center justify-center">@initial</div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h1 class="text-2xl font-bold text-slate-900">@m.FullName</h1>
+                        <span class="badge @DisplayLabels.TierBadge(m.Tier)">@DisplayLabels.Tier(m.Tier)</span>
+                        @if (m.IsArchived) { <span class="badge badge-slate">محذوف</span> }
+                        else if (m.IsFrozen) { <span class="badge badge-rose"><i data-lucide="lock" class="w-3 h-3"></i> مجمّد</span> }
+                        else { <span class="badge badge-emerald">نشط</span> }
+                    </div>
+                    <div class="mt-1.5 flex items-center gap-x-4 gap-y-1 flex-wrap text-sm text-slate-500">
+                        <button type="button" onclick="copyText('@m.MembershipNumber')" class="inline-flex items-center gap-1 font-bold text-brand-700 num hover:underline" dir="ltr" title="نسخ رقم العضوية">
+                            @(m.MembershipNumber ?? "—") <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <span class="inline-flex items-center gap-1"><i data-lucide="phone" class="w-3.5 h-3.5"></i><span class="num" dir="ltr">@m.PhoneNumber</span></span>
+                        <span class="inline-flex items-center gap-1"><i data-lucide="calendar" class="w-3.5 h-3.5"></i>عضو منذ <span class="num">@Day(m.RegisteredAt)</span></span>
+                    </div>
                 </div>
             </div>
-            <div class="page-actions">
-                <button onclick="openModal('modal-adjust-points')" class="btn-primary">
-                    <i data-lucide="coins" class="w-4 h-4"></i>
-                    <span>تعديل النقاط</span>
-                </button>
-                <button onclick="toggleCustomerSuspend('@Model.CustomerId')" class="btn-secondary @(Model.IsSuspended ? "text-emerald-700 hover:bg-emerald-50" : "text-rose-700 hover:bg-rose-50")">
-                    <i data-lucide="@(Model.IsSuspended ? "unlock" : "lock")" class="w-4 h-4"></i>
-                    <span>@(Model.IsSuspended ? "فك التجميد" : "تجميد الحساب")</span>
-                </button>
-                <a asp-action="Customers" asp-route-search="@(Model.MembershipNumber ?? Model.PhoneNumber)" class="btn-secondary">
-                    <i data-lucide="pencil" class="w-4 h-4 text-slate-500"></i>
-                    <span>تعديل البيانات</span>
-                </a>
-                <button type="button" onclick="window.print()" class="btn-secondary">
-                    <i data-lucide="printer" class="w-4 h-4 text-slate-500"></i>
-                    <span>طباعة كشف الحساب</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 2. KPI Metrics -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">رصيد محفظة النقاط</span>
-                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-amber-600 num">@Model.PointsBalance.ToString("N0") <span class="text-xs font-sans font-normal text-slate-500">نقطة</span></div>
-            <div class="text-xs text-slate-400 mt-1 num">تعادل نقداً: @((Model.PointsBalance * 0.1m).ToString("N2")) د.ل</div>
-        </div>
-
-        <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">إجمالي الإنفاق بالمول</span>
-                <i data-lucide="wallet" class="w-4 h-4 text-emerald-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-emerald-600 num">@Model.TotalSpent.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
-            <div class="text-xs text-slate-400 mt-1">من واقع فواتير المتاجر المعتمدة</div>
-        </div>
-
-        <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">عدد الفواتير الممسوحة</span>
-                <i data-lucide="receipt" class="w-4 h-4 text-brand-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-slate-900 num">@Model.InvoicesCount <span class="text-xs font-sans font-normal text-slate-500">فاتورة</span></div>
-            <div class="text-xs text-emerald-700 mt-1 font-medium num">@Model.ApprovedCount معتمدة • معلقة: @Model.PendingCount</div>
-        </div>
-
-        <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">الاسترداد النقدي</span>
-                <i data-lucide="banknote" class="w-4 h-4 text-purple-600"></i>
-            </div>
-            <div class="text-2xl font-bold text-purple-600 num">@Model.TotalCashBackEarned.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
-            <div class="text-xs text-slate-400 mt-1">محسوبة على مشتريات الكاش باك</div>
-        </div>
-    </div>
-
-    <!-- 3. Segmented Navigation Tabs -->
-    <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-1.5" id="custDetailsTabs">
-        <button onclick="switchCustTab('invoices', this)" class="segmented-tab active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-ink text-surface shadow-xs">
-            <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
-            <span>سجل الفواتير والمشتريات</span>
-            <span class="px-1.5 py-0.5 rounded-full text-xs bg-white/20 text-surface">@Model.Invoices.Count</span>
-        </button>
-        <button onclick="switchCustTab('stores', this)" class="segmented-tab px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100">
-            <i data-lucide="store" class="w-3.5 h-3.5 text-brand-500"></i>
-            <span>المتاجر الأكثر ارتياداً</span>
-            <span class="px-1.5 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">@Model.StoreVisits.Count</span>
-        </button>
-        <button onclick="switchCustTab('rewards', this)" class="segmented-tab px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100">
-            <i data-lucide="gift" class="w-3.5 h-3.5 text-purple-500"></i>
-            <span>الجوائز المستبدلة</span>
-            <span class="px-1.5 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">@Model.Redemptions.Count</span>
-        </button>
-    </div>
-
-    <!-- TAB 1: INVOICES & TRANSACTIONS LEDGER -->
-    <div id="tab-cust-invoices" class="cust-tab-content space-y-4">
-        <div class="card overflow-hidden">
-            <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
-                <div>
-                    <h3 class="text-base font-bold text-slate-900">كشف حساب الفواتير والمشتريات المفصل</h3>
-                    <p class="text-sm text-slate-500 mt-0.5">تفاصيل كل فاتورة: وقت المسح الدقيق، المتجر، القيمة، النقاط، ومستوى الخطورة</p>
-                </div>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>رقم الفاتورة / المتجر</th>
-                            <th>تاريخ ووقت الشراء</th>
-                            <th>وقت المسح والتسجيل</th>
-                            <th>المبلغ الإجمالي</th>
-                            <th>النقاط المكتسبة</th>
-                            <th>مؤشر الخطورة</th>
-                            <th>الحالة</th>
-                            <th class="text-left">الفاتورة / الإجراء</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (Model.Invoices.Count == 0)
-                        {
-                            <tr>
-                                <td colspan="8" class="text-center py-12 text-slate-400">
-                                    <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
-                                        <i data-lucide="receipt-text" class="w-6 h-6"></i>
-                                    </div>
-                                    <div class="font-bold text-slate-700">لا توجد فواتير مسجلة لهذا العميل</div>
-                                    <p class="text-xs text-slate-400 mt-1">ستظهر الفواتير بمجرد قيام المتسوق بمسحها من التطبيق</p>
-                                </td>
-                            </tr>
-                        }
-                        @foreach (var inv in Model.Invoices)
-                        {
-                            <tr>
-                                <td>
-                                    <div class="font-bold text-slate-900">@inv.MerchantName</div>
-                                    <div class="text-xs text-slate-500 num flex items-center gap-1 mt-0.5">
-                                        <span>#@(inv.InvoiceNumber ?? inv.Id[..8])</span>
-                                        <span>•</span>
-                                        <span>@inv.StoreCategory</span>
-                                    </div>
-                                </td>
-                                <td class="num text-slate-700">
-                                    <div>@inv.InvoiceDate.ToString("yyyy/MM/dd")</div>
-                                    <div class="text-xs text-slate-400">@inv.InvoiceDate.ToString("hh:mm tt")</div>
-                                </td>
-                                <td class="num text-slate-500 text-xs">
-                                    <div>@inv.ScanDateTime.ToString("yyyy/MM/dd")</div>
-                                    <div class="text-xs text-slate-400">@inv.ScanDateTime.ToString("hh:mm:ss tt")</div>
-                                </td>
-                                <td class="font-bold text-slate-900 num">
-                                    @inv.TotalAmount.ToString("N2") <span class="text-xs text-slate-500 font-normal">د.ل</span>
-                                </td>
-                                <td>
-                                    <span class="font-bold text-amber-600 num">
-                                        +@inv.PointsEarned <span class="text-xs font-normal text-slate-500">نقطة</span>
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="flex items-center gap-1.5">
-                                        <div class="w-12 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                            <div class="h-full @(inv.RiskScore > 70 ? "bg-rose-500" : (inv.RiskScore >= 31 ? "bg-amber-500" : "bg-emerald-500"))" style="width: @(inv.RiskScore)%"></div>
-                                        </div>
-                                        <span class="font-bold text-xs num @(inv.RiskScore > 70 ? "text-rose-700" : (inv.RiskScore >= 31 ? "text-amber-700" : "text-emerald-700"))">
-                                            @inv.RiskScore%
-                                        </span>
-                                    </div>
-                                    @if (!string.IsNullOrEmpty(inv.FraudFlagReason))
-                                    {
-                                        <div class="text-xs text-rose-600 font-bold truncate max-w-[140px] mt-0.5" title="@inv.FraudFlagReason">@inv.FraudFlagReason</div>
-                                    }
-                                </td>
-                                <td>
-                                    @if (inv.Status == InvoiceStatus.APPROVED)
-                                    {
-                                        <span class="badge badge-emerald">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> معتمدة
-                                        </span>
-                                    }
-                                    else if (inv.Status == InvoiceStatus.PENDING)
-                                    {
-                                        <span class="badge badge-amber">قيد التدقيق</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge badge-rose">مرفوضة</span>
-                                    }
-                                </td>
-                                <td class="text-left">
-                                    @if (!string.IsNullOrEmpty(inv.ImageUrl))
-                                    {
-                                        <button onclick="previewInvoicePhoto('@inv.ImageUrl', '@inv.MerchantName', '@inv.TotalAmount.ToString("N2") د.ل')" class="btn-secondary !py-1 !px-2.5 !text-xs">
-                                            <i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500"></i>
-                                            <span>معاينة</span>
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-xs text-slate-400 num">-</span>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- TAB 2: STORE VISITS & SPEND BREAKDOWN -->
-    <div id="tab-cust-stores" class="cust-tab-content hidden space-y-4">
-        <div class="card p-5">
-            <div class="mb-4">
-                <h3 class="text-base font-bold text-slate-900">سجل المتاجر الأكثر زيارة وإنفاقاً من قبل العميل</h3>
-                <p class="text-sm text-slate-500 mt-0.5">توزيع سلوك المتسوق عبر منافذ ومستأجري المول</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                @foreach (var st in Model.StoreVisits)
-                {
-                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2.5">
-                                <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center font-bold">
-                                    <i data-lucide="shopping-bag" class="w-4 h-4 text-brand-600"></i>
-                                </div>
-                                <div>
-                                    <div class="font-bold text-slate-900 text-xs">@st.StoreName</div>
-                                    <div class="text-xs text-slate-500">@st.Category</div>
-                                </div>
-                            </div>
-                            @if (st.IsFavorite)
+            @if (m.CanEdit && !m.IsArchived)
+            {
+                <div class="flex items-center gap-2 flex-wrap print:hidden">
+                    <button type="button" onclick="MMCustomers.openForm(customer)" class="btn-secondary"><i data-lucide="pencil" class="w-4 h-4"></i> تعديل</button>
+                    <button type="button" onclick="MMCustomers.openNotify(customer)" class="btn-secondary"><i data-lucide="send" class="w-4 h-4"></i> إشعار</button>
+                    @if (m.IsSuperAdmin)
+                    {
+                        <button type="button" onclick="MMCustomers.openPoints(customer)" class="btn-primary"><i data-lucide="coins" class="w-4 h-4"></i> تعديل النقاط</button>
+                    }
+                    <div class="relative">
+                        <button type="button" class="btn-icon" onclick="MM.dropdown('cust-more')" aria-haspopup="menu" aria-label="المزيد"><i data-lucide="ellipsis" class="w-5 h-5"></i></button>
+                        <div id="cust-more" class="dropdown left-0 hidden" role="menu">
+                            <button type="button" class="dropdown-item" onclick="MMCustomers.resetPassword(customer)"><i data-lucide="key-round" class="w-4 h-4"></i> كلمة مرور جديدة للتطبيق</button>
+                            <button type="button" class="dropdown-item" onclick="MMCustomers.toggleSuspend(customer)"><i data-lucide="@(m.IsFrozen ? "lock-open" : "lock")" class="w-4 h-4"></i> @(m.IsFrozen ? "تنشيط الحساب" : "تجميد الحساب")</button>
+                            <button type="button" class="dropdown-item" onclick="window.print()"><i data-lucide="printer" class="w-4 h-4"></i> طباعة كشف الحساب</button>
+                            @if (m.IsSuperAdmin)
                             {
-                                <span class="badge badge-amber text-xs">متجر مفضل ★</span>
+                                <div class="my-1 border-t border-line"></div>
+                                <button type="button" class="dropdown-item !text-rose-600" onclick="MMCustomers.remove(customer, '/AdminDashboard/Customers')"><i data-lucide="trash-2" class="w-4 h-4"></i> حذف العميل</button>
                             }
                         </div>
-
-                        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/80 text-xs">
-                            <div>
-                                <span class="text-xs text-slate-500 block">إجمالي المشتريات:</span>
-                                <span class="font-bold text-emerald-600 text-sm num">@st.TotalSpent.ToString("N2") د.ل</span>
-                            </div>
-                            <div>
-                                <span class="text-xs text-slate-500 block">عدد الزيارات:</span>
-                                <span class="font-bold text-slate-800 num">@st.VisitCount مرات</span>
-                            </div>
-                        </div>
-
-                        <div class="text-xs text-slate-500 flex items-center justify-between pt-1">
-                            <span>النقاط المكتسبة: <b class="text-amber-600 num">+@st.TotalPointsEarned</b></span>
-                            <span>آخر زيارة: <b class="text-slate-600 num">@st.LastVisitDate.ToString("yyyy/MM/dd")</b></span>
-                        </div>
                     </div>
+                </div>
+            }
+        </div>
+
+        <dl class="mt-5 pt-5 border-t border-line grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-x-6 gap-y-4 text-sm">
+            <div><dt class="text-slate-500">البريد</dt><dd class="mt-0.5 font-semibold num truncate" dir="ltr">@(m.Email ?? "—")</dd></div>
+            <div><dt class="text-slate-500">تاريخ الميلاد</dt><dd class="mt-0.5 font-semibold num">@(m.BirthDate?.ToString("yyyy/MM/dd") ?? "—")</dd></div>
+            <div><dt class="text-slate-500">الجنس</dt><dd class="mt-0.5 font-semibold">@(m.Gender == "F" ? "أنثى" : m.Gender == "M" ? "ذكر" : "—")</dd></div>
+            <div><dt class="text-slate-500">دخول التطبيق</dt><dd class="mt-0.5 font-semibold @(m.HasAppPassword ? "text-emerald-600" : "text-slate-500")">@(m.HasAppPassword ? "مفعّل" : "غير مفعّل")</dd></div>
+            <div><dt class="text-slate-500">آخر فاتورة</dt><dd class="mt-0.5 font-semibold num">@(m.LastInvoiceAt.HasValue ? Day(m.LastInvoiceAt.Value) : "—")</dd></div>
+            <div><dt class="text-slate-500">آخر تعديل</dt><dd class="mt-0.5 font-semibold num">@(m.UpdatedAt.HasValue ? Day(m.UpdatedAt.Value) : "—")</dd></div>
+            <div><dt class="text-slate-500">الأجهزة</dt><dd class="mt-0.5 font-semibold num">@m.Devices.Count</dd></div>
+        </dl>
+
+        @if (m.IsFrozen || m.SharedDeviceAccounts > 0 || m.PendingCount > 0 || !m.HasAppPassword)
+        {
+            <div class="mt-5 grid gap-2">
+                @if (m.IsFrozen)
+                {
+                    <div class="rounded-xl bg-rose-50 text-rose-800 px-4 py-2.5 text-sm flex items-center gap-2"><i data-lucide="lock" class="w-4 h-4 shrink-0"></i> الحساب مجمّد: لا يستطيع العميل الدخول أو رفع الفواتير.</div>
+                }
+                @if (m.SharedDeviceAccounts > 0)
+                {
+                    <div class="rounded-xl bg-amber-50 text-amber-800 px-4 py-2.5 text-sm flex items-center gap-2"><i data-lucide="smartphone" class="w-4 h-4 shrink-0"></i> جهاز العميل مستخدم من <b class="num">@m.SharedDeviceAccounts</b> حساب آخر — راجع تبويب الأجهزة.</div>
+                }
+                @if (m.PendingCount > 0)
+                {
+                    <a asp-action="Review" class="rounded-xl bg-brand-50 text-brand-800 px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-brand-100"><i data-lucide="scan-search" class="w-4 h-4 shrink-0"></i> <b class="num">@m.PendingCount</b> فاتورة بانتظار المراجعة <i data-lucide="chevron-left" class="w-4 h-4 mr-auto"></i></a>
+                }
+                @if (!m.HasAppPassword && !m.IsArchived)
+                {
+                    <div class="rounded-xl bg-slate-100 text-slate-700 px-4 py-2.5 text-sm flex items-center gap-2"><i data-lucide="key-round" class="w-4 h-4 shrink-0"></i> لا توجد كلمة مرور للتطبيق بعد — استخدم "كلمة مرور جديدة للتطبيق" من قائمة المزيد.</div>
                 }
             </div>
+        }
+    </div>
+
+    <!-- المؤشرات -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">رصيد النقاط</span><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="coins" class="w-5 h-5"></i></span></div>
+            <div class="stat-value text-gold-600 num">@m.PointsBalance.ToString("N0")</div>
+            <div class="stat-meta">كسب <span class="num">@m.PointsEarned.ToString("N0")</span> • صرف <span class="num">@m.PointsRedeemed.ToString("N0")</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">المشتريات المعتمدة</span><span class="stat-icon bg-emerald-50 text-emerald-600"><i data-lucide="wallet" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@Money(m.TotalSpent) <span class="text-base font-semibold text-slate-400">د.ل</span></div>
+            <div class="stat-meta">متوسط الفاتورة <span class="num">@Money(m.AverageInvoice)</span> د.ل</div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">الفواتير</span><span class="stat-icon bg-brand-50 text-brand-600"><i data-lucide="receipt-text" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.InvoicesCount</div>
+            <div class="stat-meta"><span class="text-emerald-600">معتمدة <span class="num">@m.ApprovedCount</span></span> • <span class="text-amber-600">معلّقة <span class="num">@m.PendingCount</span></span> • <span class="text-rose-600">مرفوضة <span class="num">@m.RejectedCount</span></span></div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">القسائم الصالحة</span><span class="stat-icon bg-purple-50 text-purple-600"><i data-lucide="ticket" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.VouchersActive</div>
+            <div class="stat-meta">قسائم مستبدلة: <span class="num">@m.Vouchers.Count</span></div>
         </div>
     </div>
 
-    <!-- TAB 3: REDEEMED REWARDS CATALOG -->
-    <div id="tab-cust-rewards" class="cust-tab-content hidden space-y-4">
-        <div class="card overflow-hidden">
-            <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
-                <div>
-                    <h3 class="text-base font-bold text-slate-900">سجل الجوائز والمكافآت التي استبدلها العميل</h3>
-                    <p class="text-sm text-slate-500 mt-0.5">القسائم والخصومات والتذاكر المستفاد منها برصيد النقاط</p>
-                </div>
+    <div class="space-y-4 min-w-0">
+            <div class="tabs print:hidden" role="tablist">
+                @foreach (var (key, label, icon, count) in tabs)
+                {
+                    <button type="button" class="tab @(key == "invoices" ? "tab-active" : "")" data-tab="@key" onclick="showTab('@key')" role="tab">
+                        <i data-lucide="@icon" class="w-4 h-4"></i> @label <span class="text-xs text-slate-400 num">@count</span>
+                    </button>
+                }
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>المكافأة / الجائزة</th>
-                            <th>النوع والتصنيف</th>
-                            <th>النقاط المخصومة</th>
-                            <th>القيمة التقديرية</th>
-                            <th>تاريخ الاستبدال</th>
-                            <th>كود القسيمة</th>
-                            <th>الحالة</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (Model.Redemptions.Count == 0)
+            <!-- الفواتير -->
+            <section data-panel="invoices" class="card overflow-hidden">
+                @if (m.Invoices.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-state-icon"><i data-lucide="receipt-text" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا توجد فواتير بعد</div></div>
+                }
+                else
+                {
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead><tr><th>المتجر</th><th>رقم الفاتورة</th><th>التاريخ</th><th>المبلغ</th><th>النقاط</th><th>الحالة</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var i in m.Invoices)
+                                {
+                                    var (label, badge) = DisplayLabels.Invoice(i.Status);
+                                    <tr>
+                                        <td class="font-semibold text-slate-900">@i.Store</td>
+                                        <td class="num" dir="ltr">@(string.IsNullOrEmpty(i.InvoiceNumber) ? "—" : i.InvoiceNumber)</td>
+                                        <td class="num whitespace-nowrap">@Day(i.Date)<div class="text-xs text-slate-400">رُفعت @Local(i.UploadedAt)</div></td>
+                                        <td class="num font-semibold whitespace-nowrap">@Money(i.Amount) <span class="text-xs text-slate-400">د.ل</span></td>
+                                        <td class="num font-bold @(i.Points > 0 ? "text-gold-600" : "text-slate-400")">@(i.Points > 0 ? "+" + i.Points : "0")</td>
+                                        <td>
+                                            <span class="badge @badge">@label</span>
+                                            @if (!string.IsNullOrEmpty(i.Reason) && i.Status != InvoiceStatus.APPROVED)
+                                            {
+                                                <div class="text-xs text-slate-500 mt-1 max-w-[14rem] truncate" title="@i.Reason">@i.Reason</div>
+                                            }
+                                        </td>
+                                        <td class="text-left whitespace-nowrap">
+                                            @if (!string.IsNullOrEmpty(i.ImageUrl))
+                                            {
+                                                <button type="button" class="btn-ghost btn-sm" onclick="previewImage('@i.ImageUrl', @Json.Serialize(i.Store))"><i data-lucide="image" class="w-4 h-4"></i> الصورة</button>
+                                            }
+                                            @if (i.Status == InvoiceStatus.REVIEW_REQUIRED)
+                                            {
+                                                <a asp-action="Review" class="btn-ghost btn-sm text-brand-700"><i data-lucide="scan-search" class="w-4 h-4"></i> مراجعة</a>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <!-- حركة النقاط -->
+            <section data-panel="ledger" class="card overflow-hidden hidden">
+                @if (m.Ledger.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-state-icon"><i data-lucide="coins" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا توجد حركة نقاط</div></div>
+                }
+                else
+                {
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>النقاط</th><th>الرصيد بعدها</th></tr></thead>
+                            <tbody>
+                                @foreach (var l in m.Ledger)
+                                {
+                                    <tr>
+                                        <td class="num whitespace-nowrap">@Local(l.Date)</td>
+                                        <td><span class="badge @(l.Amount >= 0 ? "badge-emerald" : "badge-rose")">@DisplayLabels.LedgerType(l.Type)</span></td>
+                                        <td class="text-slate-600 max-w-md">@(l.Remarks ?? "—")</td>
+                                        <td class="num font-bold @(l.Amount >= 0 ? "text-emerald-600" : "text-rose-600")">@(l.Amount >= 0 ? "+" : "")@l.Amount.ToString("N0")</td>
+                                        <td class="num font-semibold">@l.BalanceAfter.ToString("N0")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <!-- القسائم -->
+            <section data-panel="vouchers" class="card overflow-hidden hidden">
+                @if (m.Vouchers.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-state-icon"><i data-lucide="ticket" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لم يستبدل العميل أي مكافأة بعد</div></div>
+                }
+                else
+                {
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead><tr><th>المكافأة</th><th>الكود</th><th>النقاط</th><th>الاستبدال</th><th>الصلاحية</th><th>الحالة</th></tr></thead>
+                            <tbody>
+                                @foreach (var v in m.Vouchers)
+                                {
+                                    var (label, badge) = DisplayLabels.Redemption(v.Status, v.ExpiresAt);
+                                    <tr>
+                                        <td class="font-semibold text-slate-900">@v.Title</td>
+                                        <td class="num font-bold text-brand-700" dir="ltr">@v.Code</td>
+                                        <td class="num">@v.Points.ToString("N0")</td>
+                                        <td class="num whitespace-nowrap">@Local(v.RedeemedAt)</td>
+                                        <td class="num whitespace-nowrap">@Day(v.ExpiresAt)</td>
+                                        <td>
+                                            <span class="badge @badge">@label</span>
+                                            @if (v.UsedAt.HasValue)
+                                            {
+                                                <div class="text-xs text-slate-500 mt-1 num">@Local(v.UsedAt.Value)@(string.IsNullOrEmpty(v.UsedBy) ? "" : " • " + v.UsedBy)</div>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <!-- المتاجر -->
+            <section data-panel="stores" class="card overflow-hidden hidden">
+                @if (m.Stores.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-state-icon"><i data-lucide="store" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا توجد زيارات بعد</div></div>
+                }
+                else
+                {
+                    var maxSpent = Math.Max(1m, m.Stores.Max(s => s.Spent));
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead><tr><th>المتجر</th><th>الفواتير</th><th>المشتريات المعتمدة</th><th>النقاط</th><th>آخر زيارة</th></tr></thead>
+                            <tbody>
+                                @foreach (var s in m.Stores)
+                                {
+                                    <tr>
+                                        <td><div class="font-semibold text-slate-900">@s.Store</div><div class="text-xs text-slate-500">@s.Category</div></td>
+                                        <td class="num">@s.Visits</td>
+                                        <td style="min-width: 12rem">
+                                            <div class="flex items-center gap-2">
+                                                <div class="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full bg-brand-600" style="width: @((int)(100 * s.Spent / maxSpent))%"></div></div>
+                                                <span class="num font-semibold text-sm whitespace-nowrap">@Money(s.Spent)</span>
+                                            </div>
+                                        </td>
+                                        <td class="num text-gold-600 font-bold">@s.Points.ToString("N0")</td>
+                                        <td class="num whitespace-nowrap">@Day(s.LastVisit)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <!-- الإشعارات -->
+            <section data-panel="notifications" class="card overflow-hidden hidden">
+                @if (m.Notifications.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-state-icon"><i data-lucide="bell" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لم تُرسل إشعارات لهذا العميل</div></div>
+                }
+                else
+                {
+                    <ul class="divide-y divide-line">
+                        @foreach (var n in m.Notifications)
                         {
-                            <tr>
-                                <td colspan="7" class="text-center py-12 text-slate-400">
-                                    <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
-                                        <i data-lucide="gift" class="w-6 h-6"></i>
+                            <li class="px-5 py-3.5 flex items-start gap-3">
+                                <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 @(n.IsRead ? "bg-slate-300" : "bg-brand-600")"></span>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <div class="font-semibold text-slate-900">@n.Title</div>
+                                        <div class="text-xs text-slate-400 num whitespace-nowrap">@Local(n.CreatedAt)</div>
                                     </div>
-                                    <div class="font-bold text-slate-700">لم يقم العميل باستبدال أي مكافآت بعد</div>
-                                    <p class="text-xs text-slate-400 mt-1">ستظهر القسائم والتذاكر فور استبدالها عبر التطبيق</p>
-                                </td>
-                            </tr>
+                                    <div class="text-sm text-slate-600 mt-0.5">@n.Body</div>
+                                    <div class="text-xs mt-1 @(n.IsRead ? "text-slate-400" : "text-brand-700")">@(n.IsRead ? "مقروء" : "لم يُقرأ بعد")</div>
+                                </div>
+                            </li>
                         }
-                        @foreach (var r in Model.Redemptions)
+                    </ul>
+                }
+            </section>
+
+            <!-- الأجهزة -->
+            <section data-panel="devices" class="card overflow-hidden hidden">
+                @if (m.Devices.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-state-icon"><i data-lucide="smartphone" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا توجد أجهزة مسجلة</div><p class="text-sm text-slate-500">يُسجَّل الجهاز عند رفع أول فاتورة من التطبيق</p></div>
+                }
+                else
+                {
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead><tr><th>الجهاز</th><th>أول استخدام</th><th>آخر استخدام</th><th>حسابات أخرى عليه</th></tr></thead>
+                            <tbody>
+                                @foreach (var d in m.Devices)
+                                {
+                                    <tr>
+                                        <td><div class="font-semibold text-slate-900">@(d.Model ?? "جهاز غير معروف")</div><div class="text-xs text-slate-500">@d.Os</div></td>
+                                        <td class="num">@Day(d.FirstSeen)</td>
+                                        <td class="num">@Local(d.LastSeen)</td>
+                                        <td>@if (d.OtherAccounts > 0) { <span class="badge badge-amber num">@d.OtherAccounts حساب</span> } else { <span class="text-slate-400">لا يوجد</span> }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <!-- السجل -->
+            <section data-panel="audit" class="card overflow-hidden hidden">
+                @if (m.Audit.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-state-icon"><i data-lucide="history" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا توجد عمليات إدارية على هذا الحساب</div></div>
+                }
+                else
+                {
+                    <ul class="divide-y divide-line">
+                        @foreach (var a in m.Audit)
                         {
-                            <tr>
-                                <td class="font-bold text-slate-900 flex items-center gap-2">
-                                    <div class="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center">
-                                        <i data-lucide="gift" class="w-3.5 h-3.5"></i>
-                                    </div>
-                                    <span>@r.RewardTitle</span>
-                                </td>
-                                <td class="text-slate-600 font-medium text-xs">@r.Category</td>
-                                <td class="font-bold text-rose-600 num">-@r.PointsSpent نقطة</td>
-                                <td class="font-bold text-emerald-600 num">@r.MonetaryValue.ToString("N2") د.ل</td>
-                                <td class="num text-slate-500 text-xs">@r.RedemptionDate.ToString("yyyy/MM/dd HH:mm")</td>
-                                <td>
-                                    <span class="font-bold text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 num">
-                                        @r.RedemptionCode
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="badge badge-emerald">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> مكتملة
-                                    </span>
-                                </td>
-                            </tr>
+                            <li class="px-5 py-3.5">
+                                <div class="flex items-center justify-between gap-3 flex-wrap">
+                                    <span class="badge @DisplayLabels.ActionBadge(a.Action)">@DisplayLabels.Action(a.Action)</span>
+                                    <span class="text-xs text-slate-400 num">@Local(a.Date) • @a.By</span>
+                                </div>
+                                <div class="text-sm text-slate-600 mt-1.5">@a.Details</div>
+                            </li>
                         }
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                    </ul>
+                }
+            </section>
     </div>
 </div>
 
-<!-- ======================================================== -->
-<!-- MODALS -->
-<!-- ======================================================== -->
+<partial name="_CustomerModals" />
 
-<!-- Modal: Adjust Points -->
-<div id="modal-adjust-points" class="hidden modal-overlay">
-    <div class="modal-box max-w-md">
+<div id="image-modal" class="hidden modal-overlay">
+    <div class="modal-box max-w-2xl">
         <div class="modal-header">
-            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
-                <span>تعديل رصيد نقاط العميل: @Model.FullName</span>
-            </h3>
-            <button onclick="closeModal('modal-adjust-points')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
+            <h3 id="img-title" class="font-bold text-slate-900"></h3>
+            <button type="button" onclick="MM.closeModal('image-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
-
-        <div class="modal-body space-y-3.5">
-            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
-                <span class="text-slate-600 font-medium">الرصيد الحالي:</span>
-                <span class="font-bold num text-slate-900">@Model.PointsBalance نقطة</span>
-            </div>
-
-            <div>
-                <label class="form-label">نوع الحركة:</label>
-                <select id="adj-type" class="form-select">
-                    <option value="add">إضافة نقاط تعويضية / مكافأة (+)</option>
-                    <option value="deduct">خصم نقاط (-)</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="form-label">عدد النقاط:</label>
-                <input type="number" id="adj-points" value="100" min="1" class="form-input font-bold num">
-            </div>
-
-            <div>
-                <label class="form-label">سبب التعديل (يسجل في سجل الرقابة):</label>
-                <input type="text" id="adj-reason" placeholder="مثال: تعويض عن عطل في ماسح المتجر" class="form-input">
-            </div>
-        </div>
-
-        <div class="modal-footer">
-            <button onclick="closeModal('modal-adjust-points')" class="btn-secondary">إلغاء</button>
-            <button onclick="submitAdjustPoints('@Model.CustomerId')" class="btn-primary">اعتماد وحفظ التعديل</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Invoice Photo Preview -->
-<div id="modal-invoice-preview" class="hidden modal-overlay">
-    <div class="modal-box max-w-lg">
-        <div class="modal-header">
-            <div>
-                <h3 class="font-bold text-slate-900 text-sm" id="prev-merchant">معاينة صورة الفاتورة</h3>
-                <p class="text-xs text-slate-400 mt-0.5" id="prev-amount"></p>
-            </div>
-            <button onclick="closeModal('modal-invoice-preview')" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-4 h-4"></i></button>
-        </div>
-
-        <div class="modal-body">
-            <div class="rounded-xl overflow-hidden bg-slate-100 border border-slate-200 max-h-96 flex items-center justify-center p-2">
-                <img id="prev-img" src="" class="max-h-96 w-auto object-contain rounded" alt="Invoice Photo">
-            </div>
+        <div class="modal-body bg-slate-50 flex justify-center">
+            <img id="img-src" alt="صورة الفاتورة" class="max-h-[70vh] rounded-xl object-contain" />
         </div>
     </div>
 </div>
 
 @section Scripts {
+<script src="~/js/customers.js" asp-append-version="true"></script>
 <script>
-    function switchCustTab(tabId, el) {
-        document.querySelectorAll('.cust-tab-content').forEach(c => c.classList.add('hidden'));
-        const target = document.getElementById(`tab-cust-${tabId}`);
-        if (target) target.classList.remove('hidden');
+    const customer = @Html.Raw(customerJson);
 
-        document.querySelectorAll('#custDetailsTabs .segmented-tab').forEach(t => {
-            t.classList.remove('active', 'bg-ink', 'text-surface', 'shadow-xs');
-            t.classList.add('text-slate-600', 'hover:text-slate-900', 'hover:bg-slate-100');
-        });
-        if (el) {
-            el.classList.add('active', 'bg-ink', 'text-surface', 'shadow-xs');
-            el.classList.remove('text-slate-600', 'hover:text-slate-900', 'hover:bg-slate-100');
-        }
+    function showTab(key) {
+        document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('tab-active', b.dataset.tab === key));
+        document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== key));
+        history.replaceState(null, '', '#' + key);
+    }
+    if (location.hash && document.querySelector(`[data-tab="${location.hash.slice(1)}"]`)) showTab(location.hash.slice(1));
+
+    function previewImage(url, title) {
+        document.getElementById('img-src').src = url;
+        document.getElementById('img-title').textContent = 'فاتورة ' + title;
+        MM.openModal('image-modal');
     }
 
-    function previewInvoicePhoto(imgUrl, merchant, amount) {
-        document.getElementById('prev-img').src = imgUrl;
-        document.getElementById('prev-merchant').textContent = `فاتورة: ${merchant}`;
-        document.getElementById('prev-amount').textContent = `إجمالي القيمة: ${amount}`;
-        openModal('modal-invoice-preview');
-    }
-
-    async function toggleCustomerSuspend(customerId) {
-        const result = await Swal.fire({
-            title: 'حالة الحساب',
-            text: 'هل أنت متأكد من تغيير حالة تجميد هذا الحساب؟',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'نعم، تابع',
-            cancelButtonText: 'إلغاء'
-        });
-
-        if (!result.isConfirmed) return;
-
-        try {
-            const res = await fetch(`/api/SuperAdmin/customers/${customerId}/toggle-suspend`, {
-                method: 'POST'
-            });
-            const data = await res.json().catch(() => ({}));
-            if (res.ok) {
-                showToast(data.message || 'تم تعديل حالة الحساب بنجاح!', 'success');
-                setTimeout(() => window.location.reload(), 800);
-            } else {
-                showToast(data.message || 'فشل في تعديل حالة الحساب', 'error');
-            }
-        } catch (e) {
-            showToast('حدث خطأ في الاتصال بالخادم', 'error');
-        }
-    }
-
-    async function submitAdjustPoints(customerId) {
-        const type = document.getElementById('adj-type').value;
-        const pts = parseInt(document.getElementById('adj-points').value, 10);
-        const reason = document.getElementById('adj-reason').value.trim();
-
-        if (isNaN(pts) || pts <= 0) {
-            showToast('يرجى إدخال عدد نقاط صحيح', 'warning');
-            return;
-        }
-
-        const pointsDelta = type === 'deduct' ? -pts : pts;
-
-        try {
-            const res = await fetch(`/api/SuperAdmin/customers/${customerId}/adjust-points`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pointsDelta, reason: reason || 'تعديل إداري' })
-            });
-
-            const data = await res.json().catch(() => ({}));
-            if (res.ok) {
-                closeModal('modal-adjust-points');
-                showToast(`تم تعديل النقاط بنجاح (${pointsDelta > 0 ? '+' : ''}${pointsDelta})`, 'success');
-                setTimeout(() => window.location.reload(), 800);
-            } else {
-                showToast(data.message || 'فشل في تعديل النقاط', 'error');
-            }
-        } catch (e) {
-            showToast('حدث خطأ في الاتصال', 'error');
-        }
+    async function copyText(text) {
+        if (!text) return;
+        try { await navigator.clipboard.writeText(text); showToast('تم نسخ رقم العضوية.', 'success'); } catch { }
     }
 </script>
 }

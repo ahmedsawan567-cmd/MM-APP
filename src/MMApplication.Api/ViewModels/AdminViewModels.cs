@@ -286,8 +286,21 @@ public class ReviewDecisionRequest
 public class RewardsPageViewModel
 {
     public bool CanManage { get; set; }
+    public bool CanSeeVouchers { get; set; }
     public List<RewardAdminRow> Rewards { get; set; } = new();
+    public List<VoucherAdminRow> Vouchers { get; set; } = new();
+    public List<string> StoreNames { get; set; } = new();
+    public int IssuedTotal { get; set; }
+    public int Issued30 { get; set; }
+    public int UsedTotal { get; set; }
+    public int ActiveNow { get; set; }
+    public int ExpiringSoon { get; set; }
+    public int PointsRedeemed { get; set; }
+    public decimal DiscountGiven { get; set; }
 }
+
+public record VoucherAdminRow(string Code, string RewardTitle, string? MerchantName, string CustomerId, string CustomerName, string? MembershipNumber,
+    int Points, decimal Discount, MMApplication.Domain.Enums.RedemptionStatus Status, DateTime RedeemedAt, DateTime ExpiresAt, DateTime? UsedAt, string? UsedBy);
 
 public class RewardAdminRow
 {

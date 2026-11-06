@@ -315,7 +315,7 @@ public class AdminDashboardController : Controller
     private ReportFilter BuildReportFilter(string? range, DateTime? from, DateTime? to, string? storeId)
     {
         // مدير المتجر يرى تقارير متجره فقط
-        var tenant = IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId) ? CurrentTenantId : storeId;
+        var tenant = IsStoreScoped ? ScopeTenantId : storeId;
         return ReportFilter.From_(range, from, to, tenant);
     }
 
@@ -378,9 +378,27 @@ public class AdminDashboardController : Controller
             .ToListAsync();
 
         var rewards = await _context.Rewards.AsNoTracking().OrderByDescending(r => r.IsActive).ThenBy(r => r.PointsCost).ToListAsync();
+        var now = DateTime.UtcNow;
+        var canSeeVouchers = IsDeveloperOrSuperAdmin || IsAuditor;
+        var vouchers = !canSeeVouchers ? new List<VoucherAdminRow>() : await _context.Redemptions.AsNoTracking()
+            .OrderByDescending(r => r.RedeemedAt).Take(300)
+            .Select(r => new VoucherAdminRow(r.RedemptionCode, r.Reward.Title, r.Reward.MerchantName, r.CustomerId, r.Customer.FullName,
+                r.Customer.MembershipNumber, r.PointsSpent, r.Reward.DiscountValue, r.Status, r.RedeemedAt, r.ExpiresAt, r.UsedAt, r.UsedByMerchant))
+            .ToListAsync();
+        var redemptions = _context.Redemptions.AsNoTracking();
         var model = new RewardsPageViewModel
         {
             CanManage = IsDeveloperOrSuperAdmin,
+            CanSeeVouchers = canSeeVouchers,
+            Vouchers = vouchers,
+            StoreNames = await _context.Tenants.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.NameAr).Select(t => t.NameAr).ToListAsync(),
+            IssuedTotal = await redemptions.CountAsync(),
+            Issued30 = await redemptions.CountAsync(r => r.RedeemedAt >= now.AddDays(-30)),
+            UsedTotal = await redemptions.CountAsync(r => r.Status == RedemptionStatus.USED),
+            ActiveNow = await redemptions.CountAsync(r => r.Status == RedemptionStatus.ACTIVE && r.ExpiresAt > now),
+            ExpiringSoon = await redemptions.CountAsync(r => r.Status == RedemptionStatus.ACTIVE && r.ExpiresAt > now && r.ExpiresAt <= now.AddDays(7)),
+            PointsRedeemed = await redemptions.SumAsync(r => (int?)r.PointsSpent) ?? 0,
+            DiscountGiven = await redemptions.Where(r => r.Status == RedemptionStatus.USED).SumAsync(r => (decimal?)r.Reward.DiscountValue) ?? 0,
             Rewards = rewards.Select(r =>
             {
                 var st = stats.FirstOrDefault(x => x.RewardId == r.Id);
@@ -560,10 +578,19 @@ public class AdminDashboardController : Controller
     private bool IsAuditor => User != null &&
                              (User.IsInRole("auditor") || CurrentSystemRole == "FRAUD_AUDITOR");
 
-    private bool IsStoreManager => User != null && 
-                                  User.Identity?.IsAuthenticated == true && 
-                                  (User.IsInRole("storemanager") || CurrentSystemRole == "STORE_MANAGER" || !string.IsNullOrEmpty(CurrentTenantId)) && 
+    private bool IsStoreManager => User != null &&
+                                  User.Identity?.IsAuthenticated == true &&
+                                  (User.IsInRole("storemanager") || CurrentSystemRole == "STORE_MANAGER") &&
                                   !IsDeveloperOrSuperAdmin;
+
+    private bool IsCashier => User != null && User.Identity?.IsAuthenticated == true &&
+                              (User.IsInRole("cashier") || CurrentSystemRole == "CASHIER") && !IsDeveloperOrSuperAdmin;
+
+    /// <summary>موظفو المتاجر (مدير المتجر والكاشير) يرون بيانات متجرهم فقط.</summary>
+    private bool IsStoreScoped => User != null && User.Identity?.IsAuthenticated == true && !IsDeveloperOrSuperAdmin && !IsAuditor;
+
+    /// <summary>متجر الموظف للتصفية؛ قيمة لا تطابق شيئاً إن لم يكن مرتبطاً بمتجر.</summary>
+    private string ScopeTenantId => string.IsNullOrEmpty(CurrentTenantId) ? "__no_store__" : CurrentTenantId;
 
     private bool IsExplicitlyUnauthenticated => User?.Identity != null && !User.Identity.IsAuthenticated;
     #endregion
@@ -676,9 +703,9 @@ public class AdminDashboardController : Controller
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
 
         var invoiceQuery = _context.Invoices.AsNoTracking();
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            invoiceQuery = invoiceQuery.Where(i => i.TenantId == CurrentTenantId);
+            invoiceQuery = invoiceQuery.Where(i => i.TenantId == ScopeTenantId);
         }
 
         var totalSales = await invoiceQuery
@@ -765,7 +792,7 @@ public class AdminDashboardController : Controller
         };
 
         ViewData["ActiveTab"] = "overview";
-        ViewData["Title"] = IsStoreManager ? "لوحة مبيعات ومؤشرات المتجر" : "لوحة المؤشرات المركزية ونمذجة بواسون";
+        ViewData["Title"] = IsStoreScoped ? "لوحة مبيعات ومؤشرات المتجر" : "لوحة المؤشرات المركزية ونمذجة بواسون";
         return View(overviewDto);
     }
 
@@ -784,9 +811,9 @@ public class AdminDashboardController : Controller
             .AsNoTracking();
 
         // RBAC Filter: Store Managers only see their own store
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            query = query.Where(s => s.TenantId == CurrentTenantId);
+            query = query.Where(s => s.TenantId == ScopeTenantId);
         }
 
         if (!string.IsNullOrWhiteSpace(category) && category != "ALL")
@@ -832,7 +859,7 @@ public class AdminDashboardController : Controller
         }).ToList();
 
         ViewData["ActiveTab"] = "stores";
-        ViewData["Title"] = IsStoreManager ? "متجري" : "المتاجر";
+        ViewData["Title"] = IsStoreScoped ? "متجري" : "المتاجر";
         ViewData["IsSuperAdmin"] = IsDeveloperOrSuperAdmin;
         ViewData["ProfiledStores"] = (await _context.StoreInvoiceProfiles.AsNoTracking().Select(p => p.TenantId).ToListAsync()).ToHashSet();
         ViewData["Categories"] = await _context.Tenants.AsNoTracking().Select(t => t.Category).Distinct().OrderBy(c => c).ToListAsync();
@@ -853,7 +880,7 @@ public class AdminDashboardController : Controller
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
 
         var query = _context.Tenants.AsNoTracking();
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId)) query = query.Where(t => t.TenantId == CurrentTenantId);
+        if (IsStoreScoped) query = query.Where(t => t.TenantId == ScopeTenantId);
 
         var rows = await query
             .OrderByDescending(t => t.IsActive).ThenBy(t => t.NameAr)
@@ -1100,9 +1127,9 @@ public class AdminDashboardController : Controller
             .Include(i => i.LineItems)
             .AsNoTracking();
 
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            query = query.Where(i => i.TenantId == CurrentTenantId);
+            query = query.Where(i => i.TenantId == ScopeTenantId);
         }
         else if (!string.IsNullOrWhiteSpace(storeId) && storeId != "ALL")
         {
@@ -1159,9 +1186,9 @@ public class AdminDashboardController : Controller
         }).ToList();
 
         var storesQuery = _context.Tenants.Where(t => t.IsActive).AsNoTracking();
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            storesQuery = storesQuery.Where(t => t.TenantId == CurrentTenantId);
+            storesQuery = storesQuery.Where(t => t.TenantId == ScopeTenantId);
         }
 
         var storeDropdown = await storesQuery
@@ -1174,9 +1201,9 @@ public class AdminDashboardController : Controller
             .ToListAsync();
 
         var statsQuery = _context.Invoices.AsNoTracking();
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            statsQuery = statsQuery.Where(i => i.TenantId == CurrentTenantId);
+            statsQuery = statsQuery.Where(i => i.TenantId == ScopeTenantId);
         }
 
         var totalApproved = await statsQuery.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).SumAsync(i => i.TotalAmount) ?? 0m;
@@ -1260,7 +1287,7 @@ public class AdminDashboardController : Controller
 
         if (invoice == null) return NotFound(new { success = false, message = "الفاتورة غير موجودة." });
 
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId) && invoice.TenantId != CurrentTenantId)
+        if (IsStoreScoped && invoice.TenantId != ScopeTenantId)
         {
             return Forbid();
         }
@@ -1430,9 +1457,9 @@ public class AdminDashboardController : Controller
             .AsNoTracking();
 
         // RBAC: Store managers only see fraud events of their own store
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            query = query.Where(i => i.TenantId == CurrentTenantId);
+            query = query.Where(i => i.TenantId == ScopeTenantId);
         }
 
         if (filter == "SUSPECT")
@@ -1508,9 +1535,9 @@ public class AdminDashboardController : Controller
         }).ToList();
 
         var statsInvoiceQuery = _context.Invoices.AsNoTracking();
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            statsInvoiceQuery = statsInvoiceQuery.Where(i => i.TenantId == CurrentTenantId);
+            statsInvoiceQuery = statsInvoiceQuery.Where(i => i.TenantId == ScopeTenantId);
         }
 
         var viewModel = new FraudPageViewModel
@@ -1603,10 +1630,10 @@ public class AdminDashboardController : Controller
             .Include(r => r.StoreTenant)
             .AsNoTracking();
 
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            boosterQuery = boosterQuery.Where(r => r.TenantId == CurrentTenantId);
-            earningRuleQuery = earningRuleQuery.Where(r => r.StoreTenantId == CurrentTenantId);
+            boosterQuery = boosterQuery.Where(r => r.TenantId == ScopeTenantId);
+            earningRuleQuery = earningRuleQuery.Where(r => r.StoreTenantId == ScopeTenantId);
         }
 
         var boosterRules = await boosterQuery.OrderByDescending(r => r.CreatedAt).ToListAsync();
@@ -1646,9 +1673,9 @@ public class AdminDashboardController : Controller
         }).ToList();
 
         var storeQuery = _context.Tenants.Where(t => t.IsActive);
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            storeQuery = storeQuery.Where(t => t.TenantId == CurrentTenantId);
+            storeQuery = storeQuery.Where(t => t.TenantId == ScopeTenantId);
         }
 
         var stores = await storeQuery
@@ -1681,7 +1708,7 @@ public class AdminDashboardController : Controller
         };
 
         ViewData["ActiveTab"] = "loyalty";
-        ViewData["Title"] = IsStoreManager ? "قواعد كاش باك وبونص المتجر" : "برنامج ولاء المول العام";
+        ViewData["Title"] = IsStoreScoped ? "قواعد كاش باك وبونص المتجر" : "برنامج ولاء المول العام";
         return View(viewModel);
     }
 
@@ -1692,14 +1719,15 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Settlements()
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (IsCashier) return RedirectToAction(nameof(Index)); // المستحقات المالية لمدير المتجر والإدارة فقط
 
         var settlementQuery = _context.TenantSettlements
             .Include(s => s.Tenant)
             .AsNoTracking();
 
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            settlementQuery = settlementQuery.Where(s => s.TenantId == CurrentTenantId);
+            settlementQuery = settlementQuery.Where(s => s.TenantId == ScopeTenantId);
         }
 
         var settlements = await settlementQuery
@@ -1724,7 +1752,7 @@ public class AdminDashboardController : Controller
         }).ToList();
 
         ViewData["ActiveTab"] = "settlements";
-        ViewData["Title"] = IsStoreManager ? "مستحقات وتسويات متجري المالية" : "التسويات والمقاصة المالية للمتاجر";
+        ViewData["Title"] = IsStoreScoped ? "مستحقات وتسويات متجري المالية" : "التسويات والمقاصة المالية للمتاجر";
         return View(dtos);
     }
 
@@ -1732,7 +1760,8 @@ public class AdminDashboardController : Controller
     // 7. 📱 CUSTOMER DATABASE (Customers View)
     // ----------------------------------------------------
     [HttpGet]
-    public async Task<IActionResult> Customers([FromQuery] string? tier, [FromQuery] string? search)
+    public async Task<IActionResult> Customers([FromQuery] string? tier, [FromQuery] string? search, [FromQuery] string? status,
+        [FromQuery] string? sort, [FromQuery] int page = 1, [FromQuery] string? export = null)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
 
@@ -1742,9 +1771,9 @@ public class AdminDashboardController : Controller
             .Include(c => c.Devices)
             .AsNoTracking();
 
-        if (IsStoreManager && !string.IsNullOrEmpty(CurrentTenantId))
+        if (IsStoreScoped)
         {
-            query = query.Where(c => c.Invoices.Any(i => i.TenantId == CurrentTenantId));
+            query = query.Where(c => c.Invoices.Any(i => i.TenantId == ScopeTenantId));
         }
 
         if (!string.IsNullOrWhiteSpace(tier) && tier != "ALL")
@@ -1752,6 +1781,16 @@ public class AdminDashboardController : Controller
             var t = tier.ToUpperInvariant();
             query = query.Where(c => c.LoyaltyTier.ToUpper() == t);
         }
+
+        var st = (status ?? "ALL").ToUpperInvariant();
+        query = st switch
+        {
+            "ACTIVE" => query.Where(c => !c.IsArchived && !c.IsFrozen),
+            "FROZEN" => query.Where(c => !c.IsArchived && c.IsFrozen),
+            "NOAPP" => query.Where(c => !c.IsArchived && (c.PasswordHash == null || c.PasswordHash == "")),
+            "DELETED" => query.Where(c => c.IsArchived),
+            _ => query.Where(c => !c.IsArchived),
+        };
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -1764,15 +1803,70 @@ public class AdminDashboardController : Controller
                                      (c.Email != null && c.Email.Contains(lower)));
         }
 
-        var allDevices = await _context.CustomerDevices.AsNoTracking().ToListAsync();
+        var allDevices = await _context.CustomerDevices.AsNoTracking().Select(d => new { d.DeviceFingerprint, d.CustomerId }).ToListAsync();
         var sharedFingerprints = allDevices
             .GroupBy(d => d.DeviceFingerprint)
             .Where(g => g.Select(x => x.CustomerId).Distinct().Count() > 1)
             .ToDictionary(g => g.Key, g => g.Select(x => x.CustomerId).Distinct().Count());
 
-        var customers = await query.OrderByDescending(c => c.RegisteredAt).ToListAsync();
+        var customers = await query.ToListAsync();
         var dtos = customers.Select(c => SuperAdminController.ToCustomerDto(c,
             c.Devices.Select(d => sharedFingerprints.TryGetValue(d.DeviceFingerprint, out var n) ? n : 0).DefaultIfEmpty(0).Max())).ToList();
+        if (st == "SHARED") dtos = dtos.Where(d => d.IsMultiAccountDevice).ToList();
+
+        var sortKey = (sort ?? "new").ToLowerInvariant();
+        dtos = sortKey switch
+        {
+            "points" => dtos.OrderByDescending(d => d.CurrentPoints).ToList(),
+            "spent" => dtos.OrderByDescending(d => d.TotalSpent).ToList(),
+            "invoices" => dtos.OrderByDescending(d => d.TotalInvoicesScanned).ToList(),
+            "name" => dtos.OrderBy(d => d.FullName).ToList(),
+            "old" => dtos.OrderBy(d => d.CreatedAt).ToList(),
+            _ => dtos.OrderByDescending(d => d.CreatedAt).ToList(),
+        };
+
+        if (string.Equals(export, "csv", StringComparison.OrdinalIgnoreCase))
+        {
+            string Cell(object? v) => "\"" + (v?.ToString() ?? "").Replace("\"", "\"\"") + "\"";
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(string.Join(",", new[] { "رقم العضوية", "الاسم", "الهاتف", "البريد", "تاريخ الميلاد", "الجنس", "الفئة", "النقاط", "الفواتير", "الإنفاق المعتمد", "الحالة", "تاريخ التسجيل" }.Select(Cell)));
+            foreach (var d in dtos)
+            {
+                sb.AppendLine(string.Join(",", new object?[]
+                {
+                    d.MembershipNumber, d.FullName, d.PhoneNumber, d.Email, d.BirthDate?.ToString("yyyy-MM-dd"),
+                    d.Gender == "F" ? "أنثى" : d.Gender == "M" ? "ذكر" : "", MMApplication.Api.ViewModels.DisplayLabels.Tier(d.Tier),
+                    d.CurrentPoints, d.TotalInvoicesScanned, d.TotalSpent.ToString("0.00"),
+                    d.IsArchived ? "محذوف" : d.IsSuspended ? "مجمّد" : "نشط", d.CreatedAt.ToString("yyyy-MM-dd"),
+                }.Select(Cell)));
+            }
+            _context.AuditLogs.Add(new AuditLog
+            {
+                PerformedBy = User?.Identity?.Name ?? "admin", Action = "REPORT_EXPORT", EntityName = "Customer",
+                Details = $"تصدير قائمة العملاء ({dtos.Count} عميل)", CreatedAt = DateTime.UtcNow,
+            });
+            await _context.SaveChangesAsync();
+            var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+            return File(bytes, "text/csv; charset=utf-8", $"customers-{DateTime.Now:yyyy-MM-dd}.csv");
+        }
+
+        const int pageSize = 25;
+        var totalFiltered = dtos.Count;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(totalFiltered / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+
+        // مؤشرات عامة (على كل العملاء غير المحذوفين، وليس الصفحة الحالية فقط)
+        var baseQuery = _context.Customers.AsNoTracking().Where(c => !c.IsArchived);
+        if (IsStoreScoped)
+            baseQuery = baseQuery.Where(c => c.Invoices.Any(i => i.TenantId == ScopeTenantId));
+        var baseIds = baseQuery.Select(c => c.CustomerId);
+        ViewData["StatTotal"] = await baseQuery.CountAsync();
+        ViewData["StatFrozen"] = await baseQuery.CountAsync(c => c.IsFrozen);
+        ViewData["StatApp"] = await baseQuery.CountAsync(c => c.PasswordHash != null && c.PasswordHash != "");
+        ViewData["StatPoints"] = (int)await _context.CustomerWallets.AsNoTracking()
+            .Where(w => w.BalanceType == BalanceType.POINTS && baseIds.Contains(w.CustomerId)).SumAsync(w => (decimal?)w.CurrentBalance ?? 0);
+        ViewData["StatNew30"] = await baseQuery.CountAsync(c => c.RegisteredAt >= DateTime.UtcNow.AddDays(-30));
+        ViewData["StatShared"] = sharedFingerprints.Count == 0 ? 0 : allDevices.Where(d => sharedFingerprints.ContainsKey(d.DeviceFingerprint)).Select(d => d.CustomerId).Distinct().Count();
 
         // تسجيلات العملاء الجدد في آخر 6 أشهر (بيانات حقيقية)
         var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-5);
@@ -1785,14 +1879,21 @@ public class AdminDashboardController : Controller
             .Select(i => monthStart.AddMonths(i))
             .Select(m => new { label = arMonths[m.Month - 1], count = registrations.Count(r => r.Year == m.Year && r.Month == m.Month) })
             .ToList();
+        ViewData["TierCounts"] = await baseQuery.GroupBy(c => c.LoyaltyTier.ToUpper()).Select(g => new { tier = g.Key, count = g.Count() }).ToListAsync();
 
         ViewData["ActiveTab"] = "customers";
         ViewData["CanEditCustomers"] = IsDeveloperOrSuperAdmin || IsAuditor;
+        ViewData["CanOpenProfile"] = IsDeveloperOrSuperAdmin || IsAuditor;
         ViewData["IsSuperAdmin"] = IsDeveloperOrSuperAdmin;
-        ViewData["Title"] = "قاعدة بيانات العملاء والمتسوقين";
+        ViewData["Title"] = "العملاء";
         ViewData["TierFilter"] = tier ?? "ALL";
+        ViewData["StatusFilter"] = st;
+        ViewData["Sort"] = sortKey;
         ViewData["SearchQuery"] = search ?? "";
-        return View(dtos);
+        ViewData["Page"] = page;
+        ViewData["TotalPages"] = totalPages;
+        ViewData["TotalFiltered"] = totalFiltered;
+        return View(dtos.Skip((page - 1) * pageSize).Take(pageSize).ToList());
     }
 
     // ----------------------------------------------------
@@ -1803,105 +1904,88 @@ public class AdminDashboardController : Controller
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
         if (string.IsNullOrWhiteSpace(id)) return RedirectToAction(nameof(Customers));
+        // مدير المتجر لا يطّلع على ملفات العملاء الكاملة
+        if (!(IsDeveloperOrSuperAdmin || IsAuditor)) return RedirectToAction(nameof(Index));
 
-        var customer = await _context.Customers
-            .Include(c => c.Wallets)
-                .ThenInclude(w => w.LedgerEntries)
-            .Include(c => c.Invoices)
-                .ThenInclude(i => i.Tenant)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.CustomerId == id);
+        var c = await _context.Customers.AsNoTracking().FirstOrDefaultAsync(x => x.CustomerId == id);
+        if (c == null) return NotFound("العميل غير مسجل في النظام.");
 
-        if (customer == null) return NotFound("العميل غير مسجل في النظام.");
+        var stores = await _context.Tenants.AsNoTracking().ToDictionaryAsync(t => t.TenantId, t => t);
+        var invoices = await _context.Invoices.AsNoTracking().Where(i => i.CustomerId == id)
+            .OrderByDescending(i => i.CreatedAt).ToListAsync();
+        var wallet = await _context.CustomerWallets.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.CustomerId == id && w.BalanceType == BalanceType.POINTS);
+        var ledger = wallet == null ? new List<WalletLedger>() : await _context.WalletLedger.AsNoTracking()
+            .Where(l => l.WalletId == wallet.WalletId).OrderByDescending(l => l.CreatedAt).Take(300).ToListAsync();
+        var vouchers = await _context.Redemptions.AsNoTracking().Include(r => r.Reward)
+            .Where(r => r.CustomerId == id).OrderByDescending(r => r.RedeemedAt).Take(200).ToListAsync();
+        var notifications = await _context.Notifications.AsNoTracking()
+            .Where(n => n.RecipientType == Notification.ToCustomer && n.RecipientId == id)
+            .OrderByDescending(n => n.CreatedAt).Take(100).ToListAsync();
+        var devices = await _context.CustomerDevices.AsNoTracking().Where(d => d.CustomerId == id).ToListAsync();
+        var fingerprints = devices.Select(d => d.DeviceFingerprint).ToList();
+        var sharing = await _context.CustomerDevices.AsNoTracking()
+            .Where(d => fingerprints.Contains(d.DeviceFingerprint) && d.CustomerId != id)
+            .Select(d => new { d.DeviceFingerprint, d.CustomerId }).ToListAsync();
+        var audit = await _context.AuditLogs.AsNoTracking()
+            .Where(a => a.EntityId == id || (c.MembershipNumber != null && a.Details.Contains(c.MembershipNumber)))
+            .OrderByDescending(a => a.CreatedAt).Take(100).ToListAsync();
 
-        var stores = await _context.Tenants.AsNoTracking().ToListAsync();
+        string StoreName(Invoice i) => i.TenantId != null && stores.TryGetValue(i.TenantId, out var t) ? t.NameAr : (i.ExtractedMerchant ?? "متجر غير معروف");
+        var approved = invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).ToList();
 
-        var invoiceDtos = customer.Invoices
-            .OrderByDescending(i => i.InvoiceDate ?? i.CreatedAt)
-            .Select(i =>
-            {
-                var store = stores.FirstOrDefault(s => s.TenantId == i.TenantId);
-                return new CustomerInvoiceDetailDto
-                {
-                    Id = i.InvoiceId.ToString(),
-                    MerchantName = store?.NameAr ?? i.ExtractedMerchant ?? "متجر عام",
-                    StoreCategory = store?.Category ?? "تسوق عام",
-                    FloorNumber = store?.UnitNumber ?? "المول",
-                    InvoiceNumber = i.InvoiceNumber,
-                    InvoiceDate = i.InvoiceDate.GetValueOrDefault(i.CreatedAt),
-                    ScanDateTime = i.CreatedAt,
-                    TotalAmount = i.TotalAmount.GetValueOrDefault(0m),
-                    PointsEarned = i.PointsAwarded,
-                    CashBackEarned = i.CashbackAwarded,
-                    RiskScore = i.FraudRiskScore,
-                    Status = i.ProcessingStatus,
-                    FraudFlagReason = i.RejectionReason,
-                    OcrConfidence = (i.ConfidenceScore.GetValueOrDefault(0.95m)) * 100m,
-                    ImageUrl = i.ReceiptImageUrl
-                };
-            }).ToList();
-
-        var storeVisits = customer.Invoices
-            .GroupBy(i => i.Tenant != null ? i.Tenant.NameAr : (i.ExtractedMerchant ?? "متجر عام"))
-            .Select(g =>
-            {
-                var store = stores.FirstOrDefault(s => s.NameAr == g.Key || s.NameEn == g.Key);
-                return new CustomerStoreVisitDto
-                {
-                    StoreName = g.Key,
-                    Category = store?.Category ?? "متجر تجزئة",
-                    VisitCount = g.Count(),
-                    TotalSpent = g.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.TotalAmount) ?? 0m,
-                    TotalPointsEarned = g.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.PointsAwarded),
-                    LastVisitDate = g.Max(i => i.InvoiceDate) ?? DateTime.UtcNow,
-                    IsFavorite = g.Count() >= 2
-                };
-            })
-            .OrderByDescending(sv => sv.TotalSpent)
-            .ToList();
-
-        var pointsWallet = customer.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS);
-        var ledgerEntries = pointsWallet?.LedgerEntries
-            .OrderByDescending(le => le.CreatedAt)
-            .Select(le => new CustomerRewardRedemptionDto
-            {
-                Id = le.EntryId.ToString(),
-                RewardTitle = le.TransactionType.ToString(),
-                Category = le.ReferenceRemarks ?? "حركة محفظة",
-                PointsSpent = le.AmountChanged < 0 ? -(int)le.AmountChanged : 0,
-                MonetaryValue = (le.AmountChanged * 0.1m),
-                RedemptionDate = le.CreatedAt,
-                Status = le.TransactionType.ToString(),
-                RedemptionCode = $"TXN-{le.EntryId}"
-            }).ToList() ?? new List<CustomerRewardRedemptionDto>();
-
-        var viewModel = new CustomerDetailsPageViewModel
+        var vm = new CustomerProfileViewModel
         {
-            CustomerId = customer.CustomerId,
-            MembershipNumber = customer.MembershipNumber,
-            Email = customer.Email,
-            BirthDate = customer.BirthDate,
-            FullName = customer.FullName,
-            PhoneNumber = customer.PhoneNumber,
-            Tier = customer.LoyaltyTier,
-            PointsBalance = (int)(pointsWallet?.CurrentBalance ?? 0),
-            TotalSpent = customer.Invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.TotalAmount) ?? 0m,
-            TotalCashBackEarned = customer.Invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.CashbackAwarded),
-            InvoicesCount = customer.Invoices.Count,
-            ApprovedCount = customer.Invoices.Count(i => i.ProcessingStatus == InvoiceStatus.APPROVED),
-            PendingCount = customer.Invoices.Count(i => i.ProcessingStatus == InvoiceStatus.PENDING || i.ProcessingStatus == InvoiceStatus.REVIEW_REQUIRED),
-            RejectedCount = customer.Invoices.Count(i => i.ProcessingStatus == InvoiceStatus.REJECTED),
-            IsSuspended = customer.IsFrozen,
-            RegisteredAt = customer.RegisteredAt,
-            LastActivityDate = customer.Invoices.Any() ? customer.Invoices.Max(i => i.CreatedAt) : customer.RegisteredAt,
-            Invoices = invoiceDtos,
-            StoreVisits = storeVisits,
-            Redemptions = ledgerEntries
+            CustomerId = c.CustomerId,
+            MembershipNumber = c.MembershipNumber,
+            FullName = c.FullName,
+            PhoneNumber = c.PhoneNumber,
+            Email = c.Email,
+            BirthDate = c.BirthDate,
+            Gender = c.Gender,
+            Tier = c.LoyaltyTier,
+            IsFrozen = c.IsFrozen,
+            IsArchived = c.IsArchived,
+            HasAppPassword = !string.IsNullOrEmpty(c.PasswordHash),
+            RegisteredAt = c.RegisteredAt,
+            UpdatedAt = c.UpdatedAt,
+            LastInvoiceAt = invoices.FirstOrDefault()?.CreatedAt,
+            PointsBalance = (int)(wallet?.CurrentBalance ?? 0),
+            PointsEarned = (int)ledger.Where(l => l.AmountChanged > 0).Sum(l => l.AmountChanged),
+            PointsRedeemed = (int)-ledger.Where(l => l.AmountChanged < 0).Sum(l => l.AmountChanged),
+            TotalSpent = approved.Sum(i => i.TotalAmount ?? 0),
+            AverageInvoice = approved.Count == 0 ? 0 : approved.Average(i => i.TotalAmount ?? 0),
+            InvoicesCount = invoices.Count,
+            ApprovedCount = approved.Count,
+            PendingCount = invoices.Count(i => i.ProcessingStatus is InvoiceStatus.PENDING or InvoiceStatus.REVIEW_REQUIRED),
+            RejectedCount = invoices.Count(i => i.ProcessingStatus is InvoiceStatus.REJECTED or InvoiceStatus.VOIDED),
+            VouchersActive = vouchers.Count(v => v.Status == RedemptionStatus.ACTIVE && v.ExpiresAt > DateTime.UtcNow),
+            SharedDeviceAccounts = sharing.Select(x => x.CustomerId).Distinct().Count(),
+            CanEdit = IsDeveloperOrSuperAdmin || IsAuditor,
+            IsSuperAdmin = IsDeveloperOrSuperAdmin,
+            Invoices = invoices.Select(i => new CustomerProfileViewModel.InvoiceRow(i.InvoiceId, StoreName(i), i.InvoiceNumber,
+                i.InvoiceDate ?? i.CreatedAt, i.CreatedAt, i.TotalAmount ?? 0, i.PointsAwarded, i.ProcessingStatus, i.FraudRiskScore,
+                i.RejectionReason, i.ReceiptImageUrl)).ToList(),
+            Ledger = ledger.Select(l => new CustomerProfileViewModel.LedgerRow(l.CreatedAt, l.TransactionType, l.AmountChanged, l.BalanceAfter,
+                l.ReferenceRemarks, l.InvoiceId)).ToList(),
+            Vouchers = vouchers.Select(v => new CustomerProfileViewModel.VoucherRow(v.RedemptionCode, v.Reward?.Title ?? "مكافأة", v.PointsSpent,
+                v.Status, v.RedeemedAt, v.ExpiresAt, v.UsedAt, v.UsedByMerchant)).ToList(),
+            Stores = invoices.GroupBy(StoreName).Select(g => new CustomerProfileViewModel.StoreRow(g.Key,
+                    g.First().TenantId != null && stores.TryGetValue(g.First().TenantId!, out var st) ? st.Category : "—",
+                    g.Count(),
+                    g.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.TotalAmount ?? 0),
+                    g.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.PointsAwarded),
+                    g.Max(i => i.CreatedAt)))
+                .OrderByDescending(s => s.Spent).ToList(),
+            Notifications = notifications.Select(n => new CustomerProfileViewModel.NotificationRow(n.Title, n.Body, n.Type, n.CreatedAt, n.IsRead)).ToList(),
+            Devices = devices.OrderByDescending(d => d.LastSeenAt).Select(d => new CustomerProfileViewModel.DeviceRow(d.DeviceModel, d.OsVersion,
+                d.FirstSeenAt, d.LastSeenAt, sharing.Where(x => x.DeviceFingerprint == d.DeviceFingerprint).Select(x => x.CustomerId).Distinct().Count())).ToList(),
+            Audit = audit.Select(a => new CustomerProfileViewModel.AuditRow(a.CreatedAt, a.PerformedBy, a.Action, a.Details)).ToList(),
         };
 
         ViewData["ActiveTab"] = "customers";
-        ViewData["Title"] = $"كشف حساب وفواتير العميل: {customer.FullName}";
-        return View(viewModel);
+        ViewData["Title"] = c.FullName;
+        return View(vm);
     }
 
     [HttpGet]

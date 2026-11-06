@@ -138,7 +138,7 @@ public class AdminDashboardMvcTests
 
         var controller = new AdminDashboardController(context, NullLogger<AdminDashboardController>.Instance);
 
-        var result = await controller.Customers("ALL", null);
+        var result = await controller.Customers("ALL", null, null, null);
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsAssignableFrom<List<SuperAdminCustomerDto>>(viewResult.Model);
 

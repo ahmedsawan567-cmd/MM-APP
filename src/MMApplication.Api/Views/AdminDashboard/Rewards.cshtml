@@ -1,171 +1,295 @@
 @model MMApplication.Api.ViewModels.RewardsPageViewModel
+@using MMApplication.Api.ViewModels
 @{
     Layout = "_Layout";
     ViewData["Title"] = "المكافآت والقسائم";
+    var m = Model;
+    var now = DateTime.UtcNow;
+    string StateOf(RewardAdminRow r) => !r.IsActive ? "paused" : (r.ValidUntil.HasValue && r.ValidUntil < now) ? "expired" : r.StockQuantity is 0 ? "out" : "available";
+    var counts = m.Rewards.GroupBy(StateOf).ToDictionary(g => g.Key, g => g.Count());
+    int Count(string k) => counts.TryGetValue(k, out var n) ? n : 0;
+    var defaultTab = m.CanManage || m.CanSeeVouchers ? "catalog" : "verify";
 }
 @Html.AntiForgeryToken()
 
 <div class="space-y-5">
 
-    <!-- الترويسة -->
     <div class="page-header">
         <div>
             <h1 class="page-title">المكافآت والقسائم</h1>
-            <p class="page-subtitle">ما يستبدل به العملاء نقاطهم، والتحقق من القسائم عند الدفع</p>
+            <p class="page-subtitle">كتالوج ما يستبدل به العملاء نقاطهم، وسجل القسائم الصادرة، والتحقق منها عند الدفع</p>
         </div>
         <div class="page-actions">
-            @if (Model.CanManage)
-        {
-            <button type="button" onclick="openEditor()" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold">
-                <i data-lucide="plus" class="w-4 h-4"></i> مكافأة جديدة
-            </button>
-        }
+            <button type="button" onclick="showTab('verify'); document.getElementById('v-code').focus()" class="btn-secondary"><i data-lucide="scan-line" class="w-4 h-4"></i> التحقق من قسيمة</button>
+            @if (m.CanManage)
+            {
+                <button type="button" onclick="openEditor()" class="btn-primary"><i data-lucide="plus" class="w-4 h-4"></i> مكافأة جديدة</button>
+            }
         </div>
     </div>
 
-    <!-- التحقق من قسيمة -->
-    <div class="bg-white rounded-2xl border border-slate-200 p-5">
-        <h2 class="text-base font-bold text-slate-900">التحقق من قسيمة عميل</h2>
-        <p class="text-sm text-slate-500">اكتب الكود الذي يظهر في تطبيق العميل (مثل MM-AB12CD)</p>
-        <form class="mt-3 flex flex-col sm:flex-row gap-2" onsubmit="lookupVoucher(); return false">
-            <input id="v-code" dir="ltr" autocomplete="off" placeholder="MM-XXXXXX"
-                   class="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-lg font-bold tracking-widest uppercase" />
-            <button type="submit" class="px-5 py-2.5 rounded-xl bg-ink hover:opacity-90 text-surface text-sm font-bold">تحقق</button>
-        </form>
-        <div id="v-result" class="hidden mt-4"></div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">مكافآت متاحة</span><span class="stat-icon bg-brand-50 text-brand-600"><i data-lucide="gift" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@Count("available")</div>
+            <div class="stat-meta">من <span class="num">@m.Rewards.Count</span> في الكتالوج</div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">قسائم صادرة</span><span class="stat-icon bg-purple-50 text-purple-600"><i data-lucide="ticket" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.IssuedTotal.ToString("N0")</div>
+            <div class="stat-meta"><span class="num">+@m.Issued30</span> خلال آخر 30 يوماً</div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">نسبة الاستخدام</span><span class="stat-icon bg-emerald-50 text-emerald-600"><i data-lucide="badge-check" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@(m.IssuedTotal == 0 ? "—" : $"{Math.Round(100.0 * m.UsedTotal / m.IssuedTotal)}%")</div>
+            <div class="stat-meta">استُخدمت <span class="num">@m.UsedTotal</span> • خصومات <span class="num">@m.DiscountGiven.ToString("N0")</span> د.ل</div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">قسائم صالحة الآن</span><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="hourglass" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.ActiveNow</div>
+            <div class="stat-meta @(m.ExpiringSoon > 0 ? "text-amber-600" : "")">تنتهي خلال 7 أيام: <span class="num">@m.ExpiringSoon</span></div>
+        </div>
+    </div>
+
+    <div class="tabs w-fit max-w-full" role="tablist">
+        @if (m.CanManage || m.CanSeeVouchers)
+        {
+            <button type="button" class="tab" data-tab="catalog" onclick="showTab('catalog')"><i data-lucide="layout-grid" class="w-4 h-4"></i> الكتالوج <span class="text-xs text-slate-400 num">@m.Rewards.Count</span></button>
+        }
+        @if (m.CanSeeVouchers)
+        {
+            <button type="button" class="tab" data-tab="vouchers" onclick="showTab('vouchers')"><i data-lucide="ticket" class="w-4 h-4"></i> سجل القسائم <span class="text-xs text-slate-400 num">@m.Vouchers.Count</span></button>
+        }
+        <button type="button" class="tab" data-tab="verify" onclick="showTab('verify')"><i data-lucide="scan-line" class="w-4 h-4"></i> التحقق من قسيمة</button>
     </div>
 
     <!-- الكتالوج -->
-    @if (Model.Rewards.Count == 0)
-    {
-        <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center text-slate-500">لا توجد مكافآت بعد. أضف أول مكافأة ليراها العملاء في التطبيق.</div>
-    }
-    else
-    {
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            @foreach (var r in Model.Rewards)
+    <section data-panel="catalog" class="space-y-4 hidden">
+        <div class="flex items-center gap-2 flex-wrap">
+            @foreach (var (key, label) in new[] { ("all", "الكل"), ("available", "متاحة"), ("paused", "موقوفة"), ("expired", "انتهى العرض"), ("out", "نفدت الكمية") })
             {
-                var expired = r.ValidUntil.HasValue && r.ValidUntil < DateTime.UtcNow;
-                var outOfStock = r.StockQuantity is 0;
-                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col @(r.IsActive ? "" : "opacity-60")">
-                    @if (!string.IsNullOrEmpty(r.ImageUrl))
+                var n = key == "all" ? m.Rewards.Count : Count(key);
+                <button type="button" data-filter="@key" onclick="filterRewards('@key')" class="reward-filter px-3 py-1.5 rounded-xl text-sm font-semibold transition @(key == "all" ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")">@label <span class="num opacity-70">@n</span></button>
+            }
+        </div>
+
+        @if (m.Rewards.Count == 0)
+        {
+            <div class="card">
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i data-lucide="gift" class="w-6 h-6"></i></div>
+                    <div class="font-bold text-slate-700">لا توجد مكافآت بعد</div>
+                    <p class="text-sm text-slate-500">أضف أول مكافأة ليراها العملاء في التطبيق ويستبدلوا بها نقاطهم</p>
+                    @if (m.CanManage) { <button type="button" onclick="openEditor()" class="btn-primary mt-3"><i data-lucide="plus" class="w-4 h-4"></i> مكافأة جديدة</button> }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                @foreach (var r in m.Rewards)
+                {
+                    var state = StateOf(r);
+                    var (stateLabel, stateBadge) = state switch
                     {
-                        <img src="@r.ImageUrl" alt="" class="h-32 w-full object-cover bg-slate-100" onerror="this.remove()" />
-                    }
-                    <div class="p-4 flex-1 flex flex-col">
-                        <div class="flex items-start justify-between gap-2">
-                            <h3 class="font-bold text-slate-900">@r.Title</h3>
-                            @if (!r.IsActive)
+                        "paused" => ("موقوفة", "badge-slate"),
+                        "expired" => ("انتهى العرض", "badge-rose"),
+                        "out" => ("نفدت الكمية", "badge-amber"),
+                        _ => ("متاحة", "badge-emerald"),
+                    };
+                    var usedPct = r.Redemptions == 0 ? 0 : (int)Math.Round(100.0 * r.UsedVouchers / r.Redemptions);
+                    <article class="card overflow-hidden flex flex-col @(state == "paused" ? "opacity-70" : "")" data-state="@state">
+                        <div class="relative h-32 bg-gradient-to-br from-brand-600 to-fuchsia-500 flex items-center justify-center">
+                            @if (!string.IsNullOrEmpty(r.ImageUrl))
                             {
-                                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">موقوفة</span>
-                            }
-                            else if (expired)
-                            {
-                                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700">انتهى العرض</span>
-                            }
-                            else if (outOfStock)
-                            {
-                                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700">نفدت الكمية</span>
+                                <img src="@r.ImageUrl" alt="" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()" />
                             }
                             else
                             {
-                                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700">متاحة</span>
+                                <i data-lucide="gift" class="w-10 h-10 text-white/80"></i>
                             }
+                            <span class="badge @stateBadge absolute top-3 right-3">@stateLabel</span>
                         </div>
-                        @if (!string.IsNullOrEmpty(r.MerchantName))
-                        {
-                            <p class="text-sm text-slate-500 mt-0.5">@r.MerchantName</p>
-                        }
-                        <p class="text-xs text-slate-600 mt-2 line-clamp-2">@r.Description</p>
-
-                        <div class="mt-3 flex items-baseline gap-3">
-                            <span class="text-xl font-extrabold text-gold-700">@r.PointsCost.ToString("N0")</span><span class="text-xs text-slate-500">نقطة</span>
-                            @if (r.DiscountValue > 0)
-                            {
-                                <span class="text-xs font-semibold text-slate-700">• خصم @r.DiscountValue.ToString("N2") د.ل</span>
-                            }
-                        </div>
-
-                        <div class="mt-3 grid grid-cols-3 gap-2 text-center">
-                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@r.Redemptions</div><div class="text-xs text-slate-500">استبدال</div></div>
-                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@r.UsedVouchers</div><div class="text-xs text-slate-500">مستخدمة</div></div>
-                            <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold text-sm">@(r.StockQuantity?.ToString() ?? "∞")</div><div class="text-xs text-slate-500">المتبقي</div></div>
-                        </div>
-
-                        <p class="text-sm text-slate-500 mt-3">
-                            القسيمة صالحة @r.ValidityDays يوم بعد الاستبدال
-                            @if (r.ValidUntil.HasValue) { <span>• العرض حتى @r.ValidUntil.Value.ToString("yyyy/MM/dd")</span> }
-                        </p>
-
-                        @if (Model.CanManage)
-                        {
-                            <div class="mt-auto pt-3 flex gap-2">
-                                <button type="button" class="flex-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
-                                        onclick='openEditor(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { r.Id, r.Title, r.Description, r.MerchantName, r.PointsCost, r.DiscountValue, r.ImageUrl, r.StockQuantity, r.ValidityDays, ValidUntil = r.ValidUntil?.ToString("yyyy-MM-dd"), r.IsActive })))'>
-                                    تعديل
-                                </button>
-                                <button type="button" onclick="toggleReward('@r.Id')"
-                                        class="flex-1 px-3 py-2 rounded-xl text-xs font-bold @(r.IsActive ? "bg-rose-50 hover:bg-rose-100 text-rose-700" : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700")">
-                                    @(r.IsActive ? "إيقاف" : "تفعيل")
-                                </button>
-                                <button type="button" onclick="deleteReward('@r.Id', this.dataset.title)" data-title="@r.Title" title="حذف"
-                                        class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-rose-600" aria-label="حذف">
-                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                </button>
+                        <div class="p-5 flex-1 flex flex-col">
+                            <h3 class="font-bold text-slate-900 leading-snug">@r.Title</h3>
+                            <div class="mt-1 text-sm text-slate-500 flex items-center gap-1.5">
+                                <i data-lucide="@(string.IsNullOrEmpty(r.MerchantName) ? "building-2" : "store")" class="w-3.5 h-3.5"></i>
+                                @(string.IsNullOrEmpty(r.MerchantName) ? "صالحة في كل المول" : r.MerchantName)
                             </div>
-                        }
-                    </div>
+                            @if (!string.IsNullOrWhiteSpace(r.Description))
+                            {
+                                <p class="text-sm text-slate-600 mt-2 line-clamp-2">@r.Description</p>
+                            }
+
+                            <div class="mt-4 flex items-end justify-between gap-3">
+                                <div><span class="text-2xl font-extrabold text-gold-600 num">@r.PointsCost.ToString("N0")</span> <span class="text-sm text-slate-500">نقطة</span></div>
+                                @if (r.DiscountValue > 0)
+                                {
+                                    <span class="badge badge-brand">خصم <span class="num">@r.DiscountValue.ToString("0.##")</span> د.ل</span>
+                                }
+                            </div>
+
+                            <dl class="mt-4 grid grid-cols-3 gap-2 text-center">
+                                <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@r.Redemptions</dd><dt class="text-xs text-slate-500">استبدال</dt></div>
+                                <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@usedPct%</dd><dt class="text-xs text-slate-500">استُخدمت</dt></div>
+                                <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@(r.StockQuantity?.ToString("N0") ?? "∞")</dd><dt class="text-xs text-slate-500">المتبقي</dt></div>
+                            </dl>
+
+                            <div class="mt-3 text-sm text-slate-500 flex items-center gap-x-3 gap-y-1 flex-wrap">
+                                <span class="inline-flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> القسيمة صالحة <span class="num">@r.ValidityDays</span> يوم</span>
+                                @if (r.ValidUntil.HasValue) { <span class="inline-flex items-center gap-1"><i data-lucide="calendar-x" class="w-3.5 h-3.5"></i> العرض حتى <span class="num">@r.ValidUntil.Value.ToString("yyyy/MM/dd")</span></span> }
+                            </div>
+
+                            @if (m.CanManage)
+                            {
+                                <div class="mt-auto pt-4 flex gap-2">
+                                    <button type="button" class="btn-secondary btn-sm flex-1"
+                                            onclick='openEditor(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { r.Id, r.Title, r.Description, r.MerchantName, r.PointsCost, r.DiscountValue, r.ImageUrl, r.StockQuantity, r.ValidityDays, ValidUntil = r.ValidUntil?.ToString("yyyy-MM-dd"), r.IsActive })))'>
+                                        <i data-lucide="pencil" class="w-4 h-4"></i> تعديل
+                                    </button>
+                                    <button type="button" onclick="toggleReward('@r.Id')" class="btn-sm flex-1 @(r.IsActive ? "btn-danger-soft" : "btn-success")">
+                                        <i data-lucide="@(r.IsActive ? "pause" : "play")" class="w-4 h-4"></i> @(r.IsActive ? "إيقاف" : "تفعيل")
+                                    </button>
+                                    <button type="button" onclick="deleteReward('@r.Id', this.dataset.title)" data-title="@r.Title" title="حذف" class="btn-icon !w-9 !h-9 text-rose-600 hover:bg-rose-50" aria-label="حذف">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </article>
+                }
+            </div>
+            <div id="no-rewards-match" class="hidden card"><div class="empty-state"><div class="font-bold text-slate-700">لا توجد مكافآت في هذا التصنيف</div></div></div>
+        }
+    </section>
+
+    @if (m.CanSeeVouchers)
+    {
+        <!-- سجل القسائم -->
+        <section data-panel="vouchers" class="card overflow-hidden hidden">
+            <div class="p-4 border-b border-line flex flex-col sm:flex-row gap-3">
+                <div class="relative flex-1">
+                    <input type="search" id="vq" oninput="filterVouchers()" placeholder="ابحث بالكود، اسم العميل، رقم العضوية أو المكافأة" class="form-input pr-9">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
                 </div>
+                <select id="vs" onchange="filterVouchers()" class="form-select sm:w-48">
+                    <option value="">كل الحالات</option>
+                    <option value="صالحة">صالحة</option>
+                    <option value="مستخدمة">مستخدمة</option>
+                    <option value="منتهية">منتهية</option>
+                    <option value="ملغاة">ملغاة</option>
+                </select>
+            </div>
+            @if (m.Vouchers.Count == 0)
+            {
+                <div class="empty-state"><div class="empty-state-icon"><i data-lucide="ticket" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لم يستبدل أي عميل مكافأة بعد</div></div>
             }
-        </div>
+            else
+            {
+                <div class="overflow-x-auto">
+                    <table class="data-table">
+                        <thead><tr><th>الكود</th><th>المكافأة</th><th>العميل</th><th>النقاط</th><th>تاريخ الاستبدال</th><th>الصلاحية</th><th>الحالة</th></tr></thead>
+                        <tbody id="vouchers-body">
+                            @foreach (var v in m.Vouchers)
+                            {
+                                var (label, badge) = DisplayLabels.Redemption(v.Status, v.ExpiresAt);
+                                <tr data-status="@label" data-text="@($"{v.Code} {v.CustomerName} {v.MembershipNumber} {v.RewardTitle}".ToLowerInvariant())">
+                                    <td class="num font-bold text-brand-700 whitespace-nowrap" dir="ltr">@v.Code</td>
+                                    <td><div class="font-semibold text-slate-900">@v.RewardTitle</div><div class="text-xs text-slate-500">@(v.MerchantName ?? "كل المول")</div></td>
+                                    <td><a href="/AdminDashboard/CustomerDetails/@Uri.EscapeDataString(v.CustomerId)#vouchers" class="font-semibold hover:text-brand-700">@v.CustomerName</a><div class="text-xs text-slate-500 num" dir="ltr">@v.MembershipNumber</div></td>
+                                    <td class="num">@v.Points.ToString("N0")</td>
+                                    <td class="num whitespace-nowrap">@v.RedeemedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td class="num whitespace-nowrap">@v.ExpiresAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                                    <td>
+                                        <span class="badge @badge">@label</span>
+                                        @if (v.UsedAt.HasValue) { <div class="text-xs text-slate-500 mt-1 num">@v.UsedAt.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm")@(string.IsNullOrEmpty(v.UsedBy) ? "" : " • " + v.UsedBy)</div> }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-line text-sm text-slate-500">يُعرض آخر <span class="num">@m.Vouchers.Count</span> قسيمة. كل قسائم العميل تظهر في ملفه.</div>
+            }
+        </section>
     }
+
+    <!-- التحقق من قسيمة -->
+    <section data-panel="verify" class="card p-6 hidden">
+        <div class="max-w-2xl">
+            <h2 class="card-title">التحقق من قسيمة عميل</h2>
+            <p class="card-subtitle">اكتب الكود الظاهر في تطبيق العميل (مثل MM-AB12CD) ثم أكّد الاستخدام عند الدفع</p>
+            <form class="mt-4 flex flex-col sm:flex-row gap-2" onsubmit="lookupVoucher(); return false">
+                <input id="v-code" dir="ltr" autocomplete="off" placeholder="MM-XXXXXX" class="form-input flex-1 !text-lg font-bold tracking-widest uppercase" />
+                <button type="submit" class="btn-dark btn-lg"><i data-lucide="search" class="w-4 h-4"></i> تحقق</button>
+            </form>
+            <div id="v-result" class="hidden mt-4"></div>
+        </div>
+    </section>
 </div>
 
-@if (Model.CanManage)
+@if (m.CanManage)
 {
-    <!-- نموذج إضافة / تعديل مكافأة -->
-    <div id="editor" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4" onclick="if(event.target===this) closeEditor()">
-        <form id="editor-form" class="bg-white rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto" onsubmit="saveReward(); return false">
-            <div class="flex items-center justify-between p-5 border-b border-slate-100">
-                <h2 id="editor-title" class="font-bold text-slate-900">مكافأة جديدة</h2>
-                <button type="button" onclick="closeEditor()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button>
+    <div id="editor" class="hidden modal-overlay" onclick="if(event.target===this) closeEditor()">
+        <form id="editor-form" class="modal-box max-w-xl" onsubmit="saveReward(); return false">
+            <div class="modal-header">
+                <h2 id="editor-title" class="font-bold text-slate-900 flex items-center gap-2"><i data-lucide="gift" class="w-4 h-4 text-brand-600"></i> <span>مكافأة جديدة</span></h2>
+                <button type="button" onclick="closeEditor()" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
-            <div class="p-5 space-y-3">
+            <div class="modal-body">
                 <input type="hidden" id="e-id" />
-                <label class="block"><span class="text-xs font-semibold text-slate-600">العنوان *</span>
-                    <input id="e-title" required minlength="2" maxlength="200" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="مثال: خصم 25 دينار في مطعم اللمسة الملكية" /></label>
-                <label class="block"><span class="text-xs font-semibold text-slate-600">الوصف</span>
-                    <textarea id="e-desc" rows="2" maxlength="1000" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"></textarea></label>
-                <label class="block"><span class="text-xs font-semibold text-slate-600">المتجر (اختياري)</span>
-                    <input id="e-merchant" maxlength="200" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="اتركه فارغاً إذا كانت صالحة في كل المول" /></label>
-                <div class="grid grid-cols-2 gap-3">
-                    <label class="block"><span class="text-xs font-semibold text-slate-600">تكلفة النقاط *</span>
-                        <input id="e-points" type="number" min="1" required dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-                    <label class="block"><span class="text-xs font-semibold text-slate-600">قيمة الخصم (د.ل)</span>
-                        <input id="e-discount" type="number" min="0" step="0.01" dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-                    <label class="block"><span class="text-xs font-semibold text-slate-600">الكمية المتاحة</span>
-                        <input id="e-stock" type="number" min="0" dir="ltr" placeholder="بدون حد" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-                    <label class="block"><span class="text-xs font-semibold text-slate-600">صلاحية القسيمة (أيام) *</span>
-                        <input id="e-validity" type="number" min="1" max="365" required dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
-                </div>
-                <label class="block"><span class="text-xs font-semibold text-slate-600">آخر يوم للعرض (اختياري)</span>
-                    <input id="e-until" type="date" dir="ltr" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
                 <div>
-                    <span class="text-xs font-semibold text-slate-600">الصورة</span>
-                    <div class="mt-1 flex items-center gap-3">
+                    <label class="form-label" for="e-title">العنوان</label>
+                    <input id="e-title" required minlength="2" maxlength="200" class="form-input" placeholder="مثال: خصم 25 دينار في مطعم اللمسة الملكية" />
+                </div>
+                <div>
+                    <label class="form-label" for="e-desc">الوصف <span class="text-slate-400 font-normal">(يظهر للعميل في التطبيق)</span></label>
+                    <textarea id="e-desc" rows="2" maxlength="1000" class="form-input"></textarea>
+                </div>
+                <div>
+                    <label class="form-label" for="e-merchant">المتجر</label>
+                    <input id="e-merchant" list="store-names" maxlength="200" class="form-input" placeholder="اتركه فارغاً إذا كانت صالحة في كل المول" />
+                    <datalist id="store-names">@foreach (var n in m.StoreNames) { <option value="@n"></option> }</datalist>
+                    <p class="form-hint">اختر اسم المتجر كما هو مسجل ليظهر العرض في صفحة المتجر داخل التطبيق.</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="form-label" for="e-points">تكلفة النقاط</label>
+                        <input id="e-points" type="number" min="1" required dir="ltr" class="form-input num" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="e-discount">قيمة الخصم (د.ل)</label>
+                        <input id="e-discount" type="number" min="0" step="0.01" dir="ltr" class="form-input num" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="e-stock">الكمية المتاحة</label>
+                        <input id="e-stock" type="number" min="0" dir="ltr" placeholder="بدون حد" class="form-input num" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="e-validity">صلاحية القسيمة (أيام)</label>
+                        <input id="e-validity" type="number" min="1" max="365" required dir="ltr" class="form-input num" />
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label" for="e-until">آخر يوم للعرض <span class="text-slate-400 font-normal">(اختياري)</span></label>
+                    <input id="e-until" type="date" dir="ltr" class="form-input num" />
+                </div>
+                <div>
+                    <span class="form-label">الصورة</span>
+                    <div class="flex items-center gap-3">
                         <img id="e-image-preview" class="hidden w-16 h-16 rounded-xl object-cover bg-slate-100" alt="" />
-                        <label class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold cursor-pointer">
-                            رفع صورة <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadImage(this)" />
+                        <label class="btn-secondary btn-sm cursor-pointer">
+                            <i data-lucide="upload" class="w-4 h-4"></i> رفع صورة <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadImage(this)" />
                         </label>
-                        <button type="button" id="e-image-clear" class="hidden text-xs text-rose-700" onclick="setImage(null)">إزالة</button>
+                        <button type="button" id="e-image-clear" class="hidden btn-ghost btn-sm text-rose-600" onclick="setImage(null)">إزالة</button>
                     </div>
                     <input type="hidden" id="e-image" />
                 </div>
-                <label class="flex items-center gap-2 text-sm"><input id="e-active" type="checkbox" class="rounded" checked /> متاحة للعملاء في التطبيق</label>
+                <label class="flex items-center gap-2 text-sm"><input id="e-active" type="checkbox" class="form-check" checked /> متاحة للعملاء في التطبيق</label>
             </div>
-            <div class="p-5 border-t border-slate-100 flex gap-2">
-                <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold">حفظ</button>
-                <button type="button" onclick="closeEditor()" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold">إلغاء</button>
+            <div class="modal-footer">
+                <button type="button" onclick="closeEditor()" class="btn-secondary">إلغاء</button>
+                <button type="submit" class="btn-primary">حفظ</button>
             </div>
         </form>
     </div>
@@ -176,7 +300,38 @@
     const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const money = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const statusText = { ACTIVE: ['صالحة', 'bg-emerald-50 text-emerald-700'], USED: ['مستخدمة', 'bg-slate-100 text-slate-600'], EXPIRED: ['منتهية', 'bg-rose-50 text-rose-700'], CANCELLED: ['ملغاة', 'bg-rose-50 text-rose-700'] };
+    const statusText = { ACTIVE: ['صالحة', 'badge-emerald'], USED: ['مستخدمة', 'badge-brand'], EXPIRED: ['منتهية', 'badge-slate'], CANCELLED: ['ملغاة', 'badge-rose'] };
+
+    // ---------- التبويبات والتصفية ----------
+    function showTab(key) {
+        if (!document.querySelector(`[data-tab="${key}"]`)) key = '@defaultTab';
+        document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('tab-active', b.dataset.tab === key));
+        document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== key));
+        history.replaceState(null, '', '#' + key);
+    }
+    showTab(location.hash ? location.hash.slice(1) : '@defaultTab');
+
+    function filterRewards(key) {
+        document.querySelectorAll('.reward-filter').forEach(b => {
+            const on = b.dataset.filter === key;
+            b.classList.toggle('bg-brand-700', on); b.classList.toggle('text-white', on);
+            b.classList.toggle('bg-slate-100', !on); b.classList.toggle('text-slate-600', !on);
+        });
+        let shown = 0;
+        document.querySelectorAll('article[data-state]').forEach(c => {
+            const ok = key === 'all' || c.dataset.state === key;
+            c.classList.toggle('hidden', !ok); if (ok) shown++;
+        });
+        document.getElementById('no-rewards-match')?.classList.toggle('hidden', shown > 0);
+    }
+
+    function filterVouchers() {
+        const q = document.getElementById('vq').value.trim().toLowerCase();
+        const st = document.getElementById('vs').value;
+        document.querySelectorAll('#vouchers-body tr').forEach(r => {
+            r.classList.toggle('hidden', (q && !r.dataset.text.includes(q)) || (st && r.dataset.status !== st));
+        });
+    }
 
     async function call(url, options) {
         const resp = await fetch(url, options);
@@ -200,7 +355,8 @@
         const box = document.getElementById('v-result');
         const v = data.voucher;
         if (!v) { box.innerHTML = `<div class="rounded-xl bg-rose-50 text-rose-800 p-4 text-sm font-semibold">${esc(data.message)}</div>`; return; }
-        const [label, cls] = statusText[v.status] || [v.status, 'bg-slate-100'];
+        const expired = v.status === 'ACTIVE' && new Date(v.expiresAt) < new Date();
+        const [label, cls] = expired ? statusText.EXPIRED : (statusText[v.status] || [v.status, 'badge-slate']);
         box.innerHTML = `
             <div class="rounded-2xl border ${v.status === 'ACTIVE' ? 'border-emerald-200' : 'border-slate-200'} p-4">
                 <div class="flex items-start justify-between gap-3">
@@ -209,7 +365,7 @@
                         <div class="font-bold text-slate-900">${esc(v.rewardTitle)}</div>
                         ${v.merchantName ? `<div class="text-xs text-slate-500">${esc(v.merchantName)}</div>` : ''}
                     </div>
-                    <span class="px-2.5 py-1 rounded-full text-xs font-bold ${cls}">${label}</span>
+                    <span class="badge ${cls}">${label}</span>
                 </div>
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs">
                     <div><div class="text-slate-500">العميل</div><div class="font-semibold">${esc(v.customerName)}</div><div dir="ltr" class="text-slate-500">${esc(v.customerPhone)}</div></div>
@@ -218,7 +374,7 @@
                     <div><div class="text-slate-500">النقاط</div><div class="font-semibold">${v.pointsSpent}</div></div>
                 </div>
                 <p class="mt-3 text-sm ${ok && v.status === 'ACTIVE' ? 'text-emerald-700' : 'text-slate-700'}">${esc(data.message)}</p>
-                ${v.status === 'ACTIVE' ? `<button type="button" onclick="useVoucher('${esc(v.code)}')" class="mt-3 w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">تأكيد استخدام القسيمة</button>` : ''}
+                ${v.status === 'ACTIVE' ? `<button type="button" onclick="useVoucher('${esc(v.code)}')" class="btn-success mt-3 w-full sm:w-auto">تأكيد استخدام القسيمة</button>` : ''}
             </div>`;
     }
 
@@ -244,7 +400,7 @@
 
     function openEditor(r) {
         r = r || { Title: '', Description: '', MerchantName: '', PointsCost: '', DiscountValue: 0, ImageUrl: null, StockQuantity: null, ValidityDays: 30, ValidUntil: null, IsActive: true };
-        document.getElementById('editor-title').textContent = r.Id ? 'تعديل المكافأة' : 'مكافأة جديدة';
+        document.querySelector('#editor-title span').textContent = r.Id ? 'تعديل المكافأة' : 'مكافأة جديدة';
         document.getElementById('e-id').value = r.Id || '';
         document.getElementById('e-title').value = r.Title || '';
         document.getElementById('e-desc').value = r.Description || '';
@@ -256,10 +412,9 @@
         document.getElementById('e-until').value = r.ValidUntil || '';
         document.getElementById('e-active').checked = r.IsActive !== false;
         setImage(r.ImageUrl);
-        document.getElementById('editor').classList.remove('hidden');
-        lucide.createIcons();
+        MM.openModal('editor');
     }
-    function closeEditor() { document.getElementById('editor').classList.add('hidden'); }
+    function closeEditor() { MM.closeModal('editor'); }
 
     async function uploadImage(input) {
         const file = input.files[0];

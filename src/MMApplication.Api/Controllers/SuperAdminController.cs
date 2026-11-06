@@ -2080,6 +2080,33 @@ public class SuperAdminController : ControllerBase
         return Ok(new { success = true, isSuspended = customer.IsFrozen, message = customer.IsFrozen ? "تم تجميد الحساب." : "تم تنشيط الحساب." });
     }
 
+    public record CustomerNotifyRequest(string? Title, string? Body);
+
+    /// <summary>إشعار خاص لعميل واحد (يظهر في تطبيقه ويصل لهاتفه).</summary>
+    [HttpPost("customers/{id}/notify")]
+    [Authorize(Roles = StaffRoles.CustomerService)]
+    public async Task<IActionResult> NotifyCustomer(string id, [FromBody] CustomerNotifyRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.Body))
+            return BadRequest(new { success = false, message = "عنوان ونص الإشعار مطلوبان." });
+        var customer = await _context.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.CustomerId == id);
+        if (customer == null) return NotFound(new { success = false, message = "العميل غير موجود." });
+        if (customer.IsArchived) return BadRequest(new { success = false, message = "الحساب محذوف." });
+
+        Notifier.Customer(_context, id, "MESSAGE", req.Title.Trim(), req.Body.Trim());
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ActorName,
+            Action = "CUSTOMER_NOTIFY",
+            EntityName = "Customer",
+            EntityId = id,
+            Details = $"إشعار إلى {customer.FullName} ({customer.MembershipNumber}): {req.Title.Trim()}",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, message = "أُرسل الإشعار إلى العميل." });
+    }
+
     // ==========================================
     // 8. 👥 طاقم العمل والصلاحيات (Staff & Role Management)
     // ==========================================

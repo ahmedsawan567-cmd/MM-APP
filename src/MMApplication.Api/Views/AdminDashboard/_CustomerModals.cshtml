@@ -1,0 +1,109 @@
+<!-- إضافة / تعديل عميل -->
+<div id="customer-modal" class="hidden modal-overlay">
+    <div class="modal-box max-w-lg">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2"><i data-lucide="user-round-pen" class="w-4 h-4 text-brand-600"></i> <span id="cf-title">عميل جديد</span></h3>
+            <button type="button" onclick="MM.closeModal('customer-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="modal-body grid sm:grid-cols-2 gap-3">
+            <div id="cf-membership-row" class="sm:col-span-2 hidden rounded-xl bg-brand-50 text-brand-800 px-3 py-2 text-sm">رقم العضوية: <b id="cf-membership" class="num" dir="ltr"></b></div>
+            <div class="sm:col-span-2">
+                <label class="form-label">الاسم الكامل</label>
+                <input id="cf-name" class="form-input" />
+            </div>
+            <div>
+                <label class="form-label">رقم الهاتف</label>
+                <input id="cf-phone" class="form-input num" dir="ltr" placeholder="09XXXXXXXX" />
+            </div>
+            <div>
+                <label class="form-label">البريد الإلكتروني <span class="text-slate-400 font-normal">(اختياري)</span></label>
+                <input id="cf-email" type="email" class="form-input num" dir="ltr" />
+            </div>
+            <div>
+                <label class="form-label">تاريخ الميلاد <span class="text-slate-400 font-normal">(اختياري)</span></label>
+                <input id="cf-birth" type="date" class="form-input num" />
+            </div>
+            <div>
+                <label class="form-label">الجنس</label>
+                <select id="cf-gender" class="form-select">
+                    <option value="">غير محدد</option>
+                    <option value="F">أنثى</option>
+                    <option value="M">ذكر</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">فئة العضوية</label>
+                <select id="cf-tier" class="form-select">
+                    <option value="BRONZE">برونزي</option>
+                    <option value="SILVER">فضي</option>
+                    <option value="GOLD">ذهبي</option>
+                    <option value="VIP">VIP</option>
+                </select>
+            </div>
+            <div id="cf-points-row">
+                <label class="form-label">رصيد افتتاحي (نقاط)</label>
+                <input id="cf-points" type="number" min="0" value="0" class="form-input num" />
+            </div>
+            <div id="cf-password-row" class="sm:col-span-2">
+                <label class="form-label">كلمة مرور للتطبيق <span class="text-slate-400 font-normal">(اختيارية — يمكن ضبطها لاحقاً)</span></label>
+                <div class="flex gap-2">
+                    <input id="cf-password" class="form-input num flex-1" dir="ltr" autocomplete="new-password" placeholder="8 أحرف على الأقل" />
+                    <button type="button" onclick="document.getElementById('cf-password').value = MMCustomers.generatePassword()" class="btn-secondary shrink-0"><i data-lucide="wand-sparkles" class="w-4 h-4"></i> توليد</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" onclick="MM.closeModal('customer-modal')" class="btn-secondary">إلغاء</button>
+            <button type="button" id="cf-save" onclick="MMCustomers.save()" class="btn-primary">حفظ</button>
+        </div>
+    </div>
+</div>
+
+<!-- تعديل النقاط -->
+<div id="points-modal" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2"><i data-lucide="coins" class="w-4 h-4 text-gold-600"></i> تعديل نقاط <span id="pt-name"></span></h3>
+            <button type="button" onclick="MM.closeModal('points-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="modal-body space-y-3">
+            <div class="rounded-xl bg-slate-50 px-3 py-2 text-sm">الرصيد الحالي: <b id="pt-current" class="num"></b> نقطة</div>
+            <div>
+                <label class="form-label">النقاط (موجب للإضافة، سالب للخصم)</label>
+                <input id="pt-delta" type="number" class="form-input num" placeholder="مثال: 100 أو -50" />
+            </div>
+            <div>
+                <label class="form-label">السبب (يظهر في سجل العمليات)</label>
+                <input id="pt-reason" class="form-input" placeholder="مثال: تعويض فاتورة لم تُقرأ" />
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" onclick="MM.closeModal('points-modal')" class="btn-secondary">إلغاء</button>
+            <button type="button" onclick="MMCustomers.savePoints()" class="btn-primary">تأكيد</button>
+        </div>
+    </div>
+</div>
+
+<!-- إشعار لعميل -->
+<div id="notify-modal" class="hidden modal-overlay">
+    <div class="modal-box max-w-md">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2"><i data-lucide="send" class="w-4 h-4 text-brand-600"></i> إشعار إلى <span id="nt-name"></span></h3>
+            <button type="button" onclick="MM.closeModal('notify-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="modal-body space-y-3">
+            <div>
+                <label class="form-label">العنوان</label>
+                <input id="nt-title" maxlength="150" class="form-input" placeholder="مثال: هدية خاصة لك" />
+            </div>
+            <div>
+                <label class="form-label">النص</label>
+                <textarea id="nt-body" rows="3" maxlength="600" class="form-input" placeholder="يظهر في تطبيق العميل ويصل لهاتفه"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" onclick="MM.closeModal('notify-modal')" class="btn-secondary">إلغاء</button>
+            <button type="button" id="nt-send" onclick="MMCustomers.sendNotify()" class="btn-primary">إرسال</button>
+        </div>
+    </div>
+</div>
