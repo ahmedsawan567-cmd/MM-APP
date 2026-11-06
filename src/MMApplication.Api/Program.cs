@@ -14,6 +14,11 @@ using MMApplication.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// مفاتيح user-secrets (Gemini، Firebase، قاعدة البيانات) تُقرأ في كل البيئات على جهاز الخادم،
+// وليس في وضع التطوير فقط؛ وإلا تتعطل الخدمات بصمت عند تشغيل نسخة منشورة (Production).
+if (!builder.Environment.IsEnvironment("Testing"))
+    builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
+
 // 1. Controllers With Views (ASP.NET Core MVC .NET 9) & JSON serialization
 builder.Services.AddControllersWithViews()
     .AddJsonOptions(options =>
@@ -235,6 +240,11 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation(database.UsePostgres
             ? "قاعدة البيانات: {Db}"
             : "تحذير: قاعدة بيانات مؤقتة في الذاكرة ({Db}). البيانات تُمسح عند إعادة التشغيل.", database.Description);
+        logger.LogInformation("قراءة الفواتير بالذكاء الاصطناعي: {Ai}", ocrProvider == "Mock"
+            ? "غير مفعّلة (لا يوجد مفتاح Gemini — ضعه بأمر dotnet user-secrets set \"Gemini:ApiKey\" ...)" : ocrProvider);
+        logger.LogInformation("إشعارات الهاتف الفورية (Firebase): {Push}", firebaseAccount != null
+            ? $"مفعّلة (المشروع {firebaseAccount.ProjectId})"
+            : "غير مفعّلة (لا يوجد ملف حساب الخدمة — Firebase:ServiceAccountPath)");
         logger.LogInformation("Applying database schema and seed data...");
         if (db.Database.IsRelational())
         {
