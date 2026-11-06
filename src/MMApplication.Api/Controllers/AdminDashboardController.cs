@@ -2176,47 +2176,104 @@ public class AdminDashboardController : Controller
         };
     }
 
-    public async Task<IActionResult> Settings([FromQuery] string? search)
+    public async Task<IActionResult> Settings([FromQuery] string? search, [FromQuery] string? tab, [FromQuery(Name = "action")] string? actionFilter,
+        [FromQuery] string? by, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int page = 1, [FromQuery] string? export = null)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-
-        // Developer & Super Admin Only
-        if (!IsDeveloperOrSuperAdmin)
-        {
-            return RedirectToAction(nameof(Index));
-        }
+        if (!IsDeveloperOrSuperAdmin) return RedirectToAction(nameof(Index));
 
         var query = _context.AuditLogs.AsNoTracking();
-
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
-            query = query.Where(a => a.PerformedBy.Contains(term) || a.Action.Contains(term) || a.EntityName.Contains(term) || a.Details.Contains(term));
+            query = query.Where(a => a.PerformedBy.Contains(term) || a.Action.Contains(term) || a.EntityName.Contains(term) ||
+                                     a.Details.Contains(term) || (a.EntityId != null && a.EntityId.Contains(term)));
+        }
+        if (!string.IsNullOrWhiteSpace(actionFilter)) query = query.Where(a => a.Action == actionFilter);
+        if (!string.IsNullOrWhiteSpace(by)) query = query.Where(a => a.PerformedBy == by);
+        if (from.HasValue) query = query.Where(a => a.CreatedAt >= DateTime.SpecifyKind(from.Value.Date, DateTimeKind.Local).ToUniversalTime());
+        if (to.HasValue) query = query.Where(a => a.CreatedAt < DateTime.SpecifyKind(to.Value.Date.AddDays(1), DateTimeKind.Local).ToUniversalTime());
+
+        if (string.Equals(export, "csv", StringComparison.OrdinalIgnoreCase))
+        {
+            var rows = await query.OrderByDescending(a => a.CreatedAt).Take(20000).ToListAsync();
+            string Cell(object? v) => "\"" + (v?.ToString() ?? "").Replace("\"", "\"\"") + "\"";
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(string.Join(",", new[] { "الوقت", "المنفّذ", "العملية", "الرمز", "السجل", "التفاصيل", "IP" }.Select(Cell)));
+            foreach (var a in rows)
+                sb.AppendLine(string.Join(",", new object?[] { a.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), a.PerformedBy,
+                    MMApplication.Api.ViewModels.DisplayLabels.Action(a.Action), a.Action, $"{a.EntityName} {a.EntityId}".Trim(), a.Details, a.IpAddress }.Select(Cell)));
+            var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+            return File(bytes, "text/csv; charset=utf-8", $"audit-log-{DateTime.Now:yyyy-MM-dd}.csv");
         }
 
-        var auditLogs = await query.OrderByDescending(a => a.CreatedAt).Take(50).ToListAsync();
+        const int pageSize = 50;
+        var total = await query.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var auditLogs = await query.OrderByDescending(a => a.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
-        var logDtos = auditLogs.Select(a => new AuditLogDto
+        var now = DateTime.UtcNow;
+        var services = HttpContext?.RequestServices;
+        var config = services?.GetService(typeof(IConfiguration)) as IConfiguration;
+        var ocr = services?.GetService(typeof(IReceiptOcrService));
+        var ocrName = ocr?.GetType().Name ?? "";
+        var (aiProvider, aiReal) = ocrName switch
         {
-            Id = a.Id,
-            PerformedBy = a.PerformedBy,
-            Action = a.Action,
-            EntityName = a.EntityName,
-            EntityId = a.EntityId,
-            Details = a.Details,
-            IpAddress = a.IpAddress,
-            CreatedAt = a.CreatedAt
-        }).ToList();
+            var n when n.StartsWith("Gemini") => ("Google Gemini", true),
+            var n when n.StartsWith("Claude") => ("Claude", true),
+            "" => ("غير مضبوط", false),
+            _ => ("محرك تجريبي (بدون ذكاء اصطناعي حقيقي)", false),
+        };
+        var dbProvider = _context.Database.ProviderName ?? "";
+        var status = new SystemStatusInfo
+        {
+            Database = dbProvider.Contains("Npgsql") ? "PostgreSQL (Supabase)" : dbProvider.Contains("InMemory") ? "قاعدة بيانات تجريبية في الذاكرة" : dbProvider,
+            DatabaseIsReal = !dbProvider.Contains("InMemory"),
+            AiProvider = aiProvider,
+            AiIsReal = aiReal,
+            AiModel = ocrName.StartsWith("Gemini") ? (config?["Gemini:Model"] is { Length: > 0 } gm ? gm : GeminiClient.DefaultModel) : null,
+            AiFallbackModel = ocrName.StartsWith("Gemini") ? (config?["Gemini:FallbackModel"] is { } fb ? (fb is "" or "none" ? null : fb) : GeminiClient.DefaultFallbackModel) : null,
+            AiRetryQueue = await _context.Invoices.CountAsync(i => i.NextAiRetryAt != null && i.ProcessingStatus == InvoiceStatus.REVIEW_REQUIRED),
+            ReviewQueue = await _context.Invoices.CountAsync(i => i.ProcessingStatus == InvoiceStatus.REVIEW_REQUIRED || i.ProcessingStatus == InvoiceStatus.PENDING),
+            PushEnabled = services?.GetService(typeof(FcmSender)) != null,
+            PushDevices = await _context.DeviceTokens.CountAsync(),
+            Pushed24h = await _context.Notifications.CountAsync(n => n.PushSentAt != null && n.PushSentAt >= now.AddDays(-1)),
+            Customers = await _context.Customers.CountAsync(c => !c.IsArchived),
+            Stores = await _context.Tenants.CountAsync(t => t.IsActive),
+            Invoices = await _context.Invoices.CountAsync(),
+            Invoices24h = await _context.Invoices.CountAsync(i => i.CreatedAt >= now.AddDays(-1)),
+            Staff = await _context.SystemUsers.CountAsync(u => u.IsActive),
+            LockedStaff = await _context.SystemUsers.CountAsync(u => u.LockedUntil != null && u.LockedUntil > now),
+            FailedLogins24h = await _context.AuditLogs.CountAsync(a => a.Action == "STAFF_LOCKED" && a.CreatedAt >= now.AddDays(-1)),
+            AppVersion = typeof(AdminDashboardController).Assembly.GetName().Version?.ToString(3) ?? "",
+            ServerTime = now,
+        };
 
         var viewModel = new SettingsPageViewModel
         {
             Settings = await LoadSettingsDtoAsync(),
-            AuditLogs = logDtos,
-            SearchQuery = search
+            AuditLogs = auditLogs.Select(a => new AuditLogDto
+            {
+                Id = a.Id, PerformedBy = a.PerformedBy, Action = a.Action, EntityName = a.EntityName, EntityId = a.EntityId,
+                Details = a.Details, IpAddress = a.IpAddress, CreatedAt = a.CreatedAt
+            }).ToList(),
+            SearchQuery = search,
+            Tab = tab is "status" or "audit" ? tab : (search != null || actionFilter != null || by != null || from != null || to != null || page > 1 ? "audit" : "rules"),
+            ActionFilter = actionFilter,
+            ByFilter = by,
+            From = from,
+            To = to,
+            Page = page,
+            TotalPages = totalPages,
+            TotalLogs = total,
+            Performers = await _context.AuditLogs.AsNoTracking().Select(a => a.PerformedBy).Distinct().OrderBy(x => x).Take(200).ToListAsync(),
+            ActionsInLog = await _context.AuditLogs.AsNoTracking().Select(a => a.Action).Distinct().ToListAsync(),
+            Status = status,
         };
 
         ViewData["ActiveTab"] = "settings";
-        ViewData["Title"] = "إعدادات النظام وسجلات الأمان";
+        ViewData["Title"] = "الإعدادات وسجل العمليات";
         return View(viewModel);
     }
 }

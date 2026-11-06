@@ -173,7 +173,7 @@ public class AdminDashboardMvcTests
 
         var controller = new AdminDashboardController(context, NullLogger<AdminDashboardController>.Instance);
 
-        var result = await controller.Settings(null);
+        var result = await controller.Settings(null, null, null, null, null, null);
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<SettingsPageViewModel>(viewResult.Model);
 

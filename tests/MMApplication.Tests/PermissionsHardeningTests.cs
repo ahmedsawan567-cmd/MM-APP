@@ -172,4 +172,28 @@ public class PermissionsHardeningTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/AdminDashboard/Rewards")).StatusCode);
         Assert.Contains("مصفوفة الصلاحيات", await admin.GetStringAsync("/AdminDashboard/Staff"));
     }
+
+    [Fact]
+    public async Task Settings_StatusTab_AuditFilters_AndExport()
+    {
+        var admin = await SignedInAsync("USR-MOSTAFA", "Admin123!");
+        // عملية مسجلة لنبحث عنها
+        await admin.PostAsJsonAsync("/api/superadmin/customers/CUST-002/notify", new { title = "تجربة السجل", body = "نص" });
+
+        var status = await admin.GetStringAsync("/AdminDashboard/Settings?tab=status");
+        Assert.Contains("قراءة الفواتير بالذكاء الاصطناعي", status);
+        Assert.Contains("إشعارات الهاتف الفورية", status);
+
+        var filtered = await admin.GetStringAsync("/AdminDashboard/Settings?tab=audit&action=CUSTOMER_NOTIFY");
+        Assert.Contains("إشعار لعميل", filtered);
+        Assert.Contains("تجربة السجل", filtered);
+        Assert.DoesNotContain("تهيئة بيانات النظام", filtered);
+
+        var csv = await admin.GetAsync("/AdminDashboard/Settings?tab=audit&action=CUSTOMER_NOTIFY&export=csv");
+        Assert.Equal("text/csv", csv.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("تجربة السجل", await csv.Content.ReadAsStringAsync());
+
+        var auditor = await SignedInAsync("USR-MOURAD", "Auditor123!");
+        Assert.Equal(HttpStatusCode.Redirect, (await auditor.GetAsync("/AdminDashboard/Settings")).StatusCode);
+    }
 }

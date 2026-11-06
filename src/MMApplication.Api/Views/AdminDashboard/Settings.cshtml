@@ -1,171 +1,276 @@
 @model MMApplication.Api.ViewModels.SettingsPageViewModel
+@using MMApplication.Api.ViewModels
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "الإعدادات والسجل";
+    ViewData["Title"] = "الإعدادات وسجل العمليات";
     ViewData["ActiveTab"] = "settings";
+    var m = Model;
+    var st = m.Status;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    string AuditUrl(int? page = null, string? export = null) =>
+        Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/AdminDashboard/Settings", new Dictionary<string, string?>
+        {
+            ["tab"] = "audit", ["search"] = m.SearchQuery, ["action"] = m.ActionFilter, ["by"] = m.ByFilter,
+            ["from"] = m.From?.ToString("yyyy-MM-dd"), ["to"] = m.To?.ToString("yyyy-MM-dd"),
+            ["page"] = page > 1 ? page.ToString() : null, ["export"] = export,
+        }.Where(kv => !string.IsNullOrEmpty(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value));
+    var actionOptions = m.ActionsInLog.Select(a => (Key: a, Label: DisplayLabels.Action(a))).OrderBy(a => a.Label).ToList();
+    var hasFilters = !string.IsNullOrEmpty(m.SearchQuery) || m.ActionFilter != null || m.ByFilter != null || m.From != null || m.To != null;
 }
+@Html.AntiForgeryToken()
 
-<div class="space-y-6">
+<div class="space-y-5">
 
-    <!-- 1. Page Header -->
     <div class="page-header">
         <div>
-            <h1 class="page-title">الإعدادات والسجل</h1>
-            <p class="page-subtitle">شروط القبول التلقائي للفواتير وسجل العمليات</p>
-        </div>
-        <div class="page-actions">
-            <button onclick="saveSystemSettings()" class="btn-primary">
-                <i data-lucide="save" class="w-4 h-4"></i>
-                <span>حفظ التعديلات</span>
-            </button>
+            <h1 class="page-title">الإعدادات وسجل العمليات</h1>
+            <p class="page-subtitle">قواعد قبول الفواتير، حالة مكونات المنظومة، وسجل كل عملية نفّذها طاقم العمل</p>
         </div>
     </div>
 
-    <!-- 2. AI Engine & Fraud Rules Config Cards -->
-    <div class="card p-6 space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
-            <div>
-                <h3 class="text-base font-bold text-slate-900">شروط القبول التلقائي للفواتير</h3>
-                <p class="text-sm text-slate-500 mt-0.5">الفواتير التي لا تحقق هذه الشروط تذهب لمراجعة الموظفين بدل قبولها تلقائياً</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="form-label font-bold text-slate-800">أقل ثقة قراءة للقبول التلقائي:</label>
-                    <span class="text-xs font-bold text-emerald-600 num">%</span>
-                </div>
-                <input type="number" id="setting-ocr-conf" min="50" max="100" step="1" value="@Model.Settings.OcrConfidenceThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-input font-bold text-emerald-600 num">
-                <p class="text-sm text-slate-500">الفواتير الأقل دقة تدخل طابور التدقيق تلقائياً للمراجعة البشرية.</p>
-            </div>
-
-            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="form-label font-bold text-slate-800">مراجعة الفواتير التي تتجاوز:</label>
-                    <span class="text-xs font-bold text-slate-600 num">د.ل</span>
-                </div>
-                <input type="number" id="setting-max-amount" min="1" value="@Model.Settings.MaxInvoiceAmountAutoApproval.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-input font-bold text-slate-900 num">
-                <p class="text-sm text-slate-500">المبالغ الأعلى تتطلب مراجعة وتدقيق بشري من قبل المحاسب.</p>
-            </div>
-
-            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="form-label font-bold text-slate-800">أقصى عدد فواتير للعميل خلال 24 ساعة:</label>
-                    <span class="text-xs font-bold text-slate-600 num">عمليات</span>
-                </div>
-                <input type="number" id="setting-daily-scans" min="0" max="200" value="@Model.Settings.MaxDailyScansPerCustomer" class="form-input font-bold text-slate-900 num">
-                <p class="text-sm text-slate-500">لمنع الإغراق والاحتيال. 0 = بدون حد.</p>
-            </div>
-        </div>
-        <label class="mt-4 flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" id="setting-known-store" class="form-check" @(Model.Settings.RequireKnownStore ? "checked" : "") />
-            تحويل فواتير المتاجر غير المسجلة في المول للمراجعة (موصى به)
-        </label>
+    <div class="tabs w-fit max-w-full" role="tablist">
+        <button type="button" class="tab" data-tab="rules" onclick="showTab('rules')"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i> قواعد الفواتير</button>
+        <button type="button" class="tab" data-tab="status" onclick="showTab('status')"><i data-lucide="activity" class="w-4 h-4"></i> حالة النظام</button>
+        <button type="button" class="tab" data-tab="audit" onclick="showTab('audit')"><i data-lucide="history" class="w-4 h-4"></i> سجل العمليات <span class="text-xs text-slate-400 num">@m.TotalLogs.ToString("N0")</span></button>
     </div>
 
-    <!-- 3. Live System Audit Logs -->
-    <div class="card overflow-hidden">
-        <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
-            <div>
-                <h3 class="text-base font-bold text-slate-900">سجلات الأمان والرقابة الإدارية</h3>
-                <p class="text-sm text-slate-500 mt-0.5">تتبع زمني لكافة التعديلات والعمليات الحساسة التي نفذها المشغلون في المنظومة</p>
-            </div>
-            <form method="get" asp-controller="AdminDashboard" asp-action="Settings">
-                <div class="relative w-full sm:w-64">
-                    <input type="text" name="search" value="@Model.SearchQuery" placeholder="بحث في سجلات الأمان..." class="form-input text-xs pr-8 pl-3">
-                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3"></i>
+    <!-- قواعد الفواتير -->
+    <section data-panel="rules" class="space-y-4 hidden">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">شروط القبول التلقائي</h3>
+                    <p class="card-subtitle">الفاتورة التي تحقق كل الشروط تُعتمد وتُضاف نقاطها فوراً؛ غير ذلك تذهب لشاشة المراجعة</p>
                 </div>
-            </form>
+            </div>
+            <div class="card-body grid md:grid-cols-2 gap-5">
+                <div>
+                    <label class="form-label" for="setting-ocr-conf">أقل ثقة قراءة للقبول التلقائي</label>
+                    <div class="relative">
+                        <input type="number" id="setting-ocr-conf" min="50" max="100" step="1" value="@m.Settings.OcrConfidenceThreshold.ToString("0", inv)" class="form-input num pl-10">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
+                    </div>
+                    <p class="form-hint">إن كانت ثقة الذكاء الاصطناعي في قراءة الفاتورة أقل من هذه النسبة تُراجع يدوياً. الموصى به 85%.</p>
+                </div>
+                <div>
+                    <label class="form-label" for="setting-max-amount">مراجعة الفواتير التي يتجاوز مبلغها</label>
+                    <div class="relative">
+                        <input type="number" id="setting-max-amount" min="1" value="@m.Settings.MaxInvoiceAmountAutoApproval.ToString("0.##", inv)" class="form-input num pl-12">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">د.ل</span>
+                    </div>
+                    <p class="form-hint">الفواتير ذات المبالغ الكبيرة يراجعها موظف قبل منح النقاط.</p>
+                </div>
+                <div>
+                    <label class="form-label" for="setting-daily-scans">أقصى عدد فواتير للعميل في اليوم</label>
+                    <input type="number" id="setting-daily-scans" min="0" max="200" value="@m.Settings.MaxDailyScansPerCustomer" class="form-input num">
+                    <p class="form-hint">يحمي من الإغراق والاحتيال. 0 = بدون حد.</p>
+                </div>
+                <div>
+                    <span class="form-label">المتاجر غير المسجلة</span>
+                    <label class="flex items-start gap-3 rounded-xl border border-line p-3 cursor-pointer hover:bg-slate-50">
+                        <input type="checkbox" id="setting-known-store" class="form-check mt-0.5" @(m.Settings.RequireKnownStore ? "checked" : "") />
+                        <span class="text-sm text-slate-700">تحويل فواتير المتاجر غير المسجلة في المول للمراجعة <span class="text-slate-400">(موصى به)</span></span>
+                    </label>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-line flex items-center justify-between gap-3">
+                <p class="text-sm text-slate-500">التغييرات تُطبَّق فوراً على الفواتير الجديدة وتُسجَّل في سجل العمليات.</p>
+                <button onclick="saveSystemSettings()" id="save-settings" class="btn-primary"><i data-lucide="save" class="w-4 h-4"></i> حفظ</button>
+            </div>
         </div>
 
-        <div class="overflow-x-auto">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>الوقت والتاريخ</th>
-                        <th>المسؤول / المشغل</th>
-                        <th>نوع الإجراء</th>
-                        <th>الكائن / السجل</th>
-                        <th>التفاصيل الفنية</th>
-                        <th>عنوان IP</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (Model.AuditLogs.Count == 0)
-                    {
-                        <tr>
-                            <td colspan="6" class="text-center py-12 text-slate-400">
-                                <div class="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-2">
-                                    <i data-lucide="clipboard-list" class="w-6 h-6"></i>
-                                </div>
-                                <div class="font-bold text-slate-700">لا توجد سجلات أمان مطابقة</div>
-                                <p class="text-xs text-slate-400 mt-1">تظهر السجلات عند قيام المشغلين بإجراءات وتعديلات في النظام</p>
-                            </td>
-                        </tr>
-                    }
-                    @foreach (var a in Model.AuditLogs)
-                    {
-                        <tr>
-                            <td class="num text-slate-500 text-xs">@a.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss")</td>
-                            <td>
-                                <div class="font-bold text-slate-900">@a.PerformedBy</div>
-                            </td>
-                            <td>
-                                @if (a.Action.Contains("DELETE", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    <span class="badge badge-rose">@a.Action</span>
-                                }
-                                else if (a.Action.Contains("CREATE", StringComparison.OrdinalIgnoreCase) || a.Action.Contains("ADD", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    <span class="badge badge-emerald">@a.Action</span>
-                                }
-                                else if (a.Action.Contains("UPDATE", StringComparison.OrdinalIgnoreCase) || a.Action.Contains("EDIT", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    <span class="badge badge-blue">@a.Action</span>
-                                }
-                                else
-                                {
-                                    <span class="badge badge-slate">@a.Action</span>
-                                }
-                            </td>
-                            <td class="font-semibold text-slate-800">@a.EntityName @(a.EntityId != null ? $"#{a.EntityId}" : "")</td>
-                            <td class="text-slate-600 max-w-xs truncate text-xs">@a.Details</td>
-                            <td class="num text-slate-400 text-xs">@(a.IpAddress ?? "127.0.0.1")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+        <div class="card p-5 flex items-start gap-3">
+            <span class="stat-icon bg-brand-50 text-brand-600 shrink-0"><i data-lucide="info" class="w-5 h-5"></i></span>
+            <div class="text-sm text-slate-600 leading-relaxed">
+                إلى جانب هذه الشروط تُحوَّل للمراجعة دائماً: الفواتير المكررة أو المستخدمة من حساب آخر، الفواتير المخالفة لنموذج فاتورة المتجر، الفواتير القديمة أو بتاريخ مستقبلي، وفواتير عملة غير الدينار.
+                قواعد النقاط لكل متجر تُضبط من <a asp-action="Loyalty" class="text-brand-700 font-semibold hover:underline">قواعد النقاط</a>، ونماذج الفواتير من <a asp-action="InvoiceTemplates" class="text-brand-700 font-semibold hover:underline">نماذج الفواتير</a>.
+            </div>
         </div>
-    </div>
+    </section>
+
+    <!-- حالة النظام -->
+    <section data-panel="status" class="space-y-4 hidden">
+        <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div class="card p-5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3"><span class="stat-icon bg-brand-50 text-brand-600"><i data-lucide="database" class="w-5 h-5"></i></span><h3 class="card-title">قاعدة البيانات</h3></div>
+                    <span class="badge @(st.DatabaseIsReal ? "badge-emerald" : "badge-amber")">@(st.DatabaseIsReal ? "متصلة" : "تجريبية")</span>
+                </div>
+                <div class="mt-3 text-sm text-slate-600">@st.Database</div>
+                <dl class="mt-4 grid grid-cols-3 gap-2 text-center">
+                    <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@st.Customers.ToString("N0")</dd><dt class="text-xs text-slate-500">عميل</dt></div>
+                    <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@st.Stores</dd><dt class="text-xs text-slate-500">متجر نشط</dt></div>
+                    <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@st.Invoices.ToString("N0")</dd><dt class="text-xs text-slate-500">فاتورة</dt></div>
+                </dl>
+            </div>
+
+            <div class="card p-5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3"><span class="stat-icon bg-purple-50 text-purple-600"><i data-lucide="sparkles" class="w-5 h-5"></i></span><h3 class="card-title">قراءة الفواتير بالذكاء الاصطناعي</h3></div>
+                    <span class="badge @(st.AiIsReal ? "badge-emerald" : "badge-amber")">@(st.AiIsReal ? "مفعّلة" : "غير مفعّلة")</span>
+                </div>
+                <div class="mt-3 text-sm text-slate-600">@st.AiProvider</div>
+                @if (st.AiModel != null)
+                {
+                    <div class="mt-1 text-xs text-slate-500 num" dir="ltr">@st.AiModel@(st.AiFallbackModel != null ? " → " + st.AiFallbackModel : "")</div>
+                }
+                <dl class="mt-4 grid grid-cols-2 gap-2 text-center">
+                    <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@st.Invoices24h</dd><dt class="text-xs text-slate-500">فاتورة آخر 24 ساعة</dt></div>
+                    <div class="rounded-xl py-2 @(st.AiRetryQueue > 0 ? "bg-amber-50" : "bg-slate-50")"><dd class="font-bold num">@st.AiRetryQueue</dd><dt class="text-xs text-slate-500">بانتظار إعادة القراءة</dt></div>
+                </dl>
+                @if (!st.AiIsReal)
+                {
+                    <p class="mt-3 text-xs text-amber-700">ضع مفتاح Gemini المجاني على جهاز الخادم (user-secrets) ثم أعد تشغيله.</p>
+                }
+            </div>
+
+            <div class="card p-5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3"><span class="stat-icon bg-emerald-50 text-emerald-600"><i data-lucide="bell-ring" class="w-5 h-5"></i></span><h3 class="card-title">إشعارات الهاتف الفورية</h3></div>
+                    <span class="badge @(st.PushEnabled ? "badge-emerald" : "badge-amber")">@(st.PushEnabled ? "Firebase مفعّل" : "غير مفعّلة")</span>
+                </div>
+                <div class="mt-3 text-sm text-slate-600">@(st.PushEnabled ? "تصل الإشعارات لهواتف العملاء خلال ثوانٍ." : "تصل الإشعارات عبر الفحص الدوري للتطبيق فقط.")</div>
+                <dl class="mt-4 grid grid-cols-2 gap-2 text-center">
+                    <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@st.PushDevices</dd><dt class="text-xs text-slate-500">جهاز مسجل</dt></div>
+                    <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@st.Pushed24h</dd><dt class="text-xs text-slate-500">أُرسل آخر 24 ساعة</dt></div>
+                </dl>
+            </div>
+
+            <div class="card p-5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3"><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="scan-search" class="w-5 h-5"></i></span><h3 class="card-title">طابور المراجعة</h3></div>
+                    <a asp-action="Review" class="btn-ghost btn-sm">فتح <i data-lucide="chevron-left" class="w-4 h-4"></i></a>
+                </div>
+                <div class="mt-3 stat-value num @(st.ReviewQueue > 0 ? "text-amber-600" : "")">@st.ReviewQueue</div>
+                <div class="stat-meta">فاتورة بانتظار قرار موظف</div>
+            </div>
+
+            <div class="card p-5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3"><span class="stat-icon bg-rose-50 text-rose-600"><i data-lucide="shield-check" class="w-5 h-5"></i></span><h3 class="card-title">أمان الحسابات</h3></div>
+                    <a asp-action="Staff" class="btn-ghost btn-sm">طاقم العمل <i data-lucide="chevron-left" class="w-4 h-4"></i></a>
+                </div>
+                <dl class="mt-4 grid grid-cols-3 gap-2 text-center">
+                    <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@st.Staff</dd><dt class="text-xs text-slate-500">موظف نشط</dt></div>
+                    <div class="rounded-xl py-2 @(st.LockedStaff > 0 ? "bg-rose-50" : "bg-slate-50")"><dd class="font-bold num">@st.LockedStaff</dd><dt class="text-xs text-slate-500">مقفل الآن</dt></div>
+                    <div class="rounded-xl bg-slate-50 py-2"><dd class="font-bold num">@st.FailedLogins24h</dd><dt class="text-xs text-slate-500">قفل آخر 24 ساعة</dt></div>
+                </dl>
+            </div>
+
+            <div class="card p-5">
+                <div class="flex items-center gap-3"><span class="stat-icon bg-slate-100 text-slate-600"><i data-lucide="server" class="w-5 h-5"></i></span><h3 class="card-title">الخادم</h3></div>
+                <dl class="mt-4 space-y-2 text-sm">
+                    <div class="flex justify-between"><dt class="text-slate-500">وقت الخادم</dt><dd class="num font-semibold">@st.ServerTime.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</dd></div>
+                    <div class="flex justify-between"><dt class="text-slate-500">إصدار المنظومة</dt><dd class="num font-semibold" dir="ltr">@(string.IsNullOrEmpty(st.AppVersion) ? "—" : st.AppVersion)</dd></div>
+                    <div class="flex justify-between"><dt class="text-slate-500">الاحتفاظ بالإشعارات</dt><dd class="font-semibold"><span class="num">90</span> يوماً</dd></div>
+                </dl>
+            </div>
+        </div>
+    </section>
+
+    <!-- سجل العمليات -->
+    <section data-panel="audit" class="card overflow-hidden hidden">
+        <form method="get" action="/AdminDashboard/Settings" class="p-4 border-b border-line grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_12rem_12rem_9rem_9rem_auto]">
+            <input type="hidden" name="tab" value="audit" />
+            <div class="relative">
+                <input type="search" name="search" value="@m.SearchQuery" placeholder="ابحث في التفاصيل أو رقم السجل" class="form-input pr-9">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
+            </div>
+            <select name="action" class="form-select" aria-label="العملية">
+                <option value="">كل العمليات</option>
+                @foreach (var a in actionOptions) { <option value="@a.Key" selected="@(a.Key == m.ActionFilter)">@a.Label</option> }
+            </select>
+            <select name="by" class="form-select" aria-label="المنفّذ">
+                <option value="">كل المنفّذين</option>
+                @foreach (var p in m.Performers) { <option value="@p" selected="@(p == m.ByFilter)">@p</option> }
+            </select>
+            <input type="date" name="from" value="@m.From?.ToString("yyyy-MM-dd")" class="form-input num" aria-label="من تاريخ" title="من تاريخ" />
+            <input type="date" name="to" value="@m.To?.ToString("yyyy-MM-dd")" class="form-input num" aria-label="إلى تاريخ" title="إلى تاريخ" />
+            <div class="flex gap-2">
+                <button type="submit" class="btn-dark"><i data-lucide="filter" class="w-4 h-4"></i> تصفية</button>
+                @if (hasFilters) { <a href="/AdminDashboard/Settings?tab=audit" class="btn-ghost" title="مسح التصفية"><i data-lucide="x" class="w-4 h-4"></i></a> }
+            </div>
+        </form>
+
+        @if (m.AuditLogs.Count == 0)
+        {
+            <div class="empty-state"><div class="empty-state-icon"><i data-lucide="clipboard-list" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا توجد عمليات مطابقة</div></div>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead><tr><th>الوقت</th><th>المنفّذ</th><th>العملية</th><th>التفاصيل</th><th>IP</th></tr></thead>
+                    <tbody>
+                        @foreach (var a in m.AuditLogs)
+                        {
+                            <tr>
+                                <td class="num whitespace-nowrap text-slate-600">@a.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd")<div class="text-xs text-slate-400">@a.CreatedAt.ToLocalTime().ToString("HH:mm:ss")</div></td>
+                                <td class="font-semibold text-slate-900 whitespace-nowrap">@a.PerformedBy</td>
+                                <td><span class="badge @DisplayLabels.ActionBadge(a.Action)" title="@a.Action">@DisplayLabels.Action(a.Action)</span></td>
+                                <td class="text-slate-600 max-w-xl">
+                                    <div class="line-clamp-2" title="@a.Details">@a.Details</div>
+                                    @if (a.EntityName == "Customer" && !string.IsNullOrEmpty(a.EntityId))
+                                    {
+                                        <a href="/AdminDashboard/CustomerDetails/@Uri.EscapeDataString(a.EntityId)" class="text-xs text-brand-700 hover:underline">ملف العميل</a>
+                                    }
+                                </td>
+                                <td class="num text-xs text-slate-400 whitespace-nowrap" dir="ltr">@(a.IpAddress ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="p-4 border-t border-line flex items-center justify-between gap-3 text-sm flex-wrap">
+            <span class="text-slate-500"><span class="num">@m.TotalLogs.ToString("N0")</span> عملية @(m.TotalPages > 1 ? $"• صفحة {m.Page} من {m.TotalPages}" : "")</span>
+            <div class="flex gap-2">
+                <a href="@AuditUrl(export: "csv")" class="btn-secondary btn-sm @(m.TotalLogs == 0 ? "pointer-events-none opacity-50" : "")"><i data-lucide="download" class="w-4 h-4"></i> تصدير</a>
+                @if (m.TotalPages > 1)
+                {
+                    <a href="@AuditUrl(m.Page - 1)" class="btn-secondary btn-sm @(m.Page <= 1 ? "pointer-events-none opacity-50" : "")"><i data-lucide="chevron-right" class="w-4 h-4"></i> السابق</a>
+                    <a href="@AuditUrl(m.Page + 1)" class="btn-secondary btn-sm @(m.Page >= m.TotalPages ? "pointer-events-none opacity-50" : "")">التالي <i data-lucide="chevron-left" class="w-4 h-4"></i></a>
+                }
+            </div>
+        </div>
+    </section>
 </div>
 
 @section Scripts {
 <script>
-    async function saveSystemSettings() {
-        const ocrConfidenceThreshold = parseFloat(document.getElementById('setting-ocr-conf').value);
-        const maxInvoiceAmountAutoApproval = parseFloat(document.getElementById('setting-max-amount').value);
-        const maxDailyScansPerCustomer = parseInt(document.getElementById('setting-daily-scans').value, 10);
-        const requireKnownStore = document.getElementById('setting-known-store').checked;
+    function showTab(key) {
+        document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('tab-active', b.dataset.tab === key));
+        document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== key));
+        const url = new URL(location.href);
+        url.searchParams.set('tab', key);
+        history.replaceState(null, '', url);
+    }
+    showTab('@m.Tab');
 
+    async function saveSystemSettings() {
+        const body = {
+            ocrConfidenceThreshold: parseFloat(document.getElementById('setting-ocr-conf').value),
+            maxInvoiceAmountAutoApproval: parseFloat(document.getElementById('setting-max-amount').value),
+            maxDailyScansPerCustomer: parseInt(document.getElementById('setting-daily-scans').value, 10),
+            requireKnownStore: document.getElementById('setting-known-store').checked
+        };
+        if (!(body.ocrConfidenceThreshold >= 50 && body.ocrConfidenceThreshold <= 100)) return showToast('نسبة الثقة بين 50 و 100.', 'warning');
+        if (!(body.maxInvoiceAmountAutoApproval > 0)) return showToast('أدخل مبلغاً صحيحاً.', 'warning');
+        const btn = document.getElementById('save-settings');
+        btn.disabled = true;
         try {
             const res = await fetch('/api/superadmin/settings', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ocrConfidenceThreshold,
-                    maxInvoiceAmountAutoApproval,
-                    maxDailyScansPerCustomer,
-                    requireKnownStore
-                })
+                body: JSON.stringify(body)
             });
-
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.message || 'فشل حفظ الإعدادات');
             showToast(data.message || 'تم حفظ الإعدادات.', 'success');
-            setTimeout(() => location.reload(), 600);
         } catch (err) {
             showToast(err.message, 'error');
+        } finally {
+            btn.disabled = false;
         }
     }
 </script>

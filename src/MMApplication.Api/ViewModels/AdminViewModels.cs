@@ -21,6 +21,42 @@ public class SettingsPageViewModel
     public SystemSettingsDto Settings { get; set; } = new();
     public List<AuditLogDto> AuditLogs { get; set; } = new();
     public string? SearchQuery { get; set; }
+    public string Tab { get; set; } = "rules";
+    public string? ActionFilter { get; set; }
+    public string? ByFilter { get; set; }
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public int Page { get; set; } = 1;
+    public int TotalPages { get; set; } = 1;
+    public int TotalLogs { get; set; }
+    public List<string> Performers { get; set; } = new();
+    public List<string> ActionsInLog { get; set; } = new();
+    public SystemStatusInfo Status { get; set; } = new();
+}
+
+/// <summary>حالة مكونات المنظومة (للاطلاع فقط).</summary>
+public class SystemStatusInfo
+{
+    public string Database { get; set; } = "";
+    public bool DatabaseIsReal { get; set; }
+    public string AiProvider { get; set; } = "";
+    public bool AiIsReal { get; set; }
+    public string? AiModel { get; set; }
+    public string? AiFallbackModel { get; set; }
+    public int AiRetryQueue { get; set; }
+    public int ReviewQueue { get; set; }
+    public bool PushEnabled { get; set; }
+    public int PushDevices { get; set; }
+    public int Pushed24h { get; set; }
+    public int Customers { get; set; }
+    public int Stores { get; set; }
+    public int Invoices { get; set; }
+    public int Invoices24h { get; set; }
+    public int Staff { get; set; }
+    public int LockedStaff { get; set; }
+    public int FailedLogins24h { get; set; }
+    public string AppVersion { get; set; } = "";
+    public DateTime ServerTime { get; set; }
 }
 
 /// <summary>
