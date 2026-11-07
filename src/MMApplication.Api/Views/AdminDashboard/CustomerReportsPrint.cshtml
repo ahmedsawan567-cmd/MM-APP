@@ -1,0 +1,44 @@
+@using MMApplication.Api.Services
+@{
+    Layout = "_PrintLayout";
+    var result = (CustomerReports.Result)ViewData["Result"]!;
+    var t = result.Type;
+    string Metric(CustomerReports.Row r) => t.Key switch
+    {
+        "inactive" => r.LastActivity.HasValue ? r.LastActivity.Value.ToLocalTime().ToString("yyyy/MM/dd") : "لا توجد فواتير",
+        "spend" => r.Metric.ToString("N2"),
+        _ => r.Metric.ToString("N0"),
+    };
+}
+<div class="grid grid-cols-3 gap-3 mb-5 text-sm">
+    <div class="p-kpi"><div class="text-slate-500 text-xs">عدد العملاء</div><div class="font-bold text-lg num">@result.TotalCustomers.ToString("N0")</div></div>
+    @if (t.Key is not ("inactive" or "new"))
+    {
+        <div class="p-kpi"><div class="text-slate-500 text-xs">الإجمالي (@t.MetricLabel)</div><div class="font-bold text-lg num">@(t.Key == "spend" ? result.MetricTotal.ToString("N2") : result.MetricTotal.ToString("N0"))</div></div>
+    }
+    <div class="p-kpi"><div class="text-slate-500 text-xs">التقرير</div><div class="font-bold">@t.Description</div></div>
+</div>
+<table class="p-table">
+    <thead>
+        <tr><th>#</th><th>رقم العضوية</th><th>الاسم</th><th>الهاتف</th><th>العضوية</th><th>التسجيل</th><th>@t.MetricLabel</th>@if (t.SecondLabel != null) { <th>@t.SecondLabel</th> }</tr>
+    </thead>
+    <tbody>
+        @if (result.Rows.Count == 0)
+        {
+            <tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8">لا يوجد عملاء في هذا التقرير</td></tr>
+        }
+        @foreach (var r in result.Rows)
+        {
+            <tr>
+                <td class="num">@r.Rank</td>
+                <td class="num" dir="ltr">@r.MembershipNumber</td>
+                <td>@r.FullName</td>
+                <td class="num" dir="ltr">@r.Phone</td>
+                <td>@MMApplication.Infrastructure.Data.MembershipTiers.NameOf(r.Tier)</td>
+                <td class="num">@r.RegisteredAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                <td class="num" style="font-weight:700">@Metric(r)</td>
+                @if (t.SecondLabel != null) { <td class="num">@(r.Second?.ToString(t.Key == "active" ? "N2" : "N0") ?? "—")</td> }
+            </tr>
+        }
+    </tbody>
+</table>

@@ -1411,6 +1411,74 @@ public class AdminDashboardController : Controller
     }
 
     // ----------------------------------------------------
+    // تقارير العملاء (عرض، طباعة، PDF، Excel، واتساب)
+    // ----------------------------------------------------
+    [HttpGet]
+    [RequirePermission(Permissions.CustomersExport)]
+    public async Task<IActionResult> CustomerReports([FromQuery] string? type, [FromQuery] string? period, [FromQuery] DateTime? from, [FromQuery] DateTime? to,
+        [FromQuery] string? tier, [FromQuery] int page = 1, [FromQuery] bool print = false, [FromQuery] string? export = null)
+    {
+        var (f, t, label) = MMApplication.Api.Services.CustomerReports.Range(period, from, to);
+        var result = await MMApplication.Api.Services.CustomerReports.RunAsync(_context, type, f, t, label, tier, IsStoreScoped ? ScopeTenantId : null);
+        var tierName = string.IsNullOrWhiteSpace(tier) || tier == "ALL" ? null : MembershipTiers.NameOf(tier);
+        var subtitle = (result.Type.UsesPeriod ? label : "الوضع الحالي") + (tierName != null ? $" • عضوية {tierName}" : "");
+
+        if (string.Equals(export, "csv", StringComparison.OrdinalIgnoreCase))
+        {
+            string Cell(object? v) => "\"" + (v?.ToString() ?? "").Replace("\"", "\"\"") + "\"";
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(Cell(result.Type.Title) + "," + Cell(subtitle));
+            sb.AppendLine(string.Join(",", new[] { "#", "رقم العضوية", "الاسم", "الهاتف", "العضوية", "تاريخ التسجيل", result.Type.MetricLabel, result.Type.SecondLabel ?? "" }.Select(Cell)));
+            foreach (var r in result.Rows)
+                sb.AppendLine(string.Join(",", new object?[] { r.Rank, r.MembershipNumber, r.FullName, r.Phone, MembershipTiers.NameOf(r.Tier), r.RegisteredAt.ToLocalTime().ToString("yyyy-MM-dd"),
+                    result.Type.Key == "inactive" ? r.LastActivity?.ToLocalTime().ToString("yyyy-MM-dd") ?? "لا توجد" : r.Metric.ToString("0.##"), r.Second?.ToString("0.##") }.Select(Cell)));
+            _context.AuditLogs.Add(new AuditLog { PerformedBy = ReviewerName, Action = "REPORT_EXPORT", EntityName = "CustomerReport", EntityId = result.Type.Key,
+                Details = $"تصدير تقرير {result.Type.Title} ({subtitle}) — {result.Rows.Count} عميل", CreatedAt = DateTime.UtcNow });
+            await _context.SaveChangesAsync();
+            var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+            return File(bytes, "text/csv; charset=utf-8", $"customers-{result.Type.Key}-{DateTime.Now:yyyy-MM-dd}.csv");
+        }
+
+        ViewData["Result"] = result;
+        ViewData["Subtitle"] = subtitle;
+        ViewData["Type"] = result.Type.Key;
+        ViewData["Period"] = period ?? "this_month";
+        ViewData["From"] = from;
+        ViewData["To"] = to;
+        ViewData["Tier"] = tier ?? "ALL";
+        ViewData["Title"] = result.Type.Title;
+        ViewData["ActiveTab"] = "customer_reports";
+        if (print)
+        {
+            _context.AuditLogs.Add(new AuditLog { PerformedBy = ReviewerName, Action = "REPORT_EXPORT", EntityName = "CustomerReport", EntityId = result.Type.Key,
+                Details = $"طباعة تقرير {result.Type.Title} ({subtitle}) — {result.Rows.Count} عميل", CreatedAt = DateTime.UtcNow });
+            await _context.SaveChangesAsync();
+            return View("CustomerReportsPrint");
+        }
+
+        const int pageSize = 25;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(result.Rows.Count / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        ViewData["Page"] = page;
+        ViewData["TotalPages"] = totalPages;
+        ViewData["PageRows"] = result.Rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        ViewData["Tiers"] = await MembershipTiers.AllAsync(_context);
+        return View();
+    }
+
+    /// <summary>كشف حساب عميل للطباعة أو حفظه PDF.</summary>
+    [HttpGet]
+    [RequirePermission(Permissions.CustomersView)]
+    public async Task<IActionResult> CustomerStatement(string id)
+    {
+        var result = await CustomerDetails(id);
+        if (result is not ViewResult { Model: CustomerProfileViewModel vm }) return result;
+        ViewData["Title"] = $"كشف حساب: {vm.FullName}";
+        ViewData["Subtitle"] = $"رقم العضوية {vm.MembershipNumber} • {vm.PhoneNumber}";
+        return View("CustomerStatement", vm);
+    }
+
+    // ----------------------------------------------------
     // العضويات (مستويات العضوية وشروطها ومزاياها)
     // ----------------------------------------------------
     [HttpGet]

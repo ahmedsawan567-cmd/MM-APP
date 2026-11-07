@@ -1,0 +1,70 @@
+@{
+    var title = ViewData["Title"] as string ?? "تقرير";
+    var subtitle = ViewData["Subtitle"] as string;
+    var by = User.Identity?.Name ?? "";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@title — المرأة مول</title>
+    <link rel="icon" type="image/svg+xml" href="~/img/brand/mark.svg">
+    <link rel="stylesheet" href="~/lib/tailwind.css" asp-append-version="true">
+    <style>
+        @@page { size: A4; margin: 14mm 12mm 16mm; }
+        body { background: #f1f5f9; color: #0f172a; }
+        .sheet { background: #fff; max-width: 210mm; margin: 1.5rem auto; padding: 14mm 12mm; box-shadow: 0 10px 30px -12px rgb(15 23 42 / .25); border-radius: 12px; }
+        .p-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .p-table th { background: #f8fafc; color: #475569; font-weight: 700; text-align: right; padding: 7px 8px; border-bottom: 2px solid #e2e8f0; }
+        .p-table td { padding: 6px 8px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+        .p-table tr { break-inside: avoid; }
+        .p-table thead { display: table-header-group; }
+        .p-kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; }
+        @@media print {
+            body { background: #fff; }
+            .sheet { box-shadow: none; margin: 0; padding: 0; max-width: none; border-radius: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200">
+        <div class="max-w-[210mm] mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div class="text-sm text-slate-600">معاينة الطباعة — لحفظه PDF اختر <b>"حفظ بتنسيق PDF"</b> من نافذة الطباعة</div>
+            <div class="flex gap-2">
+                <button type="button" onclick="window.print()" class="btn-primary btn-sm">طباعة / PDF</button>
+                <button type="button" onclick="history.length > 1 ? history.back() : window.close()" class="btn-secondary btn-sm">رجوع</button>
+            </div>
+        </div>
+    </div>
+    <main class="sheet">
+        <header class="flex items-start justify-between gap-4 pb-4 mb-5 border-b-2 border-slate-200">
+            <div class="flex items-center gap-3">
+                <img src="~/img/brand/mark.svg" alt="" class="w-11 h-11" />
+                <div>
+                    <div class="text-lg font-bold">المرأة مول</div>
+                    <div class="text-xs text-slate-500">منظومة الولاء والفواتير</div>
+                </div>
+            </div>
+            <div class="text-left text-xs text-slate-500 leading-relaxed">
+                <div>تاريخ الإصدار: <span class="num">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</span></div>
+                @if (!string.IsNullOrEmpty(by)) { <div>أصدره: @by</div> }
+            </div>
+        </header>
+        <h1 class="text-xl font-bold">@title</h1>
+        @if (!string.IsNullOrEmpty(subtitle)) { <p class="text-sm text-slate-500 mt-1">@subtitle</p> }
+        <div class="mt-5">
+            @RenderBody()
+        </div>
+        <footer class="mt-8 pt-3 border-t border-slate-200 text-xs text-slate-400 flex justify-between">
+            <span>المرأة مول — مستند داخلي</span>
+            <span>@title</span>
+        </footer>
+    </main>
+    @if (Context.Request.Query.ContainsKey("autoprint"))
+    {
+        <script>window.addEventListener('load', () => setTimeout(() => window.print(), 300));</script>
+    }
+</body>
+</html>

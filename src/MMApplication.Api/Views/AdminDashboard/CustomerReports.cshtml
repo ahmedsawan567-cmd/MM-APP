@@ -1,0 +1,165 @@
+@using MMApplication.Api.Services
+@using MMApplication.Api.ViewModels
+@{
+    Layout = "_Layout";
+    var result = (CustomerReports.Result)ViewData["Result"]!;
+    var rows = (List<CustomerReports.Row>)ViewData["PageRows"]!;
+    var tiers = (List<MMApplication.Domain.Entities.MembershipTier>)ViewData["Tiers"]!;
+    var type = (string)ViewData["Type"]!;
+    var period = (string)ViewData["Period"]!;
+    var from = ViewData["From"] as DateTime?;
+    var to = ViewData["To"] as DateTime?;
+    var tier = (string)ViewData["Tier"]!;
+    var page = (int)ViewData["Page"]!;
+    var totalPages = (int)ViewData["TotalPages"]!;
+    var subtitle = (string)ViewData["Subtitle"]!;
+    var t = result.Type;
+    string Q(string? typ = null, string? per = null, int? pg = null, string? extra = null) =>
+        Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/AdminDashboard/CustomerReports", new Dictionary<string, string?>
+        {
+            ["type"] = typ ?? type, ["period"] = per ?? period, ["from"] = (per ?? period) == "custom" ? from?.ToString("yyyy-MM-dd") : null,
+            ["to"] = (per ?? period) == "custom" ? to?.ToString("yyyy-MM-dd") : null, ["tier"] = tier == "ALL" ? null : tier,
+            ["page"] = pg > 1 ? pg.ToString() : null,
+        }.Where(kv => !string.IsNullOrEmpty(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value)) + (extra ?? "");
+    string Metric(CustomerReports.Row r) => t.Key switch
+    {
+        "inactive" => r.LastActivity.HasValue ? r.LastActivity.Value.ToLocalTime().ToString("yyyy/MM/dd") : "لا توجد فواتير",
+        "spend" => r.Metric.ToString("N2"),
+        _ => r.Metric.ToString("N0"),
+    };
+    string Second(CustomerReports.Row r) => r.Second is null ? "—" : t.Key == "active" ? r.Second.Value.ToString("N2") : r.Second.Value.ToString("N0");
+    // نص واتساب: ملخص أول 10
+    var wa = new System.Text.StringBuilder();
+    wa.AppendLine($"*{t.Title}* — المرأة مول");
+    wa.AppendLine(subtitle);
+    wa.AppendLine($"عدد العملاء: {result.TotalCustomers}");
+    foreach (var r in result.Rows.Take(10)) wa.AppendLine($"{r.Rank}. {r.FullName} ({r.MembershipNumber}) — {Metric(r)}");
+    if (result.Rows.Count > 10) wa.AppendLine($"… و{result.Rows.Count - 10} آخرين");
+}
+
+<div class="space-y-5">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">تقارير العملاء</h1>
+            <p class="page-subtitle">اختر التقرير والفترة، ثم اطبعه أو احفظه PDF أو صدّره Excel أو أرسله عبر واتساب</p>
+        </div>
+        <div class="page-actions">
+            <a href="@Q(extra: "&print=true&autoprint=1")" target="_blank" class="btn-secondary"><i data-lucide="printer" class="w-4 h-4"></i> طباعة / PDF</a>
+            <a href="@Q(extra: "&export=csv")" class="btn-secondary"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Excel</a>
+            <a href="https://wa.me/?text=@Uri.EscapeDataString(wa.ToString())" target="_blank" rel="noopener" class="btn-success"><i data-lucide="message-circle" class="w-4 h-4"></i> واتساب</a>
+        </div>
+    </div>
+
+    <!-- نوع التقرير -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+        @foreach (var rt in CustomerReports.Types)
+        {
+            <a href="@Q(typ: rt.Key)" class="card p-4 transition hover:border-brand-300 @(rt.Key == type ? "!border-brand-600 ring-2 ring-brand-100" : "")">
+                <div class="font-bold text-sm @(rt.Key == type ? "text-brand-700" : "text-slate-900")">@rt.Title</div>
+                <div class="text-xs text-slate-500 mt-1 leading-relaxed">@rt.Description</div>
+            </a>
+        }
+    </div>
+
+    <!-- الفترة والعضوية -->
+    <form method="get" action="/AdminDashboard/CustomerReports" class="card p-4 flex flex-col lg:flex-row lg:items-end gap-3">
+        <input type="hidden" name="type" value="@type" />
+        @if (t.UsesPeriod)
+        {
+            <div class="sm:w-56">
+                <label class="form-label" for="period">الفترة</label>
+                <select id="period" name="period" class="form-select" onchange="togglePeriod(this.value)">
+                    @foreach (var (key, label) in CustomerReports.Periods)
+                    {
+                        <option value="@key" selected="@(period == key)">@label</option>
+                    }
+                </select>
+            </div>
+            <div id="custom-range" class="flex items-end gap-2 @(period == "custom" ? "" : "hidden")">
+                <div>
+                    <label class="form-label" for="from">من</label>
+                    <input type="date" id="from" name="from" value="@from?.ToString("yyyy-MM-dd")" class="form-input num" />
+                </div>
+                <div>
+                    <label class="form-label" for="to">إلى</label>
+                    <input type="date" id="to" name="to" value="@to?.ToString("yyyy-MM-dd")" class="form-input num" />
+                </div>
+            </div>
+        }
+        <div>
+            <label class="form-label" for="tier">العضوية</label>
+            <select id="tier" name="tier" class="form-select sm:w-48">
+                <option value="ALL">كل العضويات</option>
+                @foreach (var tr in tiers.OrderByDescending(x => x.SortOrder)) { <option value="@tr.Code" selected="@(tier == tr.Code)">@tr.NameAr</option> }
+            </select>
+        </div>
+        <button type="submit" class="btn-dark"><i data-lucide="filter" class="w-4 h-4"></i> عرض التقرير</button>
+        <div class="lg:mr-auto text-sm text-slate-500">@subtitle</div>
+    </form>
+
+    <div class="card overflow-hidden">
+        <div class="card-header flex-wrap">
+            <div>
+                <h3 class="card-title">@t.Title</h3>
+                <p class="card-subtitle">@subtitle</p>
+            </div>
+            <div class="flex items-center gap-4 text-sm">
+                <div><span class="text-slate-500">العملاء:</span> <b class="num">@result.TotalCustomers.ToString("N0")</b></div>
+                @if (t.Key is not ("inactive" or "new"))
+                {
+                    <div><span class="text-slate-500">الإجمالي:</span> <b class="num">@(t.Key == "spend" ? result.MetricTotal.ToString("N2") + " د.ل" : result.MetricTotal.ToString("N0"))</b></div>
+                }
+            </div>
+        </div>
+        @if (rows.Count == 0)
+        {
+            <div class="empty-state"><div class="empty-state-icon"><i data-lucide="file-search" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا يوجد عملاء في هذا التقرير</div><p class="text-sm text-slate-500">جرّب فترة أطول أو عضوية أخرى</p></div>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                        <tr><th class="w-12">#</th><th>العميل</th><th>رقم العضوية</th><th>العضوية</th><th>تاريخ التسجيل</th><th>@t.MetricLabel</th>@if (t.SecondLabel != null) { <th>@t.SecondLabel</th> }<th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in rows)
+                        {
+                            <tr>
+                                <td class="num font-bold text-slate-400">@r.Rank</td>
+                                <td><div><a href="/AdminDashboard/CustomerDetails/@Uri.EscapeDataString(r.CustomerId)" class="font-semibold text-slate-900 hover:text-brand-700">@r.FullName</a></div><div class="text-xs text-slate-500"><span class="num" dir="ltr">@r.Phone</span></div></td>
+                                <td class="num font-semibold text-brand-700" dir="ltr">@r.MembershipNumber</td>
+                                <td><span class="badge @DisplayLabels.TierBadge(r.Tier)" style="@DisplayLabels.TierStyle(r.Tier)">@DisplayLabels.Tier(r.Tier)</span></td>
+                                <td class="num whitespace-nowrap">@r.RegisteredAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                                <td class="num font-bold">@Metric(r)</td>
+                                @if (t.SecondLabel != null) { <td class="num">@Second(r)</td> }
+                                <td class="text-left">
+                                    <a href="https://wa.me/@(r.Phone.StartsWith("0") ? "218" + r.Phone[1..] : r.Phone)" target="_blank" rel="noopener" class="btn-icon !w-8 !h-8 text-emerald-600" title="مراسلة العميل عبر واتساب"><i data-lucide="message-circle" class="w-4 h-4"></i></a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="p-4 border-t border-line flex items-center justify-between gap-3 text-sm">
+            <span class="text-slate-500"><span class="num">@result.TotalCustomers.ToString("N0")</span> عميل @(totalPages > 1 ? $"• صفحة {page} من {totalPages}" : "")</span>
+            @if (totalPages > 1)
+            {
+                <div class="flex gap-2">
+                    <a href="@Q(pg: page - 1)" class="btn-secondary btn-sm @(page <= 1 ? "pointer-events-none opacity-50" : "")"><i data-lucide="chevron-right" class="w-4 h-4"></i> السابق</a>
+                    <a href="@Q(pg: page + 1)" class="btn-secondary btn-sm @(page >= totalPages ? "pointer-events-none opacity-50" : "")">التالي <i data-lucide="chevron-left" class="w-4 h-4"></i></a>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function togglePeriod(v) {
+        document.getElementById('custom-range').classList.toggle('hidden', v !== 'custom');
+        if (v !== 'custom') document.querySelector('form[action="/AdminDashboard/CustomerReports"]').submit();
+    }
+</script>
+}

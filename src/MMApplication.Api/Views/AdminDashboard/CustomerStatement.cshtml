@@ -1,0 +1,74 @@
+@model MMApplication.Api.ViewModels.CustomerProfileViewModel
+@using MMApplication.Api.ViewModels
+@{
+    Layout = "_PrintLayout";
+    var m = Model;
+}
+<div class="grid grid-cols-4 gap-3 mb-5 text-sm">
+    <div class="p-kpi"><div class="text-slate-500 text-xs">العضوية</div><div class="font-bold">@DisplayLabels.Tier(m.Tier)</div></div>
+    <div class="p-kpi"><div class="text-slate-500 text-xs">رصيد النقاط</div><div class="font-bold text-lg num">@m.PointsBalance.ToString("N0")</div></div>
+    <div class="p-kpi"><div class="text-slate-500 text-xs">المشتريات المعتمدة</div><div class="font-bold text-lg num">@m.TotalSpent.ToString("N2") د.ل</div></div>
+    <div class="p-kpi"><div class="text-slate-500 text-xs">الفواتير</div><div class="font-bold text-lg num">@m.InvoicesCount</div></div>
+</div>
+<div class="grid grid-cols-3 gap-3 mb-6 text-xs text-slate-600">
+    <div>تاريخ التسجيل: <b class="num">@m.RegisteredAt.ToLocalTime().ToString("yyyy/MM/dd")</b></div>
+    <div>آخر فاتورة: <b class="num">@(m.LastInvoiceAt?.ToLocalTime().ToString("yyyy/MM/dd") ?? "—")</b></div>
+    <div>النقاط: كسب <b class="num">@m.PointsEarned.ToString("N0")</b> • صرف <b class="num">@m.PointsRedeemed.ToString("N0")</b></div>
+</div>
+
+<h2 class="font-bold mb-2">الفواتير</h2>
+<table class="p-table mb-6">
+    <thead><tr><th>التاريخ</th><th>المتجر</th><th>رقم الفاتورة</th><th>المبلغ</th><th>النقاط</th><th>الحالة</th></tr></thead>
+    <tbody>
+        @if (m.Invoices.Count == 0) { <tr><td colspan="6" style="text-align:center;color:#94a3b8">لا توجد فواتير</td></tr> }
+        @foreach (var i in m.Invoices)
+        {
+            <tr>
+                <td class="num">@i.Date.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                <td>@i.Store</td>
+                <td class="num" dir="ltr">@i.InvoiceNumber</td>
+                <td class="num">@i.Amount.ToString("N2")</td>
+                <td class="num">@i.Points</td>
+                <td>@DisplayLabels.Invoice(i.Status).Label</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<h2 class="font-bold mb-2">حركة النقاط</h2>
+<table class="p-table mb-6">
+    <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>النقاط</th><th>الرصيد بعدها</th></tr></thead>
+    <tbody>
+        @if (m.Ledger.Count == 0) { <tr><td colspan="5" style="text-align:center;color:#94a3b8">لا توجد حركة</td></tr> }
+        @foreach (var l in m.Ledger)
+        {
+            <tr>
+                <td class="num">@l.Date.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                <td>@DisplayLabels.LedgerType(l.Type)</td>
+                <td>@l.Remarks</td>
+                <td class="num">@(l.Amount >= 0 ? "+" : "")@l.Amount.ToString("N0")</td>
+                <td class="num">@l.BalanceAfter.ToString("N0")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (m.Vouchers.Count > 0)
+{
+    <h2 class="font-bold mb-2">القسائم</h2>
+    <table class="p-table">
+        <thead><tr><th>المكافأة</th><th>الكود</th><th>النقاط</th><th>الاستبدال</th><th>الحالة</th></tr></thead>
+        <tbody>
+            @foreach (var v in m.Vouchers)
+            {
+                <tr>
+                    <td>@v.Title</td>
+                    <td class="num" dir="ltr">@v.Code</td>
+                    <td class="num">@v.Points</td>
+                    <td class="num">@v.RedeemedAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                    <td>@DisplayLabels.Redemption(v.Status, v.ExpiresAt).Label</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

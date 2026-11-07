@@ -258,4 +258,33 @@ public class PermissionsHardeningTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Contains("1.6.0", profile);
         Assert.Contains("كلمة مرور جديدة لعميل", profile); // سجل تغييرات كلمة المرور
     }
+
+    [Fact]
+    public async Task CustomerReports_PrintExportAndStatement()
+    {
+        var admin = await SignedInAsync("USR-MOSTAFA", "Admin123!");
+        foreach (var type in new[] { "new", "points", "spend", "active", "redeem", "balance", "inactive" })
+        {
+            var res = await admin.GetAsync($"/AdminDashboard/CustomerReports?type={type}&period=all");
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        }
+        var spend = await admin.GetStringAsync("/AdminDashboard/CustomerReports?type=spend&period=all");
+        Assert.Contains("منال الشريف", spend); // أعلى مشتريات في البيانات التجريبية
+        Assert.Contains("wa.me", spend);
+
+        var print = await admin.GetStringAsync("/AdminDashboard/CustomerReports?type=balance&print=true");
+        Assert.Contains("أرصدة النقاط", print);
+        Assert.Contains("حفظ بتنسيق PDF", print);
+
+        var csv = await admin.GetAsync("/AdminDashboard/CustomerReports?type=new&period=this_year&export=csv");
+        Assert.Equal("text/csv", csv.Content.Headers.ContentType?.MediaType);
+
+        var statement = await admin.GetStringAsync("/AdminDashboard/CustomerStatement/CUST-003");
+        Assert.Contains("كشف حساب", statement);
+        Assert.Contains("حركة النقاط", statement);
+
+        // الكاشير لا يملك تقارير العملاء
+        var cashier = await SignedInAsync("USR-ZARA-CSH", "Merchant123!");
+        Assert.Equal(HttpStatusCode.Redirect, (await cashier.GetAsync("/AdminDashboard/CustomerReports")).StatusCode);
+    }
 }

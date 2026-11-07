@@ -14,6 +14,9 @@
         CurrentPoints = m.PointsBalance, IsSuspended = m.IsFrozen
     });
     string Money(decimal v) => v.ToString("N2");
+    var waPhone = m.PhoneNumber.StartsWith("0") ? "218" + m.PhoneNumber[1..] : m.PhoneNumber;
+    var waText = $"مرحباً {m.FullName}،\nرصيد نقاطك في المرأة مول: {m.PointsBalance:N0} نقطة\nعضويتك: {DisplayLabels.Tier(m.Tier)}\nرقم العضوية: {m.MembershipNumber}\nشكراً لتسوقك معنا.";
+    var waLink = $"https://wa.me/{waPhone}?text={Uri.EscapeDataString(waText)}";
     string Local(DateTime d) => d.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
     string Day(DateTime d) => d.ToLocalTime().ToString("yyyy/MM/dd");
     var tabs = new[]
@@ -64,6 +67,7 @@
                 <div class="flex items-center gap-2 flex-wrap print:hidden">
                     <button type="button" onclick="MMCustomers.openForm(customer)" class="btn-secondary"><i data-lucide="pencil" class="w-4 h-4"></i> تعديل</button>
                     <button type="button" onclick="MMCustomers.openNotify(customer)" class="btn-secondary"><i data-lucide="send" class="w-4 h-4"></i> إشعار</button>
+                    <a href="@waLink" target="_blank" rel="noopener" class="btn-secondary text-emerald-700"><i data-lucide="message-circle" class="w-4 h-4"></i> واتساب</a>
                     @if (m.IsSuperAdmin)
                     {
                         <button type="button" onclick="MMCustomers.openPoints(customer)" class="btn-primary"><i data-lucide="coins" class="w-4 h-4"></i> تعديل النقاط</button>
@@ -73,7 +77,7 @@
                         <div id="cust-more" class="dropdown left-0 hidden" role="menu">
                             <button type="button" class="dropdown-item" onclick="MMCustomers.resetPassword(customer)"><i data-lucide="key-round" class="w-4 h-4"></i> كلمة مرور جديدة للتطبيق</button>
                             <button type="button" class="dropdown-item" onclick="MMCustomers.toggleSuspend(customer)"><i data-lucide="@(m.IsFrozen ? "lock-open" : "lock")" class="w-4 h-4"></i> @(m.IsFrozen ? "تنشيط الحساب" : "تجميد الحساب")</button>
-                            <button type="button" class="dropdown-item" onclick="window.print()"><i data-lucide="printer" class="w-4 h-4"></i> طباعة كشف الحساب</button>
+                            <a class="dropdown-item" href="/AdminDashboard/CustomerStatement/@Uri.EscapeDataString(m.CustomerId)?autoprint=1" target="_blank"><i data-lucide="printer" class="w-4 h-4"></i> طباعة كشف الحساب / PDF</a>
                             @if (m.CanDelete)
                             {
                                 <div class="my-1 border-t border-line"></div>
