@@ -18,6 +18,7 @@
     string Day(DateTime d) => d.ToLocalTime().ToString("yyyy/MM/dd");
     var tabs = new[]
     {
+        ("account", "الحساب والأمان", "shield-check", -1),
         ("invoices", "الفواتير", "receipt-text", m.Invoices.Count),
         ("ledger", "حركة النقاط", "coins", m.Ledger.Count),
         ("vouchers", "القسائم", "ticket", m.Vouchers.Count),
@@ -145,14 +146,68 @@
             <div class="tabs print:hidden" role="tablist">
                 @foreach (var (key, label, icon, count) in tabs)
                 {
-                    <button type="button" class="tab @(key == "invoices" ? "tab-active" : "")" data-tab="@key" onclick="showTab('@key')" role="tab">
-                        <i data-lucide="@icon" class="w-4 h-4"></i> @label <span class="text-xs text-slate-400 num">@count</span>
+                    <button type="button" class="tab @(key == "account" ? "tab-active" : "")" data-tab="@key" onclick="showTab('@key')" role="tab">
+                        <i data-lucide="@icon" class="w-4 h-4"></i> @label @if (count >= 0) { <span class="text-xs text-slate-400 num">@count</span> }
                     </button>
                 }
             </div>
 
             <!-- الفواتير -->
-            <section data-panel="invoices" class="card overflow-hidden">
+            <section data-panel="account" class="grid lg:grid-cols-2 gap-4">
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">نشاط الحساب</h3></div>
+                    <dl class="divide-y divide-line text-sm">
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">تاريخ التسجيل</dt><dd class="font-semibold num">@Local(m.RegisteredAt)</dd></div>
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">آخر فتح للتطبيق</dt><dd class="font-semibold num">@(m.LastSeenAt.HasValue ? Local(m.LastSeenAt.Value) : "لم يفتح التطبيق بعد")</dd></div>
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">آخر تسجيل دخول</dt><dd class="font-semibold num">@(m.LastLoginAt.HasValue ? Local(m.LastLoginAt.Value) : "—")</dd></div>
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">عدد مرات الدخول</dt><dd class="font-semibold num">@m.LoginCount</dd></div>
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">الجهاز وإصدار التطبيق</dt><dd class="font-semibold num">@(m.LastPlatform ?? "—")@(m.LastAppVersion != null ? " • " + m.LastAppVersion : "")</dd></div>
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">آخر فاتورة</dt><dd class="font-semibold num">@(m.LastInvoiceAt.HasValue ? Local(m.LastInvoiceAt.Value) : "—")</dd></div>
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">آخر تعديل للبيانات</dt><dd class="font-semibold num">@(m.UpdatedAt.HasValue ? Local(m.UpdatedAt.Value) : "—")</dd></div>
+                    </dl>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">كلمة المرور</h3></div>
+                    <dl class="divide-y divide-line text-sm">
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">دخول التطبيق</dt><dd class="font-semibold @(m.HasAppPassword ? "text-emerald-600" : "text-slate-500")">@(m.HasAppPassword ? "مفعّل" : "غير مفعّل — لا توجد كلمة مرور")</dd></div>
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">آخر تغيير لكلمة المرور</dt><dd class="font-semibold num">@(m.PasswordChangedAt.HasValue ? Local(m.PasswordChangedAt.Value) : "—")</dd></div>
+                        <div class="flex justify-between gap-3 px-5 py-3"><dt class="text-slate-500">غيّرها</dt><dd class="font-semibold">@(m.PasswordChangedBy ?? "—")</dd></div>
+                    </dl>
+                    <div class="px-5 py-4 border-t border-line text-sm text-slate-600 leading-relaxed flex gap-2">
+                        <i data-lucide="lock" class="w-4 h-4 shrink-0 mt-0.5 text-slate-400"></i>
+                        <span>كلمات المرور محفوظة مشفّرة ولا يمكن لأحد عرضها، حمايةً للعميل والمول. إذا نسيها العميل استخدم "كلمة مرور جديدة" وسلّمها له.</span>
+                    </div>
+                    @if (m.CanEdit && !m.IsArchived)
+                    {
+                        <div class="px-5 pb-5"><button type="button" onclick="MMCustomers.resetPassword(customer)" class="btn-secondary w-full"><i data-lucide="key-round" class="w-4 h-4"></i> كلمة مرور جديدة</button></div>
+                    }
+                </div>
+                <div class="card lg:col-span-2 overflow-hidden">
+                    <div class="card-header"><h3 class="card-title">سجل تغييرات كلمة المرور</h3></div>
+                    @if (m.PasswordHistory.Count == 0)
+                    {
+                        <div class="px-5 py-6 text-sm text-slate-500">لا توجد تغييرات مسجلة.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead><tr><th>الوقت</th><th>العملية</th><th>المنفّذ</th></tr></thead>
+                            <tbody>
+                                @foreach (var a in m.PasswordHistory)
+                                {
+                                    <tr>
+                                        <td class="num whitespace-nowrap">@Local(a.Date)</td>
+                                        <td><span class="badge @DisplayLabels.ActionBadge(a.Action)">@DisplayLabels.Action(a.Action)</span></td>
+                                        <td class="font-semibold">@a.By</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </section>
+
+            <section data-panel="invoices" class="card overflow-hidden hidden">
                 @if (m.Invoices.Count == 0)
                 {
                     <div class="empty-state"><div class="empty-state-icon"><i data-lucide="receipt-text" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا توجد فواتير بعد</div></div>

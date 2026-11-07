@@ -346,6 +346,7 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<MMApplication.Api.Security.CustomerActivityMiddleware>();
 
 app.MapControllerRoute(
     name: "admin",

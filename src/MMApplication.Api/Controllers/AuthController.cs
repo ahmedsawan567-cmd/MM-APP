@@ -71,6 +71,10 @@ public class AuthController : ControllerBase
             FullName = request.FullName.Trim(),
             PhoneNumber = normalizedPhone,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
+            PasswordChangedAt = DateTime.UtcNow,
+            PasswordChangedBy = "العميل (عند التسجيل)",
+            LastLoginAt = DateTime.UtcNow,
+            LoginCount = 1,
             LoyaltyTier = "BRONZE",
             IsFrozen = false,
             RegisteredAt = DateTime.UtcNow
@@ -193,6 +197,9 @@ public class AuthController : ControllerBase
         }
 
         var token = _jwtService.GenerateToken(customer, out var expiresAt);
+        customer.LastLoginAt = DateTime.UtcNow;
+        customer.LoginCount++;
+        await _context.SaveChangesAsync();
 
         _logger.LogInformation("تسجيل دخول ناجح للعميل: {CustomerId}", customer.CustomerId);
 
@@ -312,6 +319,18 @@ public class AuthController : ControllerBase
 
         customer.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
         customer.UpdatedAt = DateTime.UtcNow;
+        customer.PasswordChangedAt = DateTime.UtcNow;
+        customer.PasswordChangedBy = "العميل من التطبيق";
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = customer.FullName,
+            Action = "CUSTOMER_PASSWORD_CHANGE",
+            EntityName = "Customer",
+            EntityId = customer.CustomerId,
+            Details = $"غيّر العميل {customer.MembershipNumber} كلمة مروره من التطبيق",
+            IpAddress = HttpContext?.Connection.RemoteIpAddress?.ToString(),
+            CreatedAt = DateTime.UtcNow,
+        });
         await _context.SaveChangesAsync();
         return Ok(new { success = true, message = "تم تغيير كلمة المرور." });
     }

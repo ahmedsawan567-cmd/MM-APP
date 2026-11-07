@@ -228,4 +228,34 @@ public class PermissionsHardeningTests : IClassFixture<WebApplicationFactory<Pro
         Assert.Equal(HttpStatusCode.Forbidden, (await mgr.GetAsync("/api/superadmin/customers")).StatusCode);
         Assert.Contains("تعديل صلاحيات دور", await admin.GetStringAsync("/AdminDashboard/Settings?tab=audit"));
     }
+
+    [Fact]
+    public async Task CustomerActivity_IsTracked_AndShownInProfile()
+    {
+        var app = _factory.CreateClient();
+        var reg = await app.PostAsJsonAsync("/api/Auth/register", new { fullName = "عميل النشاط", phoneNumber = "0927001122", password = "Secret123!" });
+        var token = (await reg.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+        app.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        app.DefaultRequestHeaders.Add("X-App-Version", "1.6.0");
+        app.DefaultRequestHeaders.Add("X-Platform", "Android");
+        Assert.Equal(HttpStatusCode.OK, (await app.GetAsync("/api/Notifications")).StatusCode);
+
+        string id;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var c = scope.ServiceProvider.GetRequiredService<AppDbContext>().Customers.Single(x => x.PhoneNumber == "0927001122");
+            Assert.NotNull(c.LastSeenAt);
+            Assert.Equal("1.6.0", c.LastAppVersion);
+            Assert.NotNull(c.PasswordChangedAt);
+            id = c.CustomerId;
+        }
+
+        var admin = await SignedInAsync("USR-MOSTAFA", "Admin123!");
+        var reset = await admin.PostAsync($"/api/superadmin/customers/{id}/reset-password", null);
+        Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        var profile = await admin.GetStringAsync($"/AdminDashboard/CustomerDetails/{id}");
+        Assert.Contains("آخر فتح للتطبيق", profile);
+        Assert.Contains("1.6.0", profile);
+        Assert.Contains("كلمة مرور جديدة لعميل", profile); // سجل تغييرات كلمة المرور
+    }
 }

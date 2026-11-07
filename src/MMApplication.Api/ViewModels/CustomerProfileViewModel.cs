@@ -19,6 +19,14 @@ public class CustomerProfileViewModel
     public DateTime RegisteredAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public DateTime? LastInvoiceAt { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+    public int LoginCount { get; set; }
+    public DateTime? LastSeenAt { get; set; }
+    public string? LastAppVersion { get; set; }
+    public string? LastPlatform { get; set; }
+    public DateTime? PasswordChangedAt { get; set; }
+    public string? PasswordChangedBy { get; set; }
+    public List<AuditRow> PasswordHistory { get; set; } = new();
 
     public int PointsBalance { get; set; }
     public int PointsEarned { get; set; }

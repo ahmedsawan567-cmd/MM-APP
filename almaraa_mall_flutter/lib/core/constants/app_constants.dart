@@ -3,6 +3,9 @@ import 'dart:ui' show Color;
 import '../services/server_config.dart';
 
 class AppConstants {
+  /// إصدار التطبيق (يُرسل للخادم ليظهر في ملف العميل). حدّثه مع version في pubspec.yaml.
+  static const String appVersion = '1.6.0';
+
   // ----------------------------------------------------
   // 1. BACKEND API (ASP.NET CORE 9)
   // ----------------------------------------------------

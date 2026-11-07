@@ -1849,6 +1849,8 @@ public class SuperAdminController : ControllerBase
             BirthDate = req.BirthDate?.Date,
             Gender = gender,
             PasswordHash = string.IsNullOrEmpty(req.Password) ? null : _passwordHasher.HashPassword(req.Password),
+            PasswordChangedAt = string.IsNullOrEmpty(req.Password) ? null : DateTime.UtcNow,
+            PasswordChangedBy = string.IsNullOrEmpty(req.Password) ? null : ActorName,
             LoyaltyTier = tier,
             RegisteredAt = DateTime.UtcNow
         };
@@ -1963,6 +1965,8 @@ public class SuperAdminController : ControllerBase
 
         customer.PasswordHash = _passwordHasher.HashPassword(password);
         customer.UpdatedAt = DateTime.UtcNow;
+        customer.PasswordChangedAt = DateTime.UtcNow;
+        customer.PasswordChangedBy = ActorName;
         await _context.AuditLogs.AddAsync(new AuditLog
         {
             PerformedBy = ActorName,

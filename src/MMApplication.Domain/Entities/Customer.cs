@@ -21,6 +21,20 @@ public class Customer
     public bool IsArchived { get; set; } = false;        // Soft archiving / deactivation without deleting ledger
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
 
+    // ---- نشاط الحساب (للعرض في ملف العميل) ----
+    /// <summary>آخر دخول بكلمة المرور في التطبيق.</summary>
+    public DateTime? LastLoginAt { get; set; }
+    /// <summary>عدد مرات الدخول بكلمة المرور.</summary>
+    public int LoginCount { get; set; }
+    /// <summary>آخر مرة فتح فيها التطبيق (أي طلب من التطبيق وهو داخل حسابه).</summary>
+    public DateTime? LastSeenAt { get; set; }
+    /// <summary>إصدار التطبيق ونوع الجهاز في آخر استخدام.</summary>
+    public string? LastAppVersion { get; set; }
+    public string? LastPlatform { get; set; }
+    /// <summary>آخر تغيير لكلمة المرور ومن غيّرها (العميل أو اسم الموظف). كلمة المرور نفسها لا تُحفظ إلا مشفّرة.</summary>
+    public DateTime? PasswordChangedAt { get; set; }
+    public string? PasswordChangedBy { get; set; }
+
     // Backward compatibility helper properties for legacy view bindings
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public string Id { get => CustomerId; set => CustomerId = value; }

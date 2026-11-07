@@ -45,6 +45,8 @@ class ApiClient {
 
   Map<String, String> _headers({bool json = false}) => {
         'Accept': 'application/json',
+        'X-App-Version': AppConstants.appVersion,
+        'X-Platform': Platform.isIOS ? 'iOS' : 'Android',
         if (json) 'Content-Type': 'application/json; charset=utf-8',
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
