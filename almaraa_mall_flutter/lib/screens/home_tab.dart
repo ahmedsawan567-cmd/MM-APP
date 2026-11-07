@@ -1,3 +1,4 @@
+import 'membership_tiers_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -83,7 +84,8 @@ class _HomeTabState extends State<HomeTab> {
                           Text(_greeting(), style: TextStyle(color: p.muted)),
                           const SizedBox(height: 2),
                           Text(name.split(' ').first,
-                              style: Theme.of(context).textTheme.headlineSmall, overflow: TextOverflow.ellipsis),
+                              style: Theme.of(context).textTheme.headlineSmall,
+                              overflow: TextOverflow.ellipsis),
                         ],
                       ),
                     ),
@@ -98,7 +100,8 @@ class _HomeTabState extends State<HomeTab> {
                         borderRadius: BorderRadius.circular(15),
                         border: Border.all(color: p.border),
                       ),
-                      child: Image.asset(Brand.mark, semanticLabel: 'المرأة مول'),
+                      child:
+                          Image.asset(Brand.mark, semanticLabel: 'المرأة مول'),
                     ),
                   ],
                 ),
@@ -106,16 +109,21 @@ class _HomeTabState extends State<HomeTab> {
                 if (data.maintenanceMode) ...[
                   _Notice(
                     icon: LucideIcons.wrench,
-                    text: 'النظام في وضع الصيانة حالياً، قد تتأخر معالجة الفواتير.',
+                    text:
+                        'النظام في وضع الصيانة حالياً، قد تتأخر معالجة الفواتير.',
                   ),
                   const SizedBox(height: 14),
                 ],
-                FadeSlideIn(child: MembershipCard(user: data.user, fallbackName: name)),
+                FadeSlideIn(
+                    child: MembershipCard(user: data.user, fallbackName: name)),
                 const SizedBox(height: 22),
-                FadeSlideIn(index: 1, child: _QuickActions(onTabChange: widget.onTabChange)),
+                FadeSlideIn(
+                    index: 1,
+                    child: _QuickActions(onTabChange: widget.onTabChange)),
                 if (data.banners.isNotEmpty) ...[
                   const SizedBox(height: 26),
-                  FadeSlideIn(index: 2, child: _BannersCarousel(banners: data.banners)),
+                  FadeSlideIn(
+                      index: 2, child: _BannersCarousel(banners: data.banners)),
                 ],
                 if (data.boosters.isNotEmpty) ...[
                   const SizedBox(height: 26),
@@ -126,17 +134,23 @@ class _HomeTabState extends State<HomeTab> {
                       scrollDirection: Axis.horizontal,
                       itemCount: data.boosters.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (_, i) => FadeSlideIn(index: i, child: _BoosterCard(offer: data.boosters[i])),
+                      itemBuilder: (_, i) => FadeSlideIn(
+                          index: i,
+                          child: _BoosterCard(offer: data.boosters[i])),
                     ),
                   ),
                 ],
                 if (data.topStores.isNotEmpty) ...[
                   const SizedBox(height: 26),
-                  SectionTitle('متاجر مميزة', actionLabel: 'عرض الكل', onAction: () => widget.onTabChange(1)),
+                  SectionTitle('متاجر مميزة',
+                      actionLabel: 'عرض الكل',
+                      onAction: () => widget.onTabChange(1)),
                   for (var i = 0; i < data.topStores.take(5).length; i++)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: FadeSlideIn(index: i, child: _StoreTile(store: data.topStores[i])),
+                      child: FadeSlideIn(
+                          index: i,
+                          child: _StoreTile(store: data.topStores[i])),
                     ),
                 ],
               ],
@@ -153,7 +167,8 @@ class MembershipCard extends StatelessWidget {
   final HomeUser? user;
   final String fallbackName;
 
-  const MembershipCard({super.key, required this.user, required this.fallbackName});
+  const MembershipCard(
+      {super.key, required this.user, required this.fallbackName});
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +182,10 @@ class MembershipCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.xl),
         gradient: Brand.gradient,
         boxShadow: [
-          BoxShadow(color: Brand.plum.withValues(alpha: 0.35), blurRadius: 28, offset: const Offset(0, 14)),
+          BoxShadow(
+              color: Brand.plum.withValues(alpha: 0.35),
+              blurRadius: 28,
+              offset: const Offset(0, 14)),
         ],
       ),
       child: Stack(
@@ -193,34 +211,61 @@ class MembershipCard extends StatelessWidget {
                     Image.asset(Brand.markLight, width: 24, height: 24),
                     const SizedBox(width: 8),
                     const Text(AppConstants.appNameAr,
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15)),
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: gold.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: gold.withValues(alpha: 0.5)),
+                    GestureDetector(
+                      onTap: () =>
+                          pushPage(context, const MembershipTiersScreen()),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: gold.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(999),
+                          border:
+                              Border.all(color: gold.withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                            u != null && u.tierName.isNotEmpty
+                                ? 'عضوية ${u.tierName}'
+                                : tierNameAr(u?.loyaltyTier ?? 'BRONZE'),
+                            style: const TextStyle(
+                                color: gold,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800)),
                       ),
-                      child: Text(u != null && u.tierName.isNotEmpty ? 'عضوية ${u.tierName}' : tierNameAr(u?.loyaltyTier ?? 'BRONZE'),
-                          style: const TextStyle(color: gold, fontSize: 12, fontWeight: FontWeight.w800)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 26),
-                Text('رصيد النقاط', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
+                Text('رصيد النقاط',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 13)),
                 const SizedBox(height: 2),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     AnimatedCount(
-                      value: u?.pointsBalance ?? Session.instance.user?.pointsBalance ?? 0,
-                      style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w800, height: 1.1),
+                      value: u?.pointsBalance ??
+                          Session.instance.user?.pointsBalance ??
+                          0,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 40,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1),
                     ),
                     const SizedBox(width: 8),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
-                      child: Text('نقطة', style: TextStyle(color: gold.withValues(alpha: 0.9), fontWeight: FontWeight.w700)),
+                      child: Text('نقطة',
+                          style: TextStyle(
+                              color: gold.withValues(alpha: 0.9),
+                              fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -243,12 +288,19 @@ class MembershipCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     'باقي ${formatPoints(u.pointsToNextTier)} نقطة للوصول إلى ${u.nextTierNameAr != null ? 'عضوية ${u.nextTierNameAr}' : tierNameAr(u.nextTierName)}',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 12),
                   ),
                 ] else
                   Text(
-                    (u?.fullName.isNotEmpty == true ? u!.fullName : fallbackName),
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, letterSpacing: 0.4),
+                    (u?.fullName.isNotEmpty == true
+                        ? u!.fullName
+                        : fallbackName),
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 13,
+                        letterSpacing: 0.4),
                   ),
               ],
             ),
@@ -261,7 +313,9 @@ class MembershipCard extends StatelessWidget {
   static Widget _ring(double size, Color color) => Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 26)),
+        decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 26)),
       );
 }
 
@@ -273,8 +327,18 @@ class _QuickActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = [
       (LucideIcons.scanLine, 'مسح فاتورة', Tone.brand, () => onTabChange(2)),
-      (LucideIcons.gift, 'المكافآت', Tone.gold, () => pushPage(context, const RewardsScreen())),
-      (LucideIcons.receiptText, 'فواتيري', Tone.info, () => pushPage(context, const InvoicesScreen())),
+      (
+        LucideIcons.gift,
+        'المكافآت',
+        Tone.gold,
+        () => pushPage(context, const RewardsScreen())
+      ),
+      (
+        LucideIcons.receiptText,
+        'فواتيري',
+        Tone.info,
+        () => pushPage(context, const InvoicesScreen())
+      ),
       (LucideIcons.wallet, 'المحفظة', Tone.success, () => onTabChange(3)),
     ];
     return Row(
@@ -290,7 +354,9 @@ class _QuickActions extends StatelessWidget {
                   children: [
                     IconBadge(icon, tone: tone, size: 56),
                     const SizedBox(height: 8),
-                    Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    Text(label,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
@@ -311,12 +377,17 @@ class _Notice extends StatelessWidget {
     final p = context.palette;
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: p.warningSoft, borderRadius: BorderRadius.circular(AppRadius.md)),
+      decoration: BoxDecoration(
+          color: p.warningSoft,
+          borderRadius: BorderRadius.circular(AppRadius.md)),
       child: Row(
         children: [
           Icon(icon, color: p.warning, size: 20),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(color: p.warning, fontWeight: FontWeight.w600))),
+          Expanded(
+              child: Text(text,
+                  style: TextStyle(
+                      color: p.warning, fontWeight: FontWeight.w600))),
         ],
       ),
     );
@@ -367,11 +438,17 @@ class _BannersCarouselState extends State<_BannersCarousel> {
                           gradient: Brand.gradient,
                         ),
                       ),
-                      if (url != null) Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox()),
+                      if (url != null)
+                        Image.network(url,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox()),
                       DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Colors.black.withValues(alpha: 0.72), Colors.transparent],
+                            colors: [
+                              Colors.black.withValues(alpha: 0.72),
+                              Colors.transparent
+                            ],
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
                           ),
@@ -387,13 +464,20 @@ class _BannersCarouselState extends State<_BannersCarousel> {
                             Text(b.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800)),
                             if (b.subtitle != null) ...[
                               const SizedBox(height: 2),
                               Text(b.subtitle!,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, height: 1.4)),
+                                  style: TextStyle(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.8),
+                                      fontSize: 12,
+                                      height: 1.4)),
                             ],
                           ],
                         ),
@@ -416,7 +500,9 @@ class _BannersCarouselState extends State<_BannersCarousel> {
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 width: i == _page ? 18 : 6,
                 height: 6,
-                decoration: BoxDecoration(color: i == _page ? p.brand : p.border, borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(
+                    color: i == _page ? p.brand : p.border,
+                    borderRadius: BorderRadius.circular(6)),
               ),
             ),
           ),
@@ -445,14 +531,19 @@ class _BoosterCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                StatusChip(label: reward, tone: Tone.gold, icon: LucideIcons.zap),
+                StatusChip(
+                    label: reward, tone: Tone.gold, icon: LucideIcons.zap),
                 const Spacer(),
-                Text('${offer.daysRemaining} يوم', style: TextStyle(fontSize: 12, color: p.muted)),
+                Text('${offer.daysRemaining} يوم',
+                    style: TextStyle(fontSize: 12, color: p.muted)),
               ],
             ),
             const SizedBox(height: 10),
             Text(offer.title,
-                maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.35)),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w800, height: 1.35)),
             const Spacer(),
             Row(
               children: [
@@ -460,7 +551,9 @@ class _BoosterCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(offer.storeName,
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.muted)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: p.muted)),
                 ),
               ],
             ),
@@ -488,9 +581,13 @@ class _StoreTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(store.nameAr, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(store.nameAr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 3),
-                Text('${store.floorLabel} • ${store.unitNumber}', style: TextStyle(fontSize: 12, color: p.muted)),
+                Text('${store.floorLabel} • ${store.unitNumber}',
+                    style: TextStyle(fontSize: 12, color: p.muted)),
               ],
             ),
           ),

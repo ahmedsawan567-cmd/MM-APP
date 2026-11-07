@@ -69,6 +69,7 @@ public class MobileStoreSpotlightDto
     public string UnitNumber { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
+    public string? CoverImageUrl { get; set; }
     public string FloorLabel { get; set; } = string.Empty;
 }
 
@@ -96,6 +97,7 @@ public class MobileStoreDto
     public string UnitNumber { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string? LogoUrl { get; set; }
+    public string? CoverImageUrl { get; set; }
     public string FloorLabel { get; set; } = string.Empty;
     public string RewardType { get; set; } = "POINTS";
     public decimal ConversionRate { get; set; }

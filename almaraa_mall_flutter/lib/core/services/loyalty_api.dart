@@ -71,6 +71,9 @@ class LoyaltyApi {
   // ---------- الرئيسية والمتاجر ----------
   static Future<HomeData> getHome() async => HomeData.fromJson(await _api.get('/v1/mobile/home'));
 
+  static Future<Map<String, dynamic>> getTiers() async =>
+      Map<String, dynamic>.from(await _api.get('/v1/mobile/tiers') as Map);
+
   static Future<StoreDetails> getStoreDetails(String id) async =>
       StoreDetails.fromJson(await _api.get('/v1/mobile/stores/$id'));
 

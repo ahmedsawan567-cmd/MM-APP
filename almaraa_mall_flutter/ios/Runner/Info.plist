@@ -47,6 +47,15 @@
 	<true/>
 
 	<!-- Permissions with Professional Arabic & English Explanations -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>يتصل التطبيق بخادم المرأة مول على الشبكة المحلية لعرض نقاطك وفواتيرك.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>يتطلب تطبيق المرأة مول صلاحية الوصول إلى الكاميرا لمسح فواتير الشراء ضوئياً وكسب نقاط الولاء ومطابقتها بالذكاء الاصطناعي.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

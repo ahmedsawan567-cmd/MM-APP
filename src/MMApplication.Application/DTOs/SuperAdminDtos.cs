@@ -51,6 +51,7 @@ public class StoreTenantDto
     public string? ContactPerson { get; set; }
     public string? ContactPhone { get; set; }
     public string? LogoUrl { get; set; }
+    public string? CoverImageUrl { get; set; }
     public bool IsActive { get; set; }
     public int ActiveStaffCount { get; set; }
     public decimal TotalSales { get; set; }
@@ -70,6 +71,7 @@ public class CreateStoreTenantRequest
     public string? ContactPerson { get; set; }
     public string? ContactPhone { get; set; }
     public string? LogoUrl { get; set; }
+    public string? CoverImageUrl { get; set; }
 }
 
 public class UpdateStoreTenantRequest
@@ -83,6 +85,8 @@ public class UpdateStoreTenantRequest
     public decimal CommissionRate { get; set; }
     public string? ContactPerson { get; set; }
     public string? ContactPhone { get; set; }
+    public string? LogoUrl { get; set; }
+    public string? CoverImageUrl { get; set; }
     public bool IsActive { get; set; }
 }
 

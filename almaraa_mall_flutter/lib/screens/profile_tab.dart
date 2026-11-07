@@ -1,3 +1,4 @@
+import 'membership_tiers_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -29,15 +30,22 @@ class ProfileTab extends StatelessWidget {
             const SizedBox(height: 14),
             Text('تسجيل الخروج؟', style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 6),
-            Text('يمكنك العودة في أي وقت برقم هاتفك وكلمة المرور.', textAlign: TextAlign.center, style: TextStyle(color: ctx.palette.muted)),
+            Text('يمكنك العودة في أي وقت برقم هاتفك وكلمة المرور.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: ctx.palette.muted)),
             const SizedBox(height: 22),
             Row(
               children: [
-                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء'))),
+                Expanded(
+                    child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('إلغاء'))),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: ctx.palette.danger,
+                        foregroundColor: Colors.white),
                     onPressed: () => Navigator.pop(ctx, true),
                     child: const Text('خروج'),
                   ),
@@ -62,7 +70,8 @@ class ProfileTab extends StatelessWidget {
           final user = Session.instance.user;
           if (user == null) return const LoadingView();
           return RefreshIndicator(
-            onRefresh: () => Session.instance.refreshProfile().catchError((_) {}),
+            onRefresh: () =>
+                Session.instance.refreshProfile().catchError((_) {}),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
               children: [
@@ -74,34 +83,56 @@ class ProfileTab extends StatelessWidget {
                         Container(
                           width: 64,
                           height: 64,
-                          decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Brand.vividGradient),
+                          decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: Brand.vividGradient),
                           alignment: Alignment.center,
-                          child: Text(user.fullName.isNotEmpty ? user.fullName.characters.first : '?',
-                              style: const TextStyle(fontSize: 26, color: Colors.white, fontWeight: FontWeight.w800)),
+                          child: Text(
+                              user.fullName.isNotEmpty
+                                  ? user.fullName.characters.first
+                                  : '?',
+                              style: const TextStyle(
+                                  fontSize: 26,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800)),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(user.fullName, style: Theme.of(context).textTheme.titleMedium),
+                              Text(user.fullName,
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium),
                               const SizedBox(height: 2),
-                              Text(user.phoneNumber, textDirection: TextDirection.ltr, style: TextStyle(color: p.muted)),
+                              Text(user.phoneNumber,
+                                  textDirection: TextDirection.ltr,
+                                  style: TextStyle(color: p.muted)),
                               const SizedBox(height: 6),
                               if (user.membershipNumber != null)
                                 Text(user.membershipNumber!,
                                     textDirection: TextDirection.ltr,
-                                    style: TextStyle(fontSize: 12, color: p.brand, fontWeight: FontWeight.w800, letterSpacing: 0.5))
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: p.brand,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5))
                               else
-                                Text('عضو منذ ${formatDate(user.createdAt)}', style: TextStyle(fontSize: 12, color: p.muted)),
+                                Text('عضو منذ ${formatDate(user.createdAt)}',
+                                    style: TextStyle(
+                                        fontSize: 12, color: p.muted)),
                             ],
                           ),
                         ),
                         Column(
                           children: [
                             Text(formatPoints(user.pointsBalance),
-                                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: p.gold)),
-                            Text('نقطة', style: TextStyle(fontSize: 11, color: p.muted)),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                    color: p.gold)),
+                            Text('نقطة',
+                                style: TextStyle(fontSize: 11, color: p.muted)),
                           ],
                         ),
                       ],
@@ -111,40 +142,89 @@ class ProfileTab extends StatelessWidget {
                 const SizedBox(height: 22),
                 _label(context, 'حسابي'),
                 _Group(children: [
-                  _Item(icon: LucideIcons.idCard, tone: Tone.brand, label: 'بطاقة العضوية', onTap: () => pushPage(context, const MembershipCardScreen())),
-                  _Item(icon: LucideIcons.userPen, tone: Tone.info, label: 'تعديل بياناتي', onTap: () => pushPage(context, const EditProfileScreen())),
-                  _Item(icon: LucideIcons.keyRound, tone: Tone.gold, label: 'تغيير كلمة المرور', onTap: () => pushPage(context, const ChangePasswordScreen())),
+                  _Item(
+                      icon: LucideIcons.idCard,
+                      tone: Tone.brand,
+                      label: 'بطاقة العضوية',
+                      onTap: () =>
+                          pushPage(context, const MembershipCardScreen())),
+                  _Item(
+                      icon: LucideIcons.crown,
+                      tone: Tone.gold,
+                      label: 'عضويتي ومزاياها',
+                      onTap: () =>
+                          pushPage(context, const MembershipTiersScreen())),
+                  _Item(
+                      icon: LucideIcons.userPen,
+                      tone: Tone.info,
+                      label: 'تعديل بياناتي',
+                      onTap: () =>
+                          pushPage(context, const EditProfileScreen())),
+                  _Item(
+                      icon: LucideIcons.keyRound,
+                      tone: Tone.gold,
+                      label: 'تغيير كلمة المرور',
+                      onTap: () =>
+                          pushPage(context, const ChangePasswordScreen())),
                 ]),
                 const SizedBox(height: 22),
                 _label(context, 'نشاطي'),
                 _Group(children: [
-                  _Item(icon: LucideIcons.bell, tone: Tone.brand, label: 'الإشعارات', onTap: () => pushPage(context, const NotificationsScreen())),
-                  _Item(icon: LucideIcons.receiptText, tone: Tone.info, label: 'فواتيري', onTap: () => pushPage(context, const InvoicesScreen())),
-                  _Item(icon: LucideIcons.gift, tone: Tone.gold, label: 'المكافآت', onTap: () => pushPage(context, const RewardsScreen())),
-                  _Item(icon: LucideIcons.circleHelp, tone: Tone.brand, label: 'كيف أكسب النقاط؟', onTap: () => _howItWorks(context)),
+                  _Item(
+                      icon: LucideIcons.bell,
+                      tone: Tone.brand,
+                      label: 'الإشعارات',
+                      onTap: () =>
+                          pushPage(context, const NotificationsScreen())),
+                  _Item(
+                      icon: LucideIcons.receiptText,
+                      tone: Tone.info,
+                      label: 'فواتيري',
+                      onTap: () => pushPage(context, const InvoicesScreen())),
+                  _Item(
+                      icon: LucideIcons.gift,
+                      tone: Tone.gold,
+                      label: 'المكافآت',
+                      onTap: () => pushPage(context, const RewardsScreen())),
+                  _Item(
+                      icon: LucideIcons.circleHelp,
+                      tone: Tone.brand,
+                      label: 'كيف أكسب النقاط؟',
+                      onTap: () => _howItWorks(context)),
                 ]),
                 const SizedBox(height: 22),
                 _label(context, 'الاتصال'),
                 _Group(children: [
-                  _Item(icon: LucideIcons.server, tone: Tone.info, label: 'إعدادات الخادم', onTap: () => showServerSettings(context)),
+                  _Item(
+                      icon: LucideIcons.server,
+                      tone: Tone.info,
+                      label: 'إعدادات الخادم',
+                      onTap: () => showServerSettings(context)),
                 ]),
                 const SizedBox(height: 22),
                 _label(context, 'المظهر'),
                 const _ThemeSelector(),
                 const SizedBox(height: 22),
                 _Group(children: [
-                  _Item(icon: LucideIcons.logOut, tone: Tone.danger, label: 'تسجيل الخروج', danger: true, onTap: () => _logout(context)),
+                  _Item(
+                      icon: LucideIcons.logOut,
+                      tone: Tone.danger,
+                      label: 'تسجيل الخروج',
+                      danger: true,
+                      onTap: () => _logout(context)),
                 ]),
                 const SizedBox(height: 10),
                 Center(
                   child: TextButton(
                     onPressed: () => _deleteAccount(context),
-                    child: Text('حذف الحساب نهائياً', style: TextStyle(color: p.danger, fontSize: 13)),
+                    child: Text('حذف الحساب نهائياً',
+                        style: TextStyle(color: p.danger, fontSize: 13)),
                   ),
                 ),
                 const SizedBox(height: 22),
                 Center(
-                  child: Text('${AppConstants.appNameAr} • الإصدار 1.0.0', style: TextStyle(fontSize: 12, color: p.muted)),
+                  child: Text('${AppConstants.appNameAr} • الإصدار 1.0.0',
+                      style: TextStyle(fontSize: 12, color: p.muted)),
                 ),
               ],
             ),
@@ -160,13 +240,15 @@ class ProfileTab extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(24, 0, 24, 28 + MediaQuery.of(ctx).viewInsets.bottom),
+        padding: EdgeInsets.fromLTRB(
+            24, 0, 24, 28 + MediaQuery.of(ctx).viewInsets.bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const IconBadge(LucideIcons.userX, tone: Tone.danger, size: 60),
             const SizedBox(height: 14),
-            Text('حذف الحساب نهائياً؟', style: Theme.of(ctx).textTheme.titleLarge),
+            Text('حذف الحساب نهائياً؟',
+                style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               'ستفقد نقاطك وقسائمك ولا يمكن التراجع. تُمسح بياناتك الشخصية وتبقى سجلات الفواتير بدون هويتك.',
@@ -177,16 +259,23 @@ class ProfileTab extends StatelessWidget {
             TextField(
               controller: password,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'كلمة المرور للتأكيد', prefixIcon: Icon(LucideIcons.lock, size: 20)),
+              decoration: const InputDecoration(
+                  labelText: 'كلمة المرور للتأكيد',
+                  prefixIcon: Icon(LucideIcons.lock, size: 20)),
             ),
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء'))),
+                Expanded(
+                    child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('إلغاء'))),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: ctx.palette.danger,
+                        foregroundColor: Colors.white),
                     onPressed: () => Navigator.pop(ctx, true),
                     child: const Text('حذف الحساب'),
                   ),
@@ -211,7 +300,11 @@ class ProfileTab extends StatelessWidget {
 
   Widget _label(BuildContext context, String text) => Padding(
         padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-        child: Text(text, style: TextStyle(color: context.palette.muted, fontWeight: FontWeight.w700, fontSize: 13)),
+        child: Text(text,
+            style: TextStyle(
+                color: context.palette.muted,
+                fontWeight: FontWeight.w700,
+                fontSize: 13)),
       );
 
   void _howItWorks(BuildContext context) {
@@ -238,8 +331,14 @@ class ProfileTab extends StatelessWidget {
                   children: [
                     IconBadge(steps[i].$1, size: 42),
                     const SizedBox(width: 14),
-                    Expanded(child: Text(steps[i].$2, style: const TextStyle(fontWeight: FontWeight.w600))),
-                    Text('${i + 1}', style: TextStyle(color: ctx.palette.muted, fontWeight: FontWeight.w800)),
+                    Expanded(
+                        child: Text(steps[i].$2,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600))),
+                    Text('${i + 1}',
+                        style: TextStyle(
+                            color: ctx.palette.muted,
+                            fontWeight: FontWeight.w800)),
                   ],
                 ),
               ),
@@ -263,12 +362,22 @@ class _ThemeSelector extends StatelessWidget {
           showSelectedIcon: false,
           style: SegmentedButton.styleFrom(
             minimumSize: const Size(0, 48),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md)),
           ),
           segments: const [
-            ButtonSegment(value: ThemeMode.light, icon: Icon(LucideIcons.sun, size: 18), label: Text('فاتح')),
-            ButtonSegment(value: ThemeMode.dark, icon: Icon(LucideIcons.moon, size: 18), label: Text('داكن')),
-            ButtonSegment(value: ThemeMode.system, icon: Icon(LucideIcons.smartphone, size: 18), label: Text('تلقائي')),
+            ButtonSegment(
+                value: ThemeMode.light,
+                icon: Icon(LucideIcons.sun, size: 18),
+                label: Text('فاتح')),
+            ButtonSegment(
+                value: ThemeMode.dark,
+                icon: Icon(LucideIcons.moon, size: 18),
+                label: Text('داكن')),
+            ButtonSegment(
+                value: ThemeMode.system,
+                icon: Icon(LucideIcons.smartphone, size: 18),
+                label: Text('تلقائي')),
           ],
           selected: {mode},
           onSelectionChanged: (s) => ThemeController.instance.set(s.first),
@@ -311,7 +420,12 @@ class _Item extends StatelessWidget {
   final VoidCallback onTap;
   final bool danger;
 
-  const _Item({required this.icon, required this.tone, required this.label, required this.onTap, this.danger = false});
+  const _Item(
+      {required this.icon,
+      required this.tone,
+      required this.label,
+      required this.onTap,
+      this.danger = false});
 
   @override
   Widget build(BuildContext context) {
@@ -319,8 +433,12 @@ class _Item extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       leading: IconBadge(icon, tone: tone, size: 40),
-      title: Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: danger ? p.danger : p.ink)),
-      trailing: danger ? null : Icon(LucideIcons.chevronLeft, color: p.muted, size: 20),
+      title: Text(label,
+          style: TextStyle(
+              fontWeight: FontWeight.w700, color: danger ? p.danger : p.ink)),
+      trailing: danger
+          ? null
+          : Icon(LucideIcons.chevronLeft, color: p.muted, size: 20),
       onTap: onTap,
     );
   }

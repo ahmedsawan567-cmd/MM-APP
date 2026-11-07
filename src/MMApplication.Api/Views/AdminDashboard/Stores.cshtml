@@ -85,15 +85,23 @@
                     }
                     @foreach (var s in Model)
                     {
-                        <tr data-store="@System.Text.Json.JsonSerializer.Serialize(new { s.Id, s.Name, s.NameEn, s.Category, s.FloorNumber, s.UnitNumber, s.CommissionRate, s.ContactPerson, s.ContactPhone, s.IsActive })"
+                        <tr data-store="@System.Text.Json.JsonSerializer.Serialize(new { s.Id, s.Name, s.NameEn, s.Category, s.FloorNumber, s.UnitNumber, s.CommissionRate, s.ContactPerson, s.ContactPhone, s.IsActive, s.LogoUrl, s.CoverImageUrl })"
                             class="@(s.IsActive ? "" : "opacity-60")">
                             <td>
+                                <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center shrink-0">
+                                    @if (!string.IsNullOrEmpty(s.LogoUrl)) { <img src="@s.LogoUrl" alt="" class="w-full h-full object-cover" onerror="this.remove()" /> }
+                                    else { <span class="font-bold text-slate-400">@(s.Name.Length > 0 ? s.Name[..1] : "م")</span> }
+                                </div>
+                                <div>
                                 <div class="font-bold text-slate-900">@s.Name</div>
                                 @if (!string.IsNullOrEmpty(s.NameEn) && s.NameEn != s.Name)
                                 {
                                     <div class="text-xs text-slate-500" dir="ltr">@s.NameEn</div>
                                 }
                                 <div class="text-xs text-slate-400">المبيعات: <span class="num">@s.TotalSales.ToString("N0")</span> د.ل</div>
+                                </div>
+                                </div>
                             </td>
                             <td><span class="badge badge-slate">@s.Category</span></td>
                             <td class="text-xs text-slate-700">@(string.IsNullOrEmpty(s.FloorNumber) ? "" : s.FloorNumber + " • ")<span class="num" dir="ltr">@(string.IsNullOrEmpty(s.UnitNumber) ? "—" : s.UnitNumber)</span></td>
@@ -176,6 +184,31 @@
                 <label class="form-label">عمولة المول (%)</label>
                 <input id="sf-commission" type="number" min="0" max="100" step="0.5" class="form-input num" value="5" />
             </div>
+            <div class="sm:col-span-2 grid grid-cols-2 gap-3">
+                <div>
+                    <span class="form-label">شعار المتجر</span>
+                    <div class="flex items-center gap-3">
+                        <div class="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden flex items-center justify-center shrink-0"><img id="sf-logo-img" class="hidden w-full h-full object-cover" alt="" /><i id="sf-logo-ph" data-lucide="image" class="w-6 h-6 text-slate-300"></i></div>
+                        <div class="space-y-1">
+                            <label class="btn-secondary btn-sm cursor-pointer"><i data-lucide="upload" class="w-4 h-4"></i> رفع<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadStoreImage(this, 'logo')" /></label>
+                            <button type="button" class="block text-xs text-rose-600" onclick="setStoreImage('logo', null)">إزالة</button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="sf-logo" />
+                </div>
+                <div>
+                    <span class="form-label">صورة الغلاف (واجهة المحل)</span>
+                    <div class="flex items-center gap-3">
+                        <div class="w-24 h-16 rounded-2xl bg-slate-100 overflow-hidden flex items-center justify-center shrink-0"><img id="sf-cover-img" class="hidden w-full h-full object-cover" alt="" /><i id="sf-cover-ph" data-lucide="image" class="w-6 h-6 text-slate-300"></i></div>
+                        <div class="space-y-1">
+                            <label class="btn-secondary btn-sm cursor-pointer"><i data-lucide="upload" class="w-4 h-4"></i> رفع<input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadStoreImage(this, 'cover')" /></label>
+                            <button type="button" class="block text-xs text-rose-600" onclick="setStoreImage('cover', null)">إزالة</button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="sf-cover" />
+                </div>
+                <p class="col-span-2 form-hint">الشعار يظهر في قائمة المتاجر بالتطبيق، والغلاف أعلى صفحة المتجر. يفضّل صورة مربعة للشعار وعريضة للغلاف.</p>
+            </div>
             <label id="sf-active-row" class="flex items-center gap-2 text-sm text-slate-700 self-end pb-2">
                 <input id="sf-active" type="checkbox" class="form-check" checked /> المتجر نشط (يظهر للعملاء)
             </label>
@@ -218,7 +251,32 @@
         document.getElementById('sf-commission').value = s.CommissionRate;
         document.getElementById('sf-active').checked = s.IsActive;
         document.getElementById('sf-active-row').classList.toggle('hidden', !editingStore);
+        setStoreImage('logo', s.LogoUrl || null);
+        setStoreImage('cover', s.CoverImageUrl || null);
         MM.openModal('store-modal');
+    }
+
+    function setStoreImage(kind, url) {
+        document.getElementById(`sf-${kind}`).value = url || '';
+        const img = document.getElementById(`sf-${kind}-img`);
+        img.classList.toggle('hidden', !url);
+        document.getElementById(`sf-${kind}-ph`)?.classList.toggle('hidden', !!url);
+        img.onerror = () => { img.classList.add('hidden'); document.getElementById(`sf-${kind}-ph`)?.classList.remove('hidden'); };
+        if (url) img.src = url;
+    }
+
+    async function uploadStoreImage(input, kind) {
+        const file = input.files[0];
+        if (!file) return;
+        const form = new FormData();
+        form.append('file', file);
+        try {
+            const res = await fetch('/AdminDashboard/StoreImage', { method: 'POST', headers: { 'RequestVerificationToken': token }, body: form });
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok || d.success === false) throw new Error(d.message || 'تعذّر رفع الصورة.');
+            setStoreImage(kind, d.url);
+        } catch (e) { showToast(e.message, 'error'); }
+        input.value = '';
     }
 
     async function saveStore() {
@@ -227,7 +285,9 @@
             name: v('sf-name'), nameEn: v('sf-name-en') || null, category: v('sf-category'),
             floorNumber: v('sf-floor'), unitNumber: v('sf-unit'), contactPerson: v('sf-contact') || null,
             contactPhone: v('sf-phone') || null, commissionRate: parseFloat(v('sf-commission')) || 0,
-            isActive: document.getElementById('sf-active').checked
+            isActive: document.getElementById('sf-active').checked,
+            logoUrl: document.getElementById('sf-logo').value || null,
+            coverImageUrl: document.getElementById('sf-cover').value || null
         };
         if (!body.name || !body.category) return showToast('أدخل اسم المتجر ونشاطه.', 'warning');
         const btn = document.getElementById('sf-save');

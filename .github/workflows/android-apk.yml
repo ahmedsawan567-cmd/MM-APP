@@ -1,4 +1,4 @@
-name: Android APK
+name: Mobile builds (Android + iOS)
 
 on:
   push:
@@ -85,3 +85,50 @@ jobs:
             gh release create android-latest --title "المرأة مول — Android $VERSION" --notes "$NOTES" --target "$GITHUB_SHA" --prerelease
           fi
           gh release upload android-latest "AlmaraaMall-$VERSION.apk" --clobber
+
+  # نسخة iOS (غير موقّعة): تُبنى على جهاز ماك من GitHub وتُرفق بنفس صفحة الإصدار.
+  # للتثبيت على آيفون تحتاج توقيعها (Sideloadly بحساب Apple مجاني، أو حساب Apple Developer للنشر).
+  ios:
+    needs: build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: almaraa_mall_flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        run: |
+          if [ -n "${{ vars.API_BASE_URL }}" ]; then
+            flutter build ios --release --no-codesign --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+          else
+            flutter build ios --release --no-codesign
+          fi
+
+      - name: Package unsigned IPA
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qr "AlmaraaMall-$VERSION-unsigned.ipa" Payload
+          echo "IPA=AlmaraaMall-$VERSION-unsigned.ipa" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: almaraa-mall-ios
+          path: almaraa_mall_flutter/${{ env.IPA }}
+          retention-days: 30
+
+      - name: Attach IPA to the "android-latest" release
+        if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'feature/flutter-api-integration'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload android-latest "$IPA" --clobber

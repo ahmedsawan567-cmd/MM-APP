@@ -214,6 +214,7 @@ public class SuperAdminController : ControllerBase
             ContactPerson = string.IsNullOrWhiteSpace(req.ContactPerson) ? null : req.ContactPerson.Trim(),
             ContactPhone = PhoneNumbers.Normalize(req.ContactPhone) ?? (string.IsNullOrWhiteSpace(req.ContactPhone) ? null : req.ContactPhone.Trim()),
             LogoUrl = string.IsNullOrWhiteSpace(req.LogoUrl) ? null : req.LogoUrl.Trim(),
+            CoverImageUrl = string.IsNullOrWhiteSpace(req.CoverImageUrl) ? null : req.CoverImageUrl.Trim(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -284,6 +285,8 @@ public class SuperAdminController : ControllerBase
         tenant.ContactPerson = string.IsNullOrWhiteSpace(req.ContactPerson) ? null : req.ContactPerson.Trim();
         tenant.ContactPhone = PhoneNumbers.Normalize(req.ContactPhone) ?? (string.IsNullOrWhiteSpace(req.ContactPhone) ? null : req.ContactPhone.Trim());
         tenant.IsActive = req.IsActive;
+        tenant.LogoUrl = string.IsNullOrWhiteSpace(req.LogoUrl) ? null : req.LogoUrl.Trim();
+        tenant.CoverImageUrl = string.IsNullOrWhiteSpace(req.CoverImageUrl) ? null : req.CoverImageUrl.Trim();
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {

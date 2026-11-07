@@ -7,6 +7,7 @@ class Store {
   final String unitNumber;
   final String category;
   final String? logoUrl;
+  final String? coverImageUrl;
   final String floorLabel;
   final String rewardType;
   final double conversionRate;
@@ -18,6 +19,7 @@ class Store {
     required this.unitNumber,
     required this.category,
     this.logoUrl,
+    this.coverImageUrl,
     required this.floorLabel,
     required this.rewardType,
     required this.conversionRate,
@@ -40,6 +42,7 @@ class Store {
         unitNumber: jStr(j['unitNumber']),
         category: jStr(j['category'], 'عام'),
         logoUrl: jStrOrNull(j['logoUrl']),
+        coverImageUrl: jStrOrNull(j['coverImageUrl']),
         floorLabel: jStr(j['floorLabel']),
         rewardType: jStr(j['rewardType'], 'POINTS'),
         conversionRate: jDouble(j['conversionRate'], 0.1),

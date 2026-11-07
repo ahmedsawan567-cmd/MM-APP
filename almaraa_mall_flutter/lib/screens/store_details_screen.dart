@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../core/constants/app_constants.dart';
 import '../core/services/loyalty_api.dart';
 import '../core/services/session.dart';
 import '../core/theme/app_theme.dart';
@@ -170,7 +171,8 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.palette;
     final location = [d.floor, d.unitNumber].where((s) => s.isNotEmpty).join(' • ');
-    return Row(
+    final cover = AppConstants.resolveImageUrl(d.coverImageUrl);
+    final info = Row(
       children: [
         StoreLogo(name: d.nameAr, logoUrl: d.logoUrl, size: 68),
         const SizedBox(width: 14),
@@ -189,6 +191,23 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+    if (cover == null) return info;
+    // صورة غلاف المتجر أعلى الصفحة
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          child: AspectRatio(
+            aspectRatio: 16 / 7,
+            child: Image.network(cover, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(decoration: const BoxDecoration(gradient: Brand.gradient))),
+          ),
+        ),
+        const SizedBox(height: 14),
+        info,
       ],
     );
   }

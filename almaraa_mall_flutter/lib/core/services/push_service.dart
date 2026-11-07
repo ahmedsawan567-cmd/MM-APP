@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -28,7 +29,8 @@ class PushService {
   static const _tokenKey = 'push_token';
 
   static bool get configured =>
-      !kIsWeb && _apiKey.isNotEmpty && _appId.isNotEmpty && _senderId.isNotEmpty && _projectId.isNotEmpty;
+      // إعدادات Firebase الحالية لتطبيق أندرويد؛ على iOS يعمل التطبيق بالفحص الدوري للإشعارات
+      !kIsWeb && Platform.isAndroid && _apiKey.isNotEmpty && _appId.isNotEmpty && _senderId.isNotEmpty && _projectId.isNotEmpty;
 
   static bool _initialized = false;
 

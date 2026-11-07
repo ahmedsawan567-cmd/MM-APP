@@ -10,6 +10,8 @@ public class Tenant
     public string UnitNumber { get; set; } = string.Empty; // e.g. G-12
     public string Category { get; set; } = string.Empty;   // Fashion, F&B, Supermarket, Electronics
     public string? LogoUrl { get; set; }
+    /// <summary>صورة غلاف المتجر (واجهة المحل) تظهر في صفحة المتجر بالتطبيق.</summary>
+    public string? CoverImageUrl { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

@@ -157,6 +157,7 @@ public class MobileHomeController : ControllerBase
                 UnitNumber = t.UnitNumber,
                 Category = t.Category,
                 LogoUrl = t.LogoUrl,
+                CoverImageUrl = t.CoverImageUrl,
                 FloorLabel = t.UnitNumber.StartsWith("G") ? "الطابق الأرضي" : "الطابق الأول"
             })
             .ToListAsync();
@@ -212,6 +213,7 @@ public class MobileHomeController : ControllerBase
                 UnitNumber = t.UnitNumber,
                 Category = t.Category,
                 LogoUrl = t.LogoUrl,
+                CoverImageUrl = t.CoverImageUrl,
                 FloorLabel = t.FloorNumber != "" ? t.FloorNumber : (t.UnitNumber.StartsWith("G") ? "الطابق الأرضي" : "الطابق الأول"),
                 RewardType = t.LoyaltyRule != null ? t.LoyaltyRule.RewardType : "POINTS",
                 ConversionRate = t.LoyaltyRule != null ? t.LoyaltyRule.ConversionRate : 0.1m
@@ -219,6 +221,46 @@ public class MobileHomeController : ControllerBase
             .ToListAsync();
 
         return Ok(stores);
+    }
+
+    /// <summary>
+    /// مستويات العضوية ومزاياها كما يضبطها المول، مع عضوية العميل وتقدّمه نحو المستوى التالي (إن كان مسجلاً دخوله).
+    /// </summary>
+    [HttpGet("tiers")]
+    public async Task<IActionResult> GetTiers()
+    {
+        var tiers = (await MembershipTiers.AllAsync(_context)).Where(t => t.IsActive).OrderBy(t => t.SortOrder).ToList();
+        var customerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        var customer = customerId == null ? null : await _context.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.CustomerId == customerId);
+        MembershipTiers.Progress? p = customer == null ? null : await MembershipTiers.ProgressAsync(_context, customer);
+        string Window(int m) => m == 0 ? "منذ التسجيل" : $"خلال آخر {m} شهراً";
+        return Ok(new
+        {
+            current = customer?.LoyaltyTier,
+            locked = customer?.TierLocked ?? false,
+            progress = p == null ? null : new
+            {
+                next = p.Next?.Code,
+                nextName = p.Next?.NameAr,
+                percent = p.Percent,
+                pointsToNext = p.PointsToNext,
+                spendToNext = p.SpendToNext,
+                points = p.Points,
+                spent = p.Spent,
+            },
+            tiers = tiers.Select(t => new
+            {
+                code = t.Code,
+                name = t.NameAr,
+                color = t.Color,
+                multiplier = t.PointsMultiplier,
+                minPoints = t.MinPoints,
+                minSpend = t.MinSpend,
+                condition = t.MinPoints <= 0 && t.MinSpend <= 0 ? "تلقائية عند التسجيل"
+                    : string.Join(" و", new[] { t.MinPoints > 0 ? $"{t.MinPoints:N0} نقطة" : null, t.MinSpend > 0 ? $"{t.MinSpend:N0} د.ل مشتريات" : null }.Where(x => x != null)) + " " + Window(t.QualificationMonths),
+                benefits = t.Benefits.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            }),
+        });
     }
 
     /// <summary>
@@ -332,6 +374,7 @@ public class MobileHomeController : ControllerBase
                 floor = store.FloorNumber,
                 unitNumber = store.UnitNumber,
                 logoUrl = store.LogoUrl,
+                coverImageUrl = store.CoverImageUrl,
                 phone = store.ContactPhone,
             },
             howToEarn = earn,

@@ -544,6 +544,21 @@ public class AdminDashboardController : Controller
         return Json(new { success = true, url });
     }
 
+    /// <summary>رفع شعار المتجر أو صورة غلافه.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(5 * 1024 * 1024)]
+    public async Task<IActionResult> StoreImage(IFormFile? file, [FromServices] IFileStorageService storage)
+    {
+        if (!await Can(Permissions.StoresManage)) return Forbid();
+        if (file == null || file.Length == 0) return BadRequest(new { success = false, message = "اختر صورة." });
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedImageExtensions.Contains(ext)) return BadRequest(new { success = false, message = "الصورة يجب أن تكون JPG أو PNG أو WEBP." });
+        await using var stream = file.OpenReadStream();
+        var url = await storage.SaveFileAsync(stream, file.FileName, "stores");
+        return Json(new { success = true, url });
+    }
+
     [HttpGet]
     public async Task<IActionResult> VoucherLookup(string code)
     {
@@ -886,6 +901,7 @@ public class AdminDashboardController : Controller
             ContactPerson = s.ContactPerson,
             ContactPhone = s.ContactPhone,
             LogoUrl = s.LogoUrl,
+            CoverImageUrl = s.CoverImageUrl,
             IsActive = s.IsActive,
             ActiveStaffCount = s.SystemUsers.Count,
             CreatedAt = s.CreatedAt,

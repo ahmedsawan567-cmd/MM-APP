@@ -8,6 +8,7 @@ class StoreDetails {
   final String floor;
   final String unitNumber;
   final String? logoUrl;
+  final String? coverImageUrl;
   final List<String> howToEarn;
   final List<StoreBooster> boosters;
   final int? pointsBalance;
@@ -23,6 +24,7 @@ class StoreDetails {
     required this.floor,
     required this.unitNumber,
     this.logoUrl,
+    this.coverImageUrl,
     required this.howToEarn,
     required this.boosters,
     this.pointsBalance,
@@ -41,6 +43,7 @@ class StoreDetails {
       floor: jStr(s['floor']),
       unitNumber: jStr(s['unitNumber']),
       logoUrl: jStrOrNull(s['logoUrl']),
+      coverImageUrl: jStrOrNull(s['coverImageUrl']),
       howToEarn: (j['howToEarn'] as List? ?? const []).map((e) => '$e').toList(),
       boosters: jList(j['boosters'], StoreBooster.fromJson),
       pointsBalance: j['pointsBalance'] == null ? null : jInt(j['pointsBalance']),
