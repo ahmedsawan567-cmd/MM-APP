@@ -1,4 +1,3 @@
-@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
 @model MMApplication.Api.ViewModels.LoginViewModel
 @{
     Layout = null;
@@ -115,24 +114,6 @@
                     </button>
                 </form>
 
-                @* حسابات التجربة تظهر في بيئة التطوير فقط (لا تُرسل كلمات المرور للمتصفح في الإنتاج) *@
-                @if (Env.IsDevelopment())
-                {
-                    <div class="mt-8 rounded-2xl border border-dashed border-line p-4">
-                        <div class="mb-3 flex items-center gap-2 text-xs font-bold text-ink-3">
-                            <i data-lucide="flask-conical" class="h-3.5 w-3.5"></i> حسابات تجريبية (بيئة التطوير فقط)
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            @foreach (var (label, user, pwd) in new[] { ("المدير العام", "USR-MOSTAFA", "Admin123!"), ("المطور التقني", "programer", "Programmer123!"), ("مدقق الاحتيال", "USR-MOURAD", "Auditor123!"), ("مدير متجر", "USR-KADI-MGR", "Manager123!") })
-                            {
-                                <button type="button" onclick="quickFill('@user', '@pwd')" class="rounded-xl bg-surface p-2.5 text-right ring-1 ring-line transition hover:ring-brand-600">
-                                    <div class="text-xs font-bold text-ink">@label</div>
-                                    <div class="text-xs text-ink-3" dir="ltr">@user</div>
-                                </button>
-                            }
-                        </div>
-                    </div>
-                }
             </div>
         </main>
     </div>
@@ -144,10 +125,6 @@
             input.type = show ? 'text' : 'password';
             document.getElementById('pwdIcon').outerHTML = `<i data-lucide="${show ? 'eye-off' : 'eye'}" id="pwdIcon" class="h-4 w-4"></i>`;
             lucide.createIcons();
-        }
-        function quickFill(user, pwd) {
-            document.getElementById('usernameField').value = user;
-            document.getElementById('passwordField').value = pwd;
         }
         document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
     </script>
