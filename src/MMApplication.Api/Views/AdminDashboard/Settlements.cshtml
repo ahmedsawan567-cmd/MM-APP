@@ -1,7 +1,7 @@
 @model List<MMApplication.Application.DTOs.StoreSettlementDto>
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "التسويات المالية";
+    ViewData["Title"] = "مستحقات المتاجر";
     ViewData["ActiveTab"] = "settlements";
     var totalAmount = Model.Sum(s => s.TotalRedemptionsValue);
     var pendingAmount = Model.Where(s => s.Status == MMApplication.Domain.Enums.SettlementStatus.Pending).Sum(s => s.NetPayableAmount);
@@ -14,7 +14,7 @@
     <!-- 1. Page Header -->
     <div class="page-header">
         <div>
-            <h1 class="page-title">التسويات المالية</h1>
+            <h1 class="page-title">مستحقات المتاجر</h1>
             <p class="page-subtitle">مستحقات المتاجر من القسائم المستخدمة لديها</p>
         </div>
         <div class="page-actions">
@@ -87,7 +87,7 @@
                         <th class="text-center">الإجراءات</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody data-paginate="12">
                     @if (Model.Count == 0)
                     {
                         <tr>

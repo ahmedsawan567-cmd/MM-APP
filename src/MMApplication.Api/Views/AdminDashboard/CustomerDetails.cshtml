@@ -259,7 +259,7 @@
                     <div class="overflow-x-auto">
                         <table class="data-table">
                             <thead><tr><th>المتجر</th><th>رقم الفاتورة</th><th>التاريخ</th><th>المبلغ</th><th>النقاط</th><th>الحالة</th><th></th></tr></thead>
-                            <tbody>
+                            <tbody data-paginate="10">
                                 @foreach (var i in m.Invoices)
                                 {
                                     var (label, badge) = DisplayLabels.Invoice(i.Status);
@@ -305,7 +305,7 @@
                     <div class="overflow-x-auto">
                         <table class="data-table">
                             <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>النقاط</th><th>الرصيد بعدها</th></tr></thead>
-                            <tbody>
+                            <tbody data-paginate="10">
                                 @foreach (var l in m.Ledger)
                                 {
                                     <tr>
@@ -333,7 +333,7 @@
                     <div class="overflow-x-auto">
                         <table class="data-table">
                             <thead><tr><th>المكافأة</th><th>الكود</th><th>النقاط</th><th>الاستبدال</th><th>الصلاحية</th><th>الحالة</th></tr></thead>
-                            <tbody>
+                            <tbody data-paginate="10">
                                 @foreach (var v in m.Vouchers)
                                 {
                                     var (label, badge) = DisplayLabels.Redemption(v.Status, v.ExpiresAt);
@@ -370,7 +370,7 @@
                     <div class="overflow-x-auto">
                         <table class="data-table">
                             <thead><tr><th>المتجر</th><th>الفواتير</th><th>المشتريات المعتمدة</th><th>النقاط</th><th>آخر زيارة</th></tr></thead>
-                            <tbody>
+                            <tbody data-paginate="10">
                                 @foreach (var s in m.Stores)
                                 {
                                     <tr>
@@ -400,7 +400,7 @@
                 }
                 else
                 {
-                    <ul class="divide-y divide-line">
+                    <ul class="divide-y divide-line" data-paginate="8">
                         @foreach (var n in m.Notifications)
                         {
                             <li class="px-5 py-3.5 flex items-start gap-3">
@@ -430,7 +430,7 @@
                     <div class="overflow-x-auto">
                         <table class="data-table">
                             <thead><tr><th>الجهاز</th><th>أول استخدام</th><th>آخر استخدام</th><th>حسابات أخرى عليه</th></tr></thead>
-                            <tbody>
+                            <tbody data-paginate="10">
                                 @foreach (var d in m.Devices)
                                 {
                                     <tr>
@@ -454,7 +454,7 @@
                 }
                 else
                 {
-                    <ul class="divide-y divide-line">
+                    <ul class="divide-y divide-line" data-paginate="8">
                         @foreach (var a in m.Audit)
                         {
                             <li class="px-5 py-3.5">

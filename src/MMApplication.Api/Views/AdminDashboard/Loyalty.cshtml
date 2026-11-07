@@ -117,7 +117,7 @@
                             <th class="text-left">الإجراءات</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-paginate="10">
                         @if (Model.EarningRules == null || Model.EarningRules.Count == 0)
                         {
                             <tr>
@@ -259,7 +259,7 @@
                             <th class="text-left">الإجراءات</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-paginate="10">
                         @if (Model.Boosters == null || Model.Boosters.Count == 0)
                         {
                             <tr>
@@ -361,7 +361,7 @@
                             <th class="text-left">الإجراءات</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-paginate="10">
                         @if (Model.Campaigns.Count == 0)
                         {
                             <tr>

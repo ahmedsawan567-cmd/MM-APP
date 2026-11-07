@@ -1161,7 +1161,7 @@ public class AdminDashboardController : Controller
     // 2.2 📋 INVOICES LOG & TRANSACTIONS (Invoices View)
     // ----------------------------------------------------
     [HttpGet]
-    public async Task<IActionResult> Invoices([FromQuery] string? storeId, [FromQuery] string? status, [FromQuery] string? search)
+    public async Task<IActionResult> Invoices([FromQuery] string? storeId, [FromQuery] string? status, [FromQuery] string? search, [FromQuery] int page = 1)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
         if (!await Can(Permissions.InvoicesView)) return RedirectToAction(nameof(Index));
@@ -1199,7 +1199,14 @@ public class AdminDashboardController : Controller
             );
         }
 
-        var invoices = await query.OrderByDescending(i => i.CreatedAt).ToListAsync();
+        const int pageSize = 25;
+        var filteredCount = await query.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(filteredCount / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var invoices = await query.OrderByDescending(i => i.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        ViewData["Page"] = page;
+        ViewData["TotalPages"] = totalPages;
+        ViewData["FilteredCount"] = filteredCount;
 
         var invoiceDtos = invoices.Select(i => new InvoiceItemViewModel
         {
@@ -1263,7 +1270,7 @@ public class AdminDashboardController : Controller
             SelectedStoreId = storeId ?? "ALL",
             StatusFilter = status ?? "ALL",
             SearchQuery = search ?? string.Empty,
-            TotalCount = invoices.Count,
+            TotalCount = await statsQuery.CountAsync(),
             TotalApprovedAmount = totalApproved,
             TotalApprovedPoints = totalPoints,
             PendingReviewsCount = pendingCount,
@@ -1271,7 +1278,7 @@ public class AdminDashboardController : Controller
         };
 
         ViewData["ActiveTab"] = "invoices";
-        ViewData["Title"] = "سجل الفواتير والمعاملات";
+        ViewData["Title"] = "كل الفواتير";
         return View(viewModel);
     }
 

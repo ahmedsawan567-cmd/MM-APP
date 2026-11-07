@@ -2,7 +2,7 @@
 @using MMApplication.Domain.Enums
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "طاقم العمل والصلاحيات";
+    ViewData["Title"] = "المستخدمون والصلاحيات";
     ViewData["ActiveTab"] = "staff";
     var staff = Model.StaffMembers;
     var now = DateTime.UtcNow;
@@ -37,8 +37,8 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">طاقم العمل والصلاحيات</h1>
-            <p class="page-subtitle">حسابات الموظفين، أدوارهم، وما يستطيع كل دور فعله في المنظومة</p>
+            <h1 class="page-title">المستخدمون والصلاحيات</h1>
+            <p class="page-subtitle">حسابات الموظفين وأدوارهم، وما يستطيع كل دور فعله في المنظومة</p>
         </div>
         <div class="page-actions">
             <button onclick="exportStaffCsv()" class="btn-secondary" @(staff.Count == 0 ? "disabled" : "")><i data-lucide="download" class="w-4 h-4"></i> تصدير</button>
@@ -97,7 +97,7 @@
                 <thead>
                     <tr><th>الموظف</th><th>الدور</th><th>المتجر</th><th>آخر دخول</th><th>الحالة</th><th class="text-left"></th></tr>
                 </thead>
-                <tbody id="staff-tbody">
+                <tbody id="staff-tbody" data-paginate="15">
                     @if (staff.Count == 0)
                     {
                         <tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon"><i data-lucide="user-x" class="w-6 h-6"></i></div><div class="font-bold text-slate-700">لا يوجد موظفون بعد</div></div></td></tr>
@@ -187,6 +187,16 @@
                     </div>
                 }
             </div>
+            <div class="px-4 pt-4">
+                <div class="tabs w-fit max-w-full">
+                    @{ var groups = MMApplication.Infrastructure.Security.Permissions.All.Select(p => p.Group).Distinct().ToList(); }
+                    @for (var gi = 0; gi < groups.Count; gi++)
+                    {
+                        <button type="button" class="tab @(gi == 0 ? "tab-active" : "")" data-pgroup="@groups[gi]" onclick="showPermGroup(this.dataset.pgroup)">@groups[gi]</button>
+                    }
+                    <button type="button" class="tab" data-pgroup="*" onclick="showPermGroup('*')">الكل</button>
+                </div>
+            </div>
             <div class="overflow-x-auto">
                 <table class="data-table">
                     <thead>
@@ -208,10 +218,10 @@
                     <tbody>
                         @foreach (var group in MMApplication.Infrastructure.Security.Permissions.All.GroupBy(p => p.Group))
                         {
-                            <tr class="bg-slate-50"><td colspan="5" class="!py-2 text-xs font-bold text-slate-500">@group.Key</td></tr>
+                            <tr class="bg-slate-50 perm-row" data-pgroup="@group.Key"><td colspan="5" class="!py-2 text-xs font-bold text-slate-500">@group.Key</td></tr>
                             @foreach (var perm in group)
                             {
-                                <tr>
+                                <tr class="perm-row" data-pgroup="@group.Key">
                                     <td>
                                         <div class="font-semibold text-slate-800">@perm.Label</div>
                                         <div class="text-xs text-slate-500">@perm.Hint</div>
@@ -533,10 +543,20 @@
         const q = document.getElementById('sq').value.trim().toLowerCase();
         const role = document.getElementById('sr').value;
         const st = document.getElementById('ss').value;
-        document.querySelectorAll('#staff-tbody tr[data-name]').forEach(r => {
-            r.classList.toggle('hidden', (q && !r.dataset.text.includes(q)) || (role && r.dataset.rolekey !== role) || (st && r.dataset.status !== st));
+        const body = document.getElementById('staff-tbody');
+        body.querySelectorAll('tr[data-name]').forEach(r => {
+            r.dataset.match = (q && !r.dataset.text.includes(q)) || (role && r.dataset.rolekey !== role) || (st && r.dataset.status !== st) ? '0' : '1';
+        });
+        MM.repage(body, 1);
+    }
+
+    function showPermGroup(g) {
+        document.querySelectorAll('[data-pgroup]').forEach(el => {
+            if (el.classList.contains('tab')) el.classList.toggle('tab-active', el.dataset.pgroup === g);
+            else el.classList.toggle('hidden', g !== '*' && el.dataset.pgroup !== g);
         });
     }
+    document.addEventListener('DOMContentLoaded', () => showPermGroup(document.querySelector('.tab[data-pgroup]')?.dataset.pgroup || '*'));
 
     function markDirty() {
         document.getElementById('perm-dirty')?.classList.remove('hidden');

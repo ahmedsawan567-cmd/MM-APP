@@ -189,7 +189,7 @@
                 <div class="overflow-x-auto">
                     <table class="data-table">
                         <thead><tr><th>الكود</th><th>المكافأة</th><th>العميل</th><th>النقاط</th><th>تاريخ الاستبدال</th><th>الصلاحية</th><th>الحالة</th></tr></thead>
-                        <tbody id="vouchers-body">
+                        <tbody id="vouchers-body" data-paginate="15">
                             @foreach (var v in m.Vouchers)
                             {
                                 var (label, badge) = DisplayLabels.Redemption(v.Status, v.ExpiresAt);
@@ -328,9 +328,11 @@
     function filterVouchers() {
         const q = document.getElementById('vq').value.trim().toLowerCase();
         const st = document.getElementById('vs').value;
-        document.querySelectorAll('#vouchers-body tr').forEach(r => {
-            r.classList.toggle('hidden', (q && !r.dataset.text.includes(q)) || (st && r.dataset.status !== st));
+        const body = document.getElementById('vouchers-body');
+        body.querySelectorAll('tr').forEach(r => {
+            r.dataset.match = (q && !r.dataset.text.includes(q)) || (st && r.dataset.status !== st) ? '0' : '1';
         });
+        MM.repage(body, 1);
     }
 
     async function call(url, options) {

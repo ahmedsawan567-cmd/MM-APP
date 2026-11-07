@@ -95,13 +95,13 @@ public class AdminLoginAndRbacTests : IClassFixture<WebApplicationFactory<Progra
         var templatesResp = await client.GetAsync("/AdminDashboard/InvoiceTemplates");
         Assert.Equal(HttpStatusCode.OK, templatesResp.StatusCode);
         var templatesHtml = await templatesResp.Content.ReadAsStringAsync();
-        Assert.Contains("نماذج الفواتير", templatesHtml);
+        Assert.Contains("نماذج فواتير المتاجر", templatesHtml);
         Assert.Contains("اختبار فاتورة", templatesHtml);
 
         // 7. Test New Invoices Log Page
         var invoicesResp = await client.GetAsync("/AdminDashboard/Invoices");
         Assert.Equal(HttpStatusCode.OK, invoicesResp.StatusCode);
         var invoicesHtml = await invoicesResp.Content.ReadAsStringAsync();
-        Assert.Contains("سجل الفواتير", invoicesHtml);
+        Assert.Contains("كل الفواتير", invoicesHtml);
     }
 }

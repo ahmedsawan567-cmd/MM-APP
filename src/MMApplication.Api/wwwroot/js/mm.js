@@ -273,6 +273,41 @@
     };
   })();
 
+  // ترقيم صفحات الجداول والقوائم بدل التمرير الطويل:
+  //   <tbody data-paginate="15"> أو <ul data-paginate="10">
+  // التصفية من الصفحة تضع row.dataset.match = '0' للصف المستبعد ثم تستدعي MM.repage(el).
+  MM.repage = (el, page) => {
+    const size = Number(el.dataset.paginate) || 15;
+    const rows = [...el.children].filter(r => !r.hasAttribute('data-no-paginate'));
+    const visible = rows.filter(r => r.dataset.match !== '0');
+    const pages = Math.max(1, Math.ceil(visible.length / size));
+    const current = Math.min(Math.max(1, page ?? Number(el.dataset.page || 1)), pages);
+    el.dataset.page = current;
+    rows.forEach(r => r.classList.add('hidden'));
+    visible.slice((current - 1) * size, current * size).forEach(r => r.classList.remove('hidden'));
+
+    let bar = el._pager;
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'mm-pager p-3 border-t border-line flex items-center justify-between gap-3 text-sm';
+      const host = el.closest('table')?.parentElement ?? el;
+      host.insertAdjacentElement('afterend', bar);
+      el._pager = bar;
+    }
+    bar.classList.toggle('hidden', visible.length <= size);
+    bar.innerHTML = `
+      <span class="text-slate-500"><span class="num">${visible.length.toLocaleString()}</span> • صفحة <span class="num">${current}</span> من <span class="num">${pages}</span></span>
+      <div class="flex gap-2">
+        <button type="button" class="btn-secondary btn-sm" ${current <= 1 ? 'disabled' : ''} data-go="${current - 1}">السابق</button>
+        <button type="button" class="btn-secondary btn-sm" ${current >= pages ? 'disabled' : ''} data-go="${current + 1}">التالي</button>
+      </div>`;
+    bar.querySelectorAll('[data-go]').forEach(b => b.onclick = () => MM.repage(el, Number(b.dataset.go)));
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-paginate]').forEach(el => MM.repage(el, 1));
+  });
+
   window.MM = MM;
   window.showToast = MM.toast; // توافق مع الصفحات القديمة
   window.openModal = window.openModal || MM.openModal;

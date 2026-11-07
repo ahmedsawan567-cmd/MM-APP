@@ -2,95 +2,79 @@
 @using MMApplication.Domain.Enums
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "سجل الفواتير";
+    ViewData["Title"] = "كل الفواتير";
     ViewData["ActiveTab"] = "invoices";
 }
 @Html.AntiForgeryToken()
 
-<div class="space-y-6">
+@{
+    var page = (int)(ViewData["Page"] ?? 1);
+    var totalPages = (int)(ViewData["TotalPages"] ?? 1);
+    var filtered = (int)(ViewData["FilteredCount"] ?? Model.Invoices.Count);
+    string PageUrl(int p) => Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/AdminDashboard/Invoices", new Dictionary<string, string?>
+    {
+        ["storeId"] = Model.SelectedStoreId == "ALL" ? null : Model.SelectedStoreId, ["status"] = Model.StatusFilter == "ALL" ? null : Model.StatusFilter,
+        ["search"] = string.IsNullOrEmpty(Model.SearchQuery) ? null : Model.SearchQuery, ["page"] = p > 1 ? p.ToString() : null,
+    }.Where(kv => kv.Value != null).ToDictionary(kv => kv.Key, kv => kv.Value));
+}
+<div class="space-y-5">
 
-    <!-- 1. Page Header -->
     <div class="page-header">
         <div>
-            <h1 class="page-title">سجل الفواتير</h1>
-            <p class="page-subtitle">كل الفواتير التي رفعها العملاء وحالتها</p>
+            <h1 class="page-title">كل الفواتير</h1>
+            <p class="page-subtitle">كل الفواتير التي رفعها العملاء وحالتها. اضغط على أي فاتورة لعرض تفاصيلها وصورتها.</p>
         </div>
     </div>
 
-    <!-- 2. Summary KPI Metrics -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">إجمالي الفواتير</span>
-                <i data-lucide="files" class="w-4 h-4 text-slate-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-slate-900 num">@Model.TotalCount</div>
-            <div class="text-xs text-slate-400 mt-1">معاملة شراء مسجلة</div>
+            <div class="flex items-center justify-between"><span class="stat-label">كل الفواتير</span><span class="stat-icon bg-brand-50 text-brand-600"><i data-lucide="files" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@Model.TotalCount.ToString("N0")</div>
+            <div class="stat-meta">مرفوضة أو ملغاة: <span class="num">@Model.RejectedCount</span></div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">المبيعات المعتمدة</span>
-                <i data-lucide="wallet" class="w-4 h-4 text-emerald-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-emerald-600 num">@Model.TotalApprovedAmount.ToString("N2") <span class="text-xs font-sans font-normal text-slate-500">د.ل</span></div>
-            <div class="text-xs text-emerald-700 mt-1">مبيعات محققة بالمول</div>
+            <div class="flex items-center justify-between"><span class="stat-label">المشتريات المعتمدة</span><span class="stat-icon bg-emerald-50 text-emerald-600"><i data-lucide="wallet" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@Model.TotalApprovedAmount.ToString("N0") <span class="text-base font-semibold text-slate-400">د.ل</span></div>
+            <div class="stat-meta">من فواتير معتمدة فقط</div>
         </div>
-
         <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">النقاط المكتسبة</span>
-                <i data-lucide="coins" class="w-4 h-4 text-amber-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-amber-600 num">+@Model.TotalApprovedPoints.ToString("N0")</div>
-            <div class="text-xs text-amber-700 mt-1">نقطة ممنوحة للمتسوقين</div>
+            <div class="flex items-center justify-between"><span class="stat-label">النقاط الممنوحة</span><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="coins" class="w-5 h-5"></i></span></div>
+            <div class="stat-value text-gold-600 num">@Model.TotalApprovedPoints.ToString("N0")</div>
+            <div class="stat-meta">للعملاء من فواتيرهم</div>
         </div>
-
-        <div class="stat-card">
-            <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="text-sm font-medium text-slate-500">قيد المراجعة</span>
-                <i data-lucide="clock" class="w-4 h-4 text-brand-500"></i>
-            </div>
-            <div class="text-2xl font-bold text-brand-600 num">@Model.PendingReviewsCount</div>
-            <div class="text-xs text-brand-700 mt-1">تتطلب فحصاً بشرياً</div>
-        </div>
+        <a href="/AdminDashboard/Review" class="stat-card hover:border-amber-300 transition">
+            <div class="flex items-center justify-between"><span class="stat-label">بانتظار المراجعة</span><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="clock" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num @(Model.PendingReviewsCount > 0 ? "text-amber-600" : "")">@Model.PendingReviewsCount</div>
+            <div class="stat-meta">افتح شاشة المراجعة</div>
+        </a>
     </div>
 
-    <!-- 3. Filter Bar & Table View -->
-    <div class="card p-5 space-y-4">
-        
-        <form method="get" asp-controller="AdminDashboard" asp-action="Invoices" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            
-            <div class="flex flex-wrap items-center gap-2.5">
-                <!-- Store Filter -->
-                <select name="storeId" onchange="this.form.submit()" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-brand-600">
-                    <option value="ALL">كافة المتاجر</option>
-                    @foreach (var s in Model.Stores)
-                    {
-                        <!option value="@s.Id" @(Model.SelectedStoreId == s.Id ? "selected" : "")>@s.Name</!option>
-                    }
-                </select>
-
-                <!-- Status Filter -->
-                <select name="status" onchange="this.form.submit()" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-brand-600">
-                    <!option value="ALL" @(Model.StatusFilter == "ALL" ? "selected" : "")>كافة الحالات</!option>
-                    <!option value="APPROVED" @(Model.StatusFilter == "APPROVED" ? "selected" : "")>معتمدة</!option>
-                    <!option value="PENDING" @(Model.StatusFilter == "PENDING" ? "selected" : "")>قيد الفحص</!option>
-                    <!option value="REVIEW_REQUIRED" @(Model.StatusFilter == "REVIEW_REQUIRED" ? "selected" : "")>تتطلب تدقيق</!option>
-                    <!option value="REJECTED" @(Model.StatusFilter == "REJECTED" ? "selected" : "")>مرفوضة</!option>
-                    <!option value="DISPUTED" @(Model.StatusFilter == "DISPUTED" ? "selected" : "")>نزاع مفتوح</!option>
-                </select>
+    <div class="card overflow-hidden">
+        <form method="get" action="/AdminDashboard/Invoices" class="p-4 border-b border-line flex flex-col lg:flex-row gap-3">
+            <div class="relative flex-1">
+                <input type="search" name="search" value="@Model.SearchQuery" placeholder="ابحث برقم الفاتورة أو اسم العميل أو هاتفه" class="form-input pr-9">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
             </div>
-
-            <!-- Search box -->
-            <div class="relative w-full sm:w-72">
-                <input type="text" name="search" value="@Model.SearchQuery" placeholder="بحث برقم الفاتورة أو العميل..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-brand-600 focus:bg-white transition">
-                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5"></i>
-            </div>
+            <select name="storeId" onchange="this.form.submit()" class="form-select lg:w-56" aria-label="المتجر">
+                <option value="ALL">كل المتاجر</option>
+                @foreach (var st in Model.Stores)
+                {
+                    <option value="@st.Id" selected="@(Model.SelectedStoreId == st.Id)">@st.Name</option>
+                }
+            </select>
+            <select name="status" onchange="this.form.submit()" class="form-select lg:w-48" aria-label="الحالة">
+                <option value="ALL" selected="@(Model.StatusFilter == "ALL")">كل الحالات</option>
+                <option value="APPROVED" selected="@(Model.StatusFilter == "APPROVED")">معتمدة</option>
+                <option value="REVIEW_REQUIRED" selected="@(Model.StatusFilter == "REVIEW_REQUIRED")">بانتظار المراجعة</option>
+                <option value="PENDING" selected="@(Model.StatusFilter == "PENDING")">قيد المعالجة</option>
+                <option value="DISPUTED" selected="@(Model.StatusFilter == "DISPUTED")">اعتراض من العميل</option>
+                <option value="REJECTED" selected="@(Model.StatusFilter == "REJECTED")">مرفوضة</option>
+                <option value="VOIDED" selected="@(Model.StatusFilter == "VOIDED")">ملغاة</option>
+            </select>
         </form>
 
         <!-- Invoices Table -->
-        <div class="table-container">
+        <div class="overflow-x-auto">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -100,7 +84,7 @@
                         <th>تاريخ الفاتورة</th>
                         <th>المبلغ</th>
                         <th>النقاط</th>
-                        <th>دقة الـ AI</th>
+                        <th>دقة القراءة</th>
                         <th>الحالة</th>
                         <th class="text-center">إجراءات</th>
                     </tr>
@@ -187,9 +171,17 @@
                 </tbody>
             </table>
         </div>
-
+        <div class="p-4 border-t border-line flex items-center justify-between gap-3 text-sm">
+            <span class="text-slate-500"><span class="num">@filtered.ToString("N0")</span> فاتورة @(totalPages > 1 ? $"• صفحة {page} من {totalPages}" : "")</span>
+            @if (totalPages > 1)
+            {
+                <div class="flex gap-2">
+                    <a href="@PageUrl(page - 1)" class="btn-secondary btn-sm @(page <= 1 ? "pointer-events-none opacity-50" : "")"><i data-lucide="chevron-right" class="w-4 h-4"></i> السابق</a>
+                    <a href="@PageUrl(page + 1)" class="btn-secondary btn-sm @(page >= totalPages ? "pointer-events-none opacity-50" : "")">التالي <i data-lucide="chevron-left" class="w-4 h-4"></i></a>
+                </div>
+            }
+        </div>
     </div>
-
 </div>
 
 <!-- 4. Quick Invoice Details Modal -->
