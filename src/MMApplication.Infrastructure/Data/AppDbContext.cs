@@ -39,6 +39,7 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<NotificationBroadcast> NotificationBroadcasts => Set<NotificationBroadcast>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     // Legacy aliases for backward compatibility if needed
     public DbSet<Tenant> StoreTenants => Set<Tenant>();

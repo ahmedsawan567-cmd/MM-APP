@@ -6,10 +6,12 @@
     var isAuditor = User.IsInRole("auditor") || currentRole == "FRAUD_AUDITOR";
     var isStoreManager = User.IsInRole("storemanager") || currentRole == "STORE_MANAGER";
     var tenantName = User.FindFirst("TenantName")?.Value;
+    var perms = await MMApplication.Api.Security.PermissionContext.GetAsync(Context);
+    bool Can(params string[] keys) => keys.Any(perms.Contains);
 
     var layoutDb = Context.RequestServices.GetService(typeof(MMApplication.Infrastructure.Data.AppDbContext)) as MMApplication.Infrastructure.Data.AppDbContext;
     // عدد الفواتير التي تنتظر قرار الموظفين (حقيقي من قاعدة البيانات)
-    var reviewQueueCount = (isDevOrSuperAdmin || isAuditor) && layoutDb != null
+    var reviewQueueCount = Can("invoices.review") && layoutDb != null
         ? layoutDb.Invoices.Count(i => i.ProcessingStatus == InvoiceStatus.REVIEW_REQUIRED
             || i.ProcessingStatus == InvoiceStatus.PENDING
             || i.ProcessingStatus == InvoiceStatus.PROCESSING
@@ -27,25 +29,28 @@
     // عناصر القائمة: (القسم، العنوان، الصفحة، الأيقونة، المفتاح، الظهور، العدّاد)
     var nav = new List<(string Section, string Label, string Action, string Icon, string Key, bool Visible, int Count)>
     {
-        ("", isStoreManager ? "لوحة متجري" : "الرئيسية", "Index", "layout-dashboard", "overview", true, 0),
-        ("", "التقارير", "Reports", "chart-no-axes-combined", "reports", isDevOrSuperAdmin || isAuditor || isStoreManager, 0),
+        ("", isStoreManager ? "لوحة متجري" : "الرئيسية", "Index", "layout-dashboard", "overview", Can("dashboard.view"), 0),
+        ("", "التقارير", "Reports", "chart-no-axes-combined", "reports", Can("reports.view"), 0),
 
-        ("الفواتير", "مراجعة الفواتير", "Review", "scan-search", "review", isDevOrSuperAdmin || isAuditor, reviewQueueCount),
-        ("الفواتير", "سجل الفواتير", "Invoices", "receipt-text", "invoices", true, 0),
-        ("الفواتير", "تدقيق الاحتيال", "Fraud", "shield-alert", "fraud", isDevOrSuperAdmin || isAuditor, 0),
-        ("الفواتير", "نماذج الفواتير", "InvoiceTemplates", "scan-text", "invoice_templates", isDevOrSuperAdmin || isAuditor || isStoreManager, 0),
+        ("الفواتير", "مراجعة الفواتير", "Review", "scan-search", "review", Can("invoices.review"), reviewQueueCount),
+        ("الفواتير", "كل الفواتير", "Invoices", "receipt-text", "invoices", Can("invoices.view"), 0),
+        ("الفواتير", "الفواتير المشبوهة", "Fraud", "shield-alert", "fraud", Can("fraud.view"), 0),
+        ("الفواتير", "نماذج فواتير المتاجر", "InvoiceTemplates", "scan-text", "invoice_templates", Can("invoice_templates.manage"), 0),
 
-        ("العملاء والمكافآت", "العملاء", "Customers", "users", "customers", isDevOrSuperAdmin || isAuditor, 0),
-        ("العملاء والمكافآت", "المكافآت والقسائم", "Rewards", "gift", "rewards", true, 0),
-        ("العملاء والمكافآت", "قواعد النقاط", "Loyalty", "award", "loyalty", isDevOrSuperAdmin || isStoreManager, 0),
-        ("العملاء والمكافآت", "الإعلانات", "Ads", "megaphone", "ads", isDevOrSuperAdmin, 0),
-        ("العملاء والمكافآت", "الإشعارات المرسلة", "SentNotifications", "send", "sent_notifications", isDevOrSuperAdmin, 0),
+        ("العملاء والعضويات", "العملاء", "Customers", "users", "customers", Can("customers.view"), 0),
+        ("العملاء والعضويات", "تقارير العملاء", "CustomerReports", "file-chart-column", "customer_reports", Can("customers.export"), 0),
+        ("العملاء والعضويات", "العضويات", "Tiers", "crown", "tiers", Can("tiers.manage"), 0),
+        ("العملاء والعضويات", "المكافآت والقسائم", "Rewards", "gift", "rewards", Can("rewards.manage", "vouchers.log", "vouchers.lookup"), 0),
 
-        ("المتاجر", isStoreManager ? "بيانات متجري" : "المتاجر", "Stores", "store", "stores", isDevOrSuperAdmin || isAuditor || isStoreManager, 0),
-        ("المتاجر", isStoreManager ? "مستحقات متجري" : "التسويات المالية", "Settlements", "wallet-cards", "settlements", isDevOrSuperAdmin || isAuditor || isStoreManager, 0),
+        ("النقاط والتسويق", "قواعد النقاط", "Loyalty", "award", "loyalty", Can("loyalty.manage", "campaigns.manage"), 0),
+        ("النقاط والتسويق", "الإعلانات", "Ads", "megaphone", "ads", Can("marketing.manage"), 0),
+        ("النقاط والتسويق", "الإشعارات المرسلة", "SentNotifications", "send", "sent_notifications", Can("marketing.manage"), 0),
 
-        ("الإدارة", "طاقم العمل", "Staff", "user-cog", "staff", isDevOrSuperAdmin, 0),
-        ("الإدارة", "الإعدادات والسجل", "Settings", "settings", "settings", isDevOrSuperAdmin, 0),
+        ("المتاجر", isStoreManager ? "بيانات متجري" : "المتاجر", "Stores", "store", "stores", Can("stores.view", "stores.manage"), 0),
+        ("المتاجر", isStoreManager ? "مستحقات متجري" : "مستحقات المتاجر", "Settlements", "wallet-cards", "settlements", Can("settlements.view", "settlements.manage"), 0),
+
+        ("الإدارة", "المستخدمون والصلاحيات", "Staff", "user-cog", "staff", Can("staff.manage"), 0),
+        ("الإدارة", "الإعدادات والسجل", "Settings", "settings", "settings", Can("settings.manage", "audit.view"), 0),
     };
     var visibleNav = nav.Where(n => n.Visible).ToList();
     var pageTitle = ViewData["Title"] as string ?? "لوحة التحكم";
@@ -233,6 +238,10 @@
         window.MM_NAV = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(visibleNav.Select(n => new { label = n.Label, section = n.Section, icon = n.Icon, url = Url.Action(n.Action, "AdminDashboard") })));
     </script>
 
+    @if (TempData["Denied"] is string denied)
+    {
+        <script>document.addEventListener('DOMContentLoaded', () => window.showToast && showToast(@Json.Serialize(denied), 'warning'));</script>
+    }
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

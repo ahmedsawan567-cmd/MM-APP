@@ -128,6 +128,12 @@ public static class DisplayLabels
         ["STAFF_LOGIN"] = "دخول موظف",
         ["STAFF_LOGIN_FAILED"] = "محاولة دخول فاشلة",
         ["STAFF_LOCKED"] = "قفل حساب موظف مؤقتاً",
+        ["ROLE_PERMISSIONS_UPDATE"] = "تعديل صلاحيات دور",
+        ["TIER_CREATE"] = "إضافة عضوية",
+        ["TIER_UPDATE"] = "تعديل عضوية",
+        ["TIER_DELETE"] = "حذف عضوية",
+        ["CUSTOMER_TIER_CHANGE"] = "تغيير عضوية عميل",
+        ["CUSTOMER_PASSWORD_CHANGE"] = "تغيير العميل لكلمة مروره",
         ["STAFF_ACTIVATE"] = "تفعيل حساب موظف",
         ["STAFF_DEACTIVATE"] = "تعطيل حساب موظف",
         ["STORE_ALIAS_CREATE"] = "إضافة اسم بديل لمتجر",
@@ -149,7 +155,7 @@ public static class DisplayLabels
         var a = (action ?? "").ToUpperInvariant();
         if (a.Contains("DELETE") || a.Contains("REJECT") || a.Contains("VOID") || a.Contains("FRAUD") || a.Contains("FREEZE") || a.Contains("SUSPEND") || a.Contains("FAILED") || a.Contains("LOCKED") || a.Contains("DEACTIVATE")) return "badge-rose";
         if (a.Contains("CREATE") || a.Contains("APPROVE") || a.Contains("SETTLE") || a.Contains("UNSUSPEND")) return "badge-emerald";
-        if (a.Contains("PASSWORD") || a.Contains("ADJUST") || a.Contains("SETTINGS")) return "badge-amber";
+        if (a.Contains("PASSWORD") || a.Contains("ADJUST") || a.Contains("SETTINGS") || a.Contains("PERMISSIONS")) return "badge-amber";
         return "badge-slate";
     }
 }

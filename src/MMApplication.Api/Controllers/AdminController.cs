@@ -8,11 +8,14 @@ using MMApplication.Domain.Entities;
 using MMApplication.Domain.Enums;
 using MMApplication.Infrastructure.Data;
 
+using MMApplication.Api.Security;
+using MMApplication.Infrastructure.Security;
+
 namespace MMApplication.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin,SUPER_ADMIN,FRAUD_AUDITOR,STORE_MANAGER")]
+[Authorize(Roles = StaffRoles.All)]
 [Produces("application/json")]
 public class AdminController : ControllerBase
 {
@@ -59,6 +62,7 @@ public class AdminController : ControllerBase
     /// استعلام المقاييس والإحصائيات الشاملة للوحة تحكم الإدارة.
     /// </summary>
     [HttpGet("dashboard/metrics")]
+    [RequirePermission(Permissions.ReportsView)]
     [ProducesResponseType(typeof(DashboardMetricsDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDashboardMetrics()
     {
@@ -106,6 +110,7 @@ public class AdminController : ControllerBase
     /// استعلام المتاجر الأكثر نشاطاً ومبيعات من واقع الفواتير المعتمدة.
     /// </summary>
     [HttpGet("dashboard/top-merchants")]
+    [RequirePermission(Permissions.ReportsView)]
     [ProducesResponseType(typeof(IEnumerable<TopMerchantDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetTopMerchants([FromQuery] int limit = 5)
     {
@@ -130,6 +135,7 @@ public class AdminController : ControllerBase
     /// خلاصة أحدث الأنشطة والعمليات في النظام (فواتير، استبدال، تسجيل).
     /// </summary>
     [HttpGet("dashboard/recent-activity")]
+    [RequirePermission(Permissions.ReportsView)]
     [ProducesResponseType(typeof(IEnumerable<RecentActivityDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetRecentActivity([FromQuery] int limit = 10)
     {
@@ -185,6 +191,7 @@ public class AdminController : ControllerBase
     /// استعراض قائمة الفواتير المعلّقة التي تتطلب مراجعة بشرية.
     /// </summary>
     [HttpGet("invoices/pending")]
+    [RequirePermission(Permissions.InvoicesReview)]
     [ProducesResponseType(typeof(IEnumerable<InvoiceResponseDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPendingInvoices()
     {
@@ -216,6 +223,7 @@ public class AdminController : ControllerBase
     /// اعتماد فاتورة معلّقة يدوياً من الإدارة واحتساب النقاط للعميل.
     /// </summary>
     [HttpPost("invoices/{id:guid}/approve")]
+    [RequirePermission(Permissions.InvoicesReview)]
     [ProducesResponseType(typeof(InvoiceResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -229,6 +237,7 @@ public class AdminController : ControllerBase
     /// رفض فاتورة معلّقة مع ذكر سبب الرفض.
     /// </summary>
     [HttpPost("invoices/{id:guid}/reject")]
+    [RequirePermission(Permissions.InvoicesReview)]
     [ProducesResponseType(typeof(InvoiceResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -247,6 +256,7 @@ public class AdminController : ControllerBase
     /// تعديل رصيد نقاط عميل يدوياً (إضافة أو خصم نقاط كبونص أو تصحيح).
     /// </summary>
     [HttpPost("customers/{id}/adjust-points")]
+    [RequirePermission(Permissions.CustomersPoints)]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -341,6 +351,7 @@ public class AdminController : ControllerBase
     /// استعراض قائمة العملاء بتفاصيل موسعة للإدارة (مع البحث والفلترة).
     /// </summary>
     [HttpGet("customers")]
+    [RequirePermission(Permissions.CustomersView)]
     [ProducesResponseType(typeof(IEnumerable<AdminCustomerDetailsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAdminCustomers([FromQuery] string? search)
     {

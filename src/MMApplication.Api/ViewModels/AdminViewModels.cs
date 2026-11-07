@@ -11,6 +11,10 @@ public class StaffPageViewModel
 {
     public List<StaffUserDto> StaffMembers { get; set; } = new();
     public List<StoreTenantDto> Stores { get; set; } = new();
+    /// <summary>صلاحيات كل دور قابل للتعديل (FRAUD_AUDITOR، STORE_MANAGER، CASHIER).</summary>
+    public Dictionary<string, HashSet<string>> RolePermissions { get; set; } = new();
+    public bool CanEditPermissions { get; set; }
+    public bool ActorIsSuperAdmin { get; set; }
 }
 
 /// <summary>

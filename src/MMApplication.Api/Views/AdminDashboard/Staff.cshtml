@@ -27,28 +27,9 @@
         (StaffRole.StoreManager, "مدير متجر", "store", "badge-amber", "بيانات متجره ومبيعاته وقواعد نقاطه فقط"),
         (StaffRole.Cashier, "كاشير", "calculator", "badge-slate", "التحقق من قسائم العملاء وفواتير متجره"),
     };
-    // مصفوفة الصلاحيات كما يطبقها النظام فعلياً: ✓ كامل، ◐ على متجره فقط، — لا يملك
-    var matrix = new (string Area, string Permission, string Admin, string Auditor, string Manager, string Cashier)[]
-    {
-        ("الرئيسية", "لوحة المؤشرات", "full", "full", "store", "store"),
-        ("الرئيسية", "التقارير والتصدير", "full", "full", "store", "none"),
-        ("الفواتير", "مراجعة الفواتير واعتمادها ورفضها", "full", "full", "none", "none"),
-        ("الفواتير", "سجل الفواتير", "full", "full", "store", "store"),
-        ("الفواتير", "تدقيق الاحتيال", "full", "full", "none", "none"),
-        ("الفواتير", "نماذج فواتير المتاجر", "full", "full", "store", "none"),
-        ("العملاء", "عرض ملفات العملاء وتعديل بياناتهم", "full", "full", "none", "none"),
-        ("العملاء", "تجميد الحساب وكلمة مرور جديدة وإشعار العميل", "full", "full", "none", "none"),
-        ("العملاء", "تعديل النقاط وحذف العملاء", "full", "none", "none", "none"),
-        ("المكافآت", "إدارة كتالوج المكافآت", "full", "none", "none", "none"),
-        ("المكافآت", "سجل القسائم الصادرة", "full", "full", "none", "none"),
-        ("المكافآت", "التحقق من القسائم وتأكيد استخدامها", "full", "view", "full", "full"),
-        ("الولاء", "قواعد النقاط والعروض المضاعفة", "full", "none", "store", "none"),
-        ("الولاء", "الإعلانات والإشعارات الجماعية", "full", "none", "none", "none"),
-        ("المتاجر", "بيانات المتاجر وأسماؤها البديلة", "full", "view", "store", "none"),
-        ("المتاجر", "التسويات المالية", "full", "view", "store", "none"),
-        ("الإدارة", "طاقم العمل والصلاحيات", "full", "none", "none", "none"),
-        ("الإدارة", "الإعدادات وسجل العمليات", "full", "none", "none", "none"),
-    };
+    var rolePerms = ViewData["RolePermissions"] as Dictionary<string, HashSet<string>> ?? new();
+    var actorIsSuper = ViewData["ActorIsSuperAdmin"] as bool? ?? false;
+    var editableRoles = new[] { ("FRAUD_AUDITOR", "مدقق الفواتير"), ("STORE_MANAGER", "مدير متجر"), ("CASHIER", "كاشير") };
 }
 @Html.AntiForgeryToken()
 
@@ -192,50 +173,68 @@
             }
         </div>
 
-        <div class="card overflow-hidden">
-            <div class="card-header">
+        <div class="card overflow-hidden" id="perm-card">
+            <div class="card-header flex-wrap">
                 <div>
                     <h3 class="card-title">مصفوفة الصلاحيات</h3>
-                    <p class="card-subtitle">ما يستطيع كل دور فعله، كما يطبقه النظام على كل صفحة وعملية</p>
+                    <p class="card-subtitle">@(actorIsSuper ? "فعّل أو ألغِ أي صلاحية لأي دور ثم اضغط حفظ. التغيير يطبَّق فوراً على كل موظفي الدور." : "ما يستطيع كل دور فعله. التعديل للمدير العام فقط.")</p>
                 </div>
+                @if (actorIsSuper)
+                {
+                    <div class="flex items-center gap-2">
+                        <span id="perm-dirty" class="hidden badge badge-amber">تغييرات غير محفوظة</span>
+                        <button type="button" id="perm-save" onclick="savePermissions()" class="btn-primary" disabled><i data-lucide="save" class="w-4 h-4"></i> حفظ الصلاحيات</button>
+                    </div>
+                }
             </div>
             <div class="overflow-x-auto">
                 <table class="data-table">
                     <thead>
                         <tr>
                             <th>الصلاحية</th>
-                            @foreach (var r in roles) { <th class="text-center whitespace-nowrap">@r.Item2</th> }
+                            <th class="text-center whitespace-nowrap">المدير العام</th>
+                            @foreach (var (key, label) in editableRoles)
+                            {
+                                <th class="text-center whitespace-nowrap">
+                                    @label
+                                    @if (actorIsSuper)
+                                    {
+                                        <button type="button" class="block mx-auto mt-1 text-xs font-normal text-brand-700 hover:underline" onclick="resetRole('@key', '@label')">الافتراضي</button>
+                                    }
+                                </th>
+                            }
                         </tr>
                     </thead>
                     <tbody>
-                        @{ string? lastArea = null; }
-                        @foreach (var row in matrix)
+                        @foreach (var group in MMApplication.Infrastructure.Security.Permissions.All.GroupBy(p => p.Group))
                         {
-                            if (row.Area != lastArea)
+                            <tr class="bg-slate-50"><td colspan="5" class="!py-2 text-xs font-bold text-slate-500">@group.Key</td></tr>
+                            @foreach (var perm in group)
                             {
-                                lastArea = row.Area;
-                                <tr class="bg-slate-50"><td colspan="5" class="!py-2 text-xs font-bold text-slate-500">@row.Area</td></tr>
-                            }
-                            <tr>
-                                <td class="text-slate-800">@row.Permission</td>
-                                @foreach (var level in new[] { row.Admin, row.Auditor, row.Manager, row.Cashier })
-                                {
-                                    <td class="text-center">
-                                        @switch (level)
-                                        {
-                                            case "full": <span class="inline-flex w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 items-center justify-center" title="كامل"><i data-lucide="check" class="w-4 h-4"></i></span> break;
-                                            case "store": <span class="badge badge-amber" title="بيانات متجره فقط">متجره فقط</span> break;
-                                            case "view": <span class="badge badge-slate" title="اطلاع بدون تعديل">اطلاع</span> break;
-                                            default: <span class="text-slate-300">—</span> break;
-                                        }
+                                <tr>
+                                    <td>
+                                        <div class="font-semibold text-slate-800">@perm.Label</div>
+                                        <div class="text-xs text-slate-500">@perm.Hint</div>
                                     </td>
-                                }
-                            </tr>
+                                    <td class="text-center"><span class="inline-flex w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 items-center justify-center" title="المدير العام يملك كل الصلاحيات دائماً"><i data-lucide="check" class="w-4 h-4"></i></span></td>
+                                    @foreach (var (key, _) in editableRoles)
+                                    {
+                                        var on = rolePerms.TryGetValue(key, out var set) && set.Contains(perm.Key);
+                                        <td class="text-center">
+                                            <input type="checkbox" class="perm-box form-check !w-5 !h-5 cursor-pointer disabled:cursor-default" data-role="@key" data-perm="@perm.Key"
+                                                   @(on ? "checked" : "") @(actorIsSuper ? "" : "disabled") onchange="markDirty()" aria-label="@perm.Label" />
+                                        </td>
+                                    }
+                                </tr>
+                            }
                         }
                     </tbody>
                 </table>
             </div>
-            <div class="p-4 border-t border-line text-sm text-slate-500">لتغيير صلاحيات شخص غيّر دوره من "تعديل البيانات والدور". موظفو المتاجر يرون بيانات متجرهم فقط مهما كانت الصفحة.</div>
+            <div class="p-4 border-t border-line text-sm text-slate-500 space-y-1">
+                <p>المدير العام يملك كل الصلاحيات دائماً حتى لا يُقفل النظام. موظفو المتاجر (مدير المتجر والكاشير) يرون بيانات متجرهم فقط مهما كانت صلاحياتهم.</p>
+                <p>كل تعديل على الصلاحيات يُسجَّل في سجل العمليات باسم من نفّذه.</p>
+            </div>
         </div>
     </section>
 </div>
@@ -537,6 +536,41 @@
         document.querySelectorAll('#staff-tbody tr[data-name]').forEach(r => {
             r.classList.toggle('hidden', (q && !r.dataset.text.includes(q)) || (role && r.dataset.rolekey !== role) || (st && r.dataset.status !== st));
         });
+    }
+
+    function markDirty() {
+        document.getElementById('perm-dirty')?.classList.remove('hidden');
+        const btn = document.getElementById('perm-save');
+        if (btn) btn.disabled = false;
+    }
+
+    async function savePermissions() {
+        const btn = document.getElementById('perm-save');
+        btn.disabled = true;
+        const roles = {};
+        document.querySelectorAll('.perm-box').forEach(b => { (roles[b.dataset.role] ||= []); if (b.checked) roles[b.dataset.role].push(b.dataset.perm); });
+        try {
+            for (const [role, permissions] of Object.entries(roles)) {
+                await staffRequest(`/api/superadmin/roles/${role}/permissions`, 'PUT', { permissions });
+            }
+            document.getElementById('perm-dirty').classList.add('hidden');
+            showToast('تم حفظ الصلاحيات. تطبَّق فوراً على الموظفين.', 'success');
+        } catch (err) {
+            btn.disabled = false;
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function resetRole(role, label) {
+        const ok = await Swal.fire({ title: `إرجاع صلاحيات ${label} للوضع الافتراضي؟`, icon: 'question', showCancelButton: true, confirmButtonText: 'إرجاع', cancelButtonText: 'إلغاء' });
+        if (!ok.isConfirmed) return;
+        try {
+            await staffRequest(`/api/superadmin/roles/${role}/permissions/reset`, 'POST');
+            location.href = location.pathname + '#roles';
+            location.reload();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
     }
 
     async function resetStaffPassword(btn) {

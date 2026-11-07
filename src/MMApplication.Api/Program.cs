@@ -297,6 +297,7 @@ using (var scope = app.Services.CreateScope())
         }
 
         await Notifier.PurgeOldAsync(db);
+        await MMApplication.Infrastructure.Security.Permissions.EnsureDefaultsAsync(db);
         await Notifier.BackfillBroadcastsAsync(db);
 
         var keyed = await InvoiceKeys.BackfillAsync(db, logger);

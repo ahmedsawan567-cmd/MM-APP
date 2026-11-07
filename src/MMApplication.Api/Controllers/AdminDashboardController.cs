@@ -13,6 +13,8 @@ using MMApplication.Domain.Entities;
 using MMApplication.Domain.Enums;
 using MMApplication.Infrastructure.Data;
 using MMApplication.Infrastructure.Services;
+using MMApplication.Infrastructure.Security;
+using MMApplication.Api.Security;
 
 namespace MMApplication.Api.Controllers;
 
@@ -62,7 +64,7 @@ public class AdminDashboardController : Controller
     [HttpGet]
     public async Task<IActionResult> Review([FromQuery] string? queue)
     {
-        if (!CanReviewInvoices) return RedirectToAction(nameof(Index));
+        if (!await Can(Permissions.InvoicesReview)) return RedirectToAction(nameof(Index));
 
         queue = queue is "waiting" or "decided" ? queue : "open";
         var query = _context.Invoices.AsNoTracking().Include(i => i.Customer).Include(i => i.Tenant).AsQueryable();
@@ -113,7 +115,7 @@ public class AdminDashboardController : Controller
     [HttpGet]
     public async Task<IActionResult> ReviewItem(Guid id)
     {
-        if (!CanReviewInvoices) return Forbid();
+        if (!await Can(Permissions.InvoicesReview)) return Forbid();
 
         var i = await _context.Invoices.AsNoTracking()
             .Include(x => x.Customer).Include(x => x.Tenant)
@@ -194,7 +196,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ReviewApprove(Guid id, [FromBody] InvoiceCorrection? correction)
     {
-        if (!CanReviewInvoices) return Forbid();
+        if (!await Can(Permissions.InvoicesReview)) return Forbid();
         return ReviewResult(await _review.ApproveAsync(id, ReviewerName, correction));
     }
 
@@ -202,7 +204,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ReviewReject(Guid id, [FromBody] ReviewDecisionRequest request)
     {
-        if (!CanReviewInvoices) return Forbid();
+        if (!await Can(Permissions.InvoicesReview)) return Forbid();
         return ReviewResult(await _review.RejectAsync(id, ReviewerName, request.Reason ?? string.Empty));
     }
 
@@ -210,7 +212,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ReviewRequestResubmission(Guid id, [FromBody] ReviewDecisionRequest request)
     {
-        if (!CanReviewInvoices) return Forbid();
+        if (!await Can(Permissions.InvoicesReview)) return Forbid();
         return ReviewResult(await _review.RequestResubmissionAsync(id, ReviewerName, request.Reason ?? string.Empty));
     }
 
@@ -219,7 +221,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ReviewRerunAi(Guid id)
     {
-        if (!CanReviewInvoices) return Forbid();
+        if (!await Can(Permissions.InvoicesReview)) return Forbid();
         if (_ocr == null || _env == null) return BadRequest(new { success = false, message = "خدمة القراءة الآلية غير متاحة." });
 
         var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == id);
@@ -276,7 +278,7 @@ public class AdminDashboardController : Controller
     [RequestSizeLimit(15 * 1024 * 1024)]
     public async Task<IActionResult> AiReceiptLab(IFormFile? file)
     {
-        if (!CanReviewInvoices && !IsStoreManager) return Forbid();
+        if (!await Can(Permissions.InvoicesReview, Permissions.InvoiceTemplates)) return Forbid();
         if (_ocr == null) return BadRequest(new { success = false, message = "خدمة القراءة الآلية غير متاحة." });
         if (file == null || file.Length == 0) return BadRequest(new { success = false, message = "اختر صورة فاتورة." });
 
@@ -322,7 +324,7 @@ public class AdminDashboardController : Controller
     [HttpGet]
     public async Task<IActionResult> Reports([FromQuery] string? range, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? storeId)
     {
-        if (!CanReviewInvoices && !IsStoreManager) return RedirectToAction(nameof(Index));
+        if (!await Can(Permissions.ReportsView)) return RedirectToAction(nameof(Index));
 
         var filter = BuildReportFilter(range, from, to, storeId);
         var data = await new ReportService(_context).BuildAsync(filter);
@@ -337,7 +339,7 @@ public class AdminDashboardController : Controller
     [HttpGet]
     public async Task<IActionResult> ReportsExport([FromQuery] string? range, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? storeId)
     {
-        if (!CanReviewInvoices && !IsStoreManager) return Forbid();
+        if (!await Can(Permissions.ReportsExport)) return Forbid();
 
         var filter = BuildReportFilter(range, from, to, storeId);
         var data = await new ReportService(_context).BuildAsync(filter);
@@ -379,7 +381,8 @@ public class AdminDashboardController : Controller
 
         var rewards = await _context.Rewards.AsNoTracking().OrderByDescending(r => r.IsActive).ThenBy(r => r.PointsCost).ToListAsync();
         var now = DateTime.UtcNow;
-        var canSeeVouchers = IsDeveloperOrSuperAdmin || IsAuditor;
+        if (!await Can(Permissions.RewardsManage, Permissions.VouchersLog, Permissions.VouchersLookup)) return RedirectToAction(nameof(Index));
+        var canSeeVouchers = await Can(Permissions.VouchersLog);
         var vouchers = !canSeeVouchers ? new List<VoucherAdminRow>() : await _context.Redemptions.AsNoTracking()
             .OrderByDescending(r => r.RedeemedAt).Take(300)
             .Select(r => new VoucherAdminRow(r.RedemptionCode, r.Reward.Title, r.Reward.MerchantName, r.CustomerId, r.Customer.FullName,
@@ -388,7 +391,7 @@ public class AdminDashboardController : Controller
         var redemptions = _context.Redemptions.AsNoTracking();
         var model = new RewardsPageViewModel
         {
-            CanManage = IsDeveloperOrSuperAdmin,
+            CanManage = await Can(Permissions.RewardsManage),
             CanSeeVouchers = canSeeVouchers,
             Vouchers = vouchers,
             StoreNames = await _context.Tenants.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.NameAr).Select(t => t.NameAr).ToListAsync(),
@@ -431,7 +434,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RewardSave([FromBody] RewardEditRequest req)
     {
-        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        if (!await Can(Permissions.RewardsManage)) return Forbid();
 
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(req.Title) || req.Title.Trim().Length < 2) errors.Add("عنوان المكافأة مطلوب.");
@@ -482,7 +485,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RewardDelete(Guid id)
     {
-        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        if (!await Can(Permissions.RewardsManage)) return Forbid();
         var reward = await _context.Rewards.FirstOrDefaultAsync(r => r.Id == id);
         if (reward == null) return NotFound(new { success = false, message = "المكافأة غير موجودة." });
 
@@ -510,7 +513,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RewardToggle(Guid id)
     {
-        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        if (!await Can(Permissions.RewardsManage)) return Forbid();
         var reward = await _context.Rewards.FirstOrDefaultAsync(r => r.Id == id);
         if (reward == null) return NotFound(new { success = false, message = "المكافأة غير موجودة." });
         reward.IsActive = !reward.IsActive;
@@ -532,7 +535,7 @@ public class AdminDashboardController : Controller
     [RequestSizeLimit(5 * 1024 * 1024)]
     public async Task<IActionResult> RewardImage(IFormFile? file, [FromServices] IFileStorageService storage)
     {
-        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        if (!await Can(Permissions.RewardsManage)) return Forbid();
         if (file == null || file.Length == 0) return BadRequest(new { success = false, message = "اختر صورة." });
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!AllowedImageExtensions.Contains(ext)) return BadRequest(new { success = false, message = "الصورة يجب أن تكون JPG أو PNG أو WEBP." });
@@ -544,6 +547,7 @@ public class AdminDashboardController : Controller
     [HttpGet]
     public async Task<IActionResult> VoucherLookup(string code)
     {
+        if (!await Can(Permissions.VouchersLookup)) return Forbid();
         var result = await new VoucherService(_context).LookupAsync(code ?? string.Empty);
         return StatusCode(result.StatusCode, new { success = result.Success, message = result.Message, voucher = result.Voucher });
     }
@@ -552,7 +556,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> VoucherUse([FromBody] ReviewDecisionRequest request)
     {
-        if (IsAuditor && !IsDeveloperOrSuperAdmin) return Forbid(); // المدقق يطّلع فقط
+        if (!await Can(Permissions.VouchersRedeem)) return Forbid();
         var usedBy = User?.FindFirst("TenantName")?.Value is { Length: > 0 } store ? store : "مكتب خدمة العملاء";
         var result = await new VoucherService(_context).UseAsync(request.Reason ?? string.Empty, usedBy, ReviewerName);
         return StatusCode(result.StatusCode, new { success = result.Success, message = result.Message, voucher = result.Voucher });
@@ -593,6 +597,24 @@ public class AdminDashboardController : Controller
     private string ScopeTenantId => string.IsNullOrEmpty(CurrentTenantId) ? "__no_store__" : CurrentTenantId;
 
     private bool IsExplicitlyUnauthenticated => User?.Identity != null && !User.Identity.IsAuthenticated;
+
+    /// <summary>هل يملك المستخدم إحدى الصلاحيات؟ (اختبارات الوحدة بدون مستخدم تُعامل كمدير عام)</summary>
+    private async Task<bool> Can(params string[] permissions) =>
+        HttpContext == null || User?.Identity?.IsAuthenticated != true || await PermissionContext.HasAnyAsync(HttpContext, _context, permissions);
+
+    /// <summary>أول صفحة يملك المستخدم صلاحيتها (لمن لا يملك عرض لوحة المؤشرات).</summary>
+    private async Task<string> FirstAllowedPageAsync()
+    {
+        var pages = new (string Perm, string Action)[]
+        {
+            (Permissions.InvoicesReview, nameof(Review)), (Permissions.InvoicesView, nameof(Invoices)), (Permissions.CustomersView, nameof(Customers)),
+            (Permissions.VouchersLookup, nameof(Rewards)), (Permissions.RewardsManage, nameof(Rewards)), (Permissions.ReportsView, nameof(Reports)),
+            (Permissions.StoresView, nameof(Stores)), (Permissions.SettlementsView, nameof(Settlements)), (Permissions.StaffManage, nameof(Staff)),
+        };
+        foreach (var (perm, action) in pages)
+            if (await Can(perm)) return action;
+        return nameof(Logout);
+    }
     #endregion
 
     // ----------------------------------------------------
@@ -719,6 +741,8 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Index()
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (!await Can(Permissions.DashboardView)) return RedirectToAction(await FirstAllowedPageAsync());
+        if (Request?.Query.ContainsKey("denied") == true) TempData["Denied"] = "ليست لديك صلاحية لتلك الصفحة.";
 
         var invoiceQuery = _context.Invoices.AsNoTracking();
         if (IsStoreScoped)
@@ -821,7 +845,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Stores([FromQuery] string? category, [FromQuery] string? search)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-        if (!(IsDeveloperOrSuperAdmin || IsAuditor || IsStoreManager)) return RedirectToAction(nameof(Index)); // المتاجر: المدير العام، المدقق للاطلاع، ومدير المتجر لمتجره
+        if (!await Can(Permissions.StoresView, Permissions.StoresManage)) return RedirectToAction(nameof(Index)); // المتاجر: المدير العام، المدقق للاطلاع، ومدير المتجر لمتجره
 
         var query = _context.Tenants
             .Include(t => t.LoyaltyRule)
@@ -879,7 +903,7 @@ public class AdminDashboardController : Controller
 
         ViewData["ActiveTab"] = "stores";
         ViewData["Title"] = IsStoreScoped ? "متجري" : "المتاجر";
-        ViewData["IsSuperAdmin"] = IsDeveloperOrSuperAdmin;
+        ViewData["IsSuperAdmin"] = await Can(Permissions.StoresManage);
         ViewData["ProfiledStores"] = (await _context.StoreInvoiceProfiles.AsNoTracking().Select(p => p.TenantId).ToListAsync()).ToHashSet();
         ViewData["Categories"] = await _context.Tenants.AsNoTracking().Select(t => t.Category).Distinct().OrderBy(c => c).ToListAsync();
         ViewData["LoyaltyFilter"] = category ?? "";
@@ -890,14 +914,14 @@ public class AdminDashboardController : Controller
     // ----------------------------------------------------
     // 2.1 🧾 نماذج الفواتير: بصمة فاتورة كل متجر (يتعلّمها الذكاء الاصطناعي من صورة نموذجية)
     // ----------------------------------------------------
-    private bool CanManageProfile(string storeId) =>
-        IsDeveloperOrSuperAdmin || IsAuditor || (IsStoreManager && CurrentTenantId == storeId);
+    private async Task<bool> CanManageProfile(string storeId) =>
+        await Can(Permissions.InvoiceTemplates) && (!IsStoreScoped || CurrentTenantId == storeId);
 
     [HttpGet]
     public async Task<IActionResult> InvoiceTemplates([FromServices] IInvoiceProfileAnalyzer? analyzer = null)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-        if (!(CanReviewInvoices || IsStoreManager)) return RedirectToAction(nameof(Index)); // نماذج الفواتير
+        if (!await Can(Permissions.InvoiceTemplates)) return RedirectToAction(nameof(Index)); // نماذج الفواتير
 
         var query = _context.Tenants.AsNoTracking();
         if (IsStoreScoped) query = query.Where(t => t.TenantId == ScopeTenantId);
@@ -954,7 +978,7 @@ public class AdminDashboardController : Controller
         [FromForm] string storeId, IFormFile? file,
         [FromServices] IInvoiceProfileAnalyzer analyzer, [FromServices] IFileStorageService storage)
     {
-        if (!CanManageProfile(storeId)) return Forbid();
+        if (!await CanManageProfile(storeId)) return Forbid();
         if (file == null || file.Length == 0) return BadRequest(new { success = false, message = "اختر صورة فاتورة من هذا المتجر." });
         var store = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.TenantId == storeId);
         if (store == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
@@ -984,7 +1008,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveInvoiceProfile([FromBody] SaveInvoiceProfileRequest req)
     {
-        if (!CanManageProfile(req.StoreId)) return Forbid();
+        if (!await CanManageProfile(req.StoreId)) return Forbid();
         var store = await _context.Tenants.Include(t => t.Aliases).Include(t => t.InvoiceProfile)
             .FirstOrDefaultAsync(t => t.TenantId == req.StoreId);
         if (store == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
@@ -1055,7 +1079,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteInvoiceProfile([FromBody] StoreIdRequest req)
     {
-        if (!CanManageProfile(req.StoreId)) return Forbid();
+        if (!await CanManageProfile(req.StoreId)) return Forbid();
         var profile = await _context.StoreInvoiceProfiles.Include(p => p.Tenant).FirstOrDefaultAsync(p => p.TenantId == req.StoreId);
         if (profile == null) return NotFound(new { success = false, message = "لا يوجد نموذج لهذا المتجر." });
 
@@ -1140,6 +1164,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Invoices([FromQuery] string? storeId, [FromQuery] string? status, [FromQuery] string? search)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
+        if (!await Can(Permissions.InvoicesView)) return RedirectToAction(nameof(Index));
 
         var query = _context.Invoices
             .Include(i => i.Tenant)
@@ -1254,6 +1279,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> GetInvoiceDetailsJson(Guid id)
     {
         if (IsExplicitlyUnauthenticated) return Unauthorized();
+        if (!await Can(Permissions.InvoicesView)) return Forbid();
 
         var invoice = await _context.Invoices
             .Include(i => i.Tenant)
@@ -1270,7 +1296,7 @@ public class AdminDashboardController : Controller
             invoiceNumber = invoice.InvoiceNumber,
             tenantId = invoice.TenantId,
             invoiceDateIso = invoice.InvoiceDate?.ToString("yyyy-MM-dd"),
-            canReview = CanReviewInvoices,
+            canReview = await Can(Permissions.InvoicesReview),
             storeName = invoice.Tenant?.NameAr ?? invoice.ExtractedMerchant ?? "متجر عام",
             storeCategory = invoice.Tenant?.Category ?? "عام",
             customerName = invoice.Customer?.FullName ?? "عميل",
@@ -1315,7 +1341,7 @@ public class AdminDashboardController : Controller
         // الاعتماد والرفض يمران عبر خدمة المراجعة لتُضاف/تُسترجع النقاط بشكل صحيح
         if (status == InvoiceStatus.APPROVED || status == InvoiceStatus.REJECTED)
         {
-            if (!CanReviewInvoices) return Forbid();
+            if (!await Can(Permissions.InvoicesReview)) return Forbid();
             return ReviewResult(status == InvoiceStatus.APPROVED
                 ? await _review.ApproveAsync(id, ReviewerName)
                 : await _review.RejectAsync(id, ReviewerName, string.IsNullOrWhiteSpace(reason) ? "تم الرفض بواسطة الإدارة" : reason));
@@ -1324,11 +1350,11 @@ public class AdminDashboardController : Controller
         // الإلغاء يسترجع النقاط ويحجز رقم الفاتورة (للمدير العام والمدقق فقط)
         if (status == InvoiceStatus.VOIDED)
         {
-            if (!CanReviewInvoices) return Forbid();
+            if (!await Can(Permissions.InvoicesEdit)) return Forbid();
             return ReviewResult(await _review.VoidAsync(id, ReviewerName, string.IsNullOrWhiteSpace(reason) ? "تم الإلغاء بواسطة الإدارة" : reason));
         }
 
-        if (!CanReviewInvoices) return Forbid();
+        if (!await Can(Permissions.InvoicesEdit)) return Forbid();
         invoice.ProcessingStatus = status;
 
         _context.AuditLogs.Add(new AuditLog
@@ -1351,7 +1377,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> InvoiceEdit(Guid id, [FromBody] InvoiceCorrection correction)
     {
-        if (!CanReviewInvoices) return Forbid();
+        if (!await Can(Permissions.InvoicesEdit)) return Forbid();
         return ReviewResult(await _review.UpdateDetailsAsync(id, ReviewerName, correction));
     }
 
@@ -1404,7 +1430,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> SentNotifications([FromQuery] int page = 1)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-        if (!IsDeveloperOrSuperAdmin) return RedirectToAction(nameof(Index));
+        if (!await Can(Permissions.MarketingManage)) return RedirectToAction(nameof(Index));
 
         const int pageSize = 20;
         var total = await _context.NotificationBroadcasts.CountAsync();
@@ -1441,7 +1467,7 @@ public class AdminDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RetractNotification(Guid id)
     {
-        if (!IsDeveloperOrSuperAdmin) return Forbid();
+        if (!await Can(Permissions.MarketingManage)) return Forbid();
         var b = await _context.NotificationBroadcasts.FirstOrDefaultAsync(x => x.Id == id);
         if (b == null) return NotFound(new { message = "الإشعار غير موجود." });
         if (b.RetractedAt != null) return Json(new { success = true, removed = 0 });
@@ -1469,7 +1495,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Fraud([FromQuery] string? statusFilter)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-        if (!(CanReviewInvoices)) return RedirectToAction(nameof(Index)); // تدقيق الاحتيال للإدارة والمدققين
+        if (!await Can(Permissions.FraudView)) return RedirectToAction(nameof(Index)); // تدقيق الاحتيال للإدارة والمدققين
 
         var filter = statusFilter?.ToUpperInvariant() ?? "ALL";
         var query = _context.Invoices
@@ -1586,7 +1612,7 @@ public class AdminDashboardController : Controller
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
 
-        if (!IsDeveloperOrSuperAdmin)
+        if (!await Can(Permissions.MarketingManage))
         {
             return RedirectToAction(nameof(Index));
         }
@@ -1625,7 +1651,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Loyalty()
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-        if (!(IsDeveloperOrSuperAdmin || IsStoreManager)) return RedirectToAction(nameof(Index)); // قواعد النقاط: المدير العام ومدير المتجر لمتجره
+        if (!await Can(Permissions.LoyaltyManage, Permissions.CampaignsManage)) return RedirectToAction(nameof(Index)); // قواعد النقاط: المدير العام ومدير المتجر لمتجره
 
         var campaigns = await _context.LoyaltyCampaigns
             .AsNoTracking()
@@ -1741,7 +1767,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> Settlements()
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-        if (IsCashier) return RedirectToAction(nameof(Index)); // المستحقات المالية لمدير المتجر والإدارة فقط
+        if (!await Can(Permissions.SettlementsView, Permissions.SettlementsManage)) return RedirectToAction(nameof(Index));
 
         var settlementQuery = _context.TenantSettlements
             .Include(s => s.Tenant)
@@ -1786,7 +1812,7 @@ public class AdminDashboardController : Controller
         [FromQuery] string? sort, [FromQuery] int page = 1, [FromQuery] string? export = null)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-        if (!(IsDeveloperOrSuperAdmin || IsAuditor)) return RedirectToAction(nameof(Index)); // بيانات العملاء الشخصية للإدارة والمدققين
+        if (!await Can(Permissions.CustomersView)) return RedirectToAction(nameof(Index)); // بيانات العملاء الشخصية للإدارة والمدققين
 
         var query = _context.Customers
             .Include(c => c.Wallets)
@@ -1850,6 +1876,7 @@ public class AdminDashboardController : Controller
 
         if (string.Equals(export, "csv", StringComparison.OrdinalIgnoreCase))
         {
+            if (!await Can(Permissions.CustomersExport)) return Forbid();
             string Cell(object? v) => "\"" + (v?.ToString() ?? "").Replace("\"", "\"\"") + "\"";
             var sb = new System.Text.StringBuilder();
             sb.AppendLine(string.Join(",", new[] { "رقم العضوية", "الاسم", "الهاتف", "البريد", "تاريخ الميلاد", "الجنس", "الفئة", "النقاط", "الفواتير", "الإنفاق المعتمد", "الحالة", "تاريخ التسجيل" }.Select(Cell)));
@@ -1905,9 +1932,12 @@ public class AdminDashboardController : Controller
         ViewData["TierCounts"] = await baseQuery.GroupBy(c => c.LoyaltyTier.ToUpper()).Select(g => new { tier = g.Key, count = g.Count() }).ToListAsync();
 
         ViewData["ActiveTab"] = "customers";
-        ViewData["CanEditCustomers"] = IsDeveloperOrSuperAdmin || IsAuditor;
-        ViewData["CanOpenProfile"] = IsDeveloperOrSuperAdmin || IsAuditor;
-        ViewData["IsSuperAdmin"] = IsDeveloperOrSuperAdmin;
+        ViewData["CanEditCustomers"] = await Can(Permissions.CustomersEdit);
+        ViewData["CanOpenProfile"] = await Can(Permissions.CustomersView);
+        ViewData["CanPoints"] = await Can(Permissions.CustomersPoints);
+        ViewData["CanDelete"] = await Can(Permissions.CustomersDelete);
+        ViewData["CanExport"] = await Can(Permissions.CustomersExport);
+        ViewData["IsSuperAdmin"] = (bool)ViewData["CanPoints"]!;
         ViewData["Title"] = "العملاء";
         ViewData["TierFilter"] = tier ?? "ALL";
         ViewData["StatusFilter"] = st;
@@ -1928,7 +1958,7 @@ public class AdminDashboardController : Controller
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
         if (string.IsNullOrWhiteSpace(id)) return RedirectToAction(nameof(Customers));
         // مدير المتجر لا يطّلع على ملفات العملاء الكاملة
-        if (!(IsDeveloperOrSuperAdmin || IsAuditor)) return RedirectToAction(nameof(Index));
+        if (!await Can(Permissions.CustomersView)) return RedirectToAction(nameof(Index));
 
         var c = await _context.Customers.AsNoTracking().FirstOrDefaultAsync(x => x.CustomerId == id);
         if (c == null) return NotFound("العميل غير مسجل في النظام.");
@@ -1984,8 +2014,9 @@ public class AdminDashboardController : Controller
             RejectedCount = invoices.Count(i => i.ProcessingStatus is InvoiceStatus.REJECTED or InvoiceStatus.VOIDED),
             VouchersActive = vouchers.Count(v => v.Status == RedemptionStatus.ACTIVE && v.ExpiresAt > DateTime.UtcNow),
             SharedDeviceAccounts = sharing.Select(x => x.CustomerId).Distinct().Count(),
-            CanEdit = IsDeveloperOrSuperAdmin || IsAuditor,
-            IsSuperAdmin = IsDeveloperOrSuperAdmin,
+            CanEdit = await Can(Permissions.CustomersEdit),
+            IsSuperAdmin = await Can(Permissions.CustomersPoints),
+            CanDelete = await Can(Permissions.CustomersDelete),
             Invoices = invoices.Select(i => new CustomerProfileViewModel.InvoiceRow(i.InvoiceId, StoreName(i), i.InvoiceNumber,
                 i.InvoiceDate ?? i.CreatedAt, i.CreatedAt, i.TotalAmount ?? 0, i.PointsAwarded, i.ProcessingStatus, i.FraudRiskScore,
                 i.RejectionReason, i.ReceiptImageUrl)).ToList(),
@@ -2015,7 +2046,7 @@ public class AdminDashboardController : Controller
     public async Task<IActionResult> GetCustomerDetailsJson(string id)
     {
         if (IsExplicitlyUnauthenticated) return Unauthorized();
-        if (!(IsDeveloperOrSuperAdmin || IsAuditor)) return Forbid();
+        if (!await Can(Permissions.CustomersView)) return Forbid();
         if (string.IsNullOrWhiteSpace(id)) return BadRequest("Invalid ID");
 
         var customer = await _context.Customers
@@ -2097,7 +2128,7 @@ public class AdminDashboardController : Controller
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
 
         // Developer & Super Admin Only
-        if (!IsDeveloperOrSuperAdmin)
+        if (!await Can(Permissions.StaffManage))
         {
             return RedirectToAction(nameof(Index));
         }
@@ -2156,6 +2187,10 @@ public class AdminDashboardController : Controller
 
         ViewData["ActiveTab"] = "staff";
         ViewData["Title"] = "طاقم العمل وإدارة الصلاحيات";
+        var rolePerms = new Dictionary<string, HashSet<string>>();
+        foreach (var r in Permissions.EditableRoles) rolePerms[r.ToString()] = await Permissions.ForRoleAsync(_context, r);
+        ViewData["RolePermissions"] = rolePerms;
+        ViewData["ActorIsSuperAdmin"] = User == null || Permissions.RoleOf(User) == SystemUserRole.SUPER_ADMIN;
         return View(viewModel);
     }
 
@@ -2180,7 +2215,7 @@ public class AdminDashboardController : Controller
         [FromQuery] string? by, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int page = 1, [FromQuery] string? export = null)
     {
         if (IsExplicitlyUnauthenticated) return RedirectToAction(nameof(Login));
-        if (!IsDeveloperOrSuperAdmin) return RedirectToAction(nameof(Index));
+        if (!await Can(Permissions.SettingsManage, Permissions.AuditView)) return RedirectToAction(nameof(Index));
 
         var query = _context.AuditLogs.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))

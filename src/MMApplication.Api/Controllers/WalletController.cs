@@ -6,6 +6,9 @@ using MMApplication.Application.DTOs;
 using MMApplication.Domain.Enums;
 using MMApplication.Infrastructure.Data;
 
+using MMApplication.Api.Security;
+using MMApplication.Infrastructure.Security;
+
 namespace MMApplication.Api.Controllers;
 
 [ApiController]
@@ -158,6 +161,7 @@ public class WalletController : ControllerBase
     /// التحقق من صلاحية قسيمة الخصم واستخدامها عند الكاشير (للتجار والمدراء).
     /// </summary>
     [HttpPost("vouchers/{code}/validate-and-use")]
+    [RequirePermission(Permissions.VouchersRedeem)]
     [Authorize(Roles = "Admin,Merchant,SUPER_ADMIN,STORE_MANAGER,CASHIER,FRAUD_AUDITOR")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

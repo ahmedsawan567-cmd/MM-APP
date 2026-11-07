@@ -7,6 +7,8 @@
     var canEdit = ViewData["CanEditCustomers"] as bool? ?? false;
     var canOpen = ViewData["CanOpenProfile"] as bool? ?? false;
     var isSuperAdmin = ViewData["IsSuperAdmin"] as bool? ?? false;
+    var canDelete = ViewData["CanDelete"] as bool? ?? false;
+    var canExport = ViewData["CanExport"] as bool? ?? false;
     var tierFilter = (ViewData["TierFilter"]?.ToString() ?? "ALL").ToUpperInvariant();
     var statusFilter = ViewData["StatusFilter"]?.ToString() ?? "ALL";
     var sort = ViewData["Sort"]?.ToString() ?? "new";
@@ -40,9 +42,12 @@
             <p class="page-subtitle">كل عميل له رقم عضوية مميز، ورقم الهاتف لا يتكرر. اضغط على أي عميل لفتح ملفه الكامل.</p>
         </div>
         <div class="page-actions">
+            @if (canExport)
+            {
             <a href="@Url(export: "csv")" class="btn-secondary @(totalFiltered == 0 ? "pointer-events-none opacity-50" : "")">
                 <i data-lucide="download" class="w-4 h-4"></i> تصدير Excel
             </a>
+            }
             @if (canEdit)
             {
                 <button type="button" onclick="MMCustomers.openForm()" class="btn-primary">
@@ -199,7 +204,7 @@
                                             }
                                             <button type="button" class="dropdown-item" onclick="act('resetPassword', this)"><i data-lucide="key-round" class="w-4 h-4"></i> كلمة مرور جديدة</button>
                                             <button type="button" class="dropdown-item" onclick="act('toggleSuspend', this)"><i data-lucide="@(c.IsSuspended ? "lock-open" : "lock")" class="w-4 h-4"></i> @(c.IsSuspended ? "تنشيط الحساب" : "تجميد الحساب")</button>
-                                            @if (isSuperAdmin)
+                                            @if (canDelete)
                                             {
                                                 <div class="my-1 border-t border-line"></div>
                                                 <button type="button" class="dropdown-item !text-rose-600" onclick="act('remove', this)"><i data-lucide="trash-2" class="w-4 h-4"></i> حذف العميل</button>

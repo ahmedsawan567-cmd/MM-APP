@@ -54,7 +54,9 @@ public class PermissionsHardeningTests : IClassFixture<WebApplicationFactory<Pro
 
         Assert.Equal(HttpStatusCode.Forbidden, (await mgr.GetAsync("/api/superadmin/customers")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await mgr.GetAsync("/api/superadmin/audit-logs")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await mgr.GetAsync("/api/superadmin/settlements")).StatusCode);
+        // مستحقات متجره فقط
+        var settlements = await mgr.GetFromJsonAsync<JsonElement>("/api/superadmin/settlements");
+        Assert.All(settlements.EnumerateArray(), x => Assert.Equal("TEN-KADI-CAFE", x.GetProperty("storeTenantId").GetString()));
         Assert.Equal(HttpStatusCode.Forbidden, (await mgr.PostAsync($"/api/superadmin/settlements/{Guid.NewGuid()}/settle", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await mgr.PostAsync($"/api/superadmin/invoices/{Guid.NewGuid()}/void", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await mgr.GetAsync("/api/superadmin/banners")).StatusCode);
@@ -195,5 +197,35 @@ public class PermissionsHardeningTests : IClassFixture<WebApplicationFactory<Pro
 
         var auditor = await SignedInAsync("USR-MOURAD", "Auditor123!");
         Assert.Equal(HttpStatusCode.Redirect, (await auditor.GetAsync("/AdminDashboard/Settings")).StatusCode);
+    }
+
+    [Fact]
+    public async Task SuperAdmin_EditsRolePermissions_AndTheyApplyImmediately()
+    {
+        var admin = await SignedInAsync("USR-MOSTAFA", "Admin123!");
+        var mgr = await SignedInAsync("USR-KADI-MGR", "Manager123!");
+        Assert.Equal(HttpStatusCode.Forbidden, (await mgr.GetAsync("/api/superadmin/customers")).StatusCode);
+
+        // منح مدير المتجر عرض العملاء وسحب لوحة المؤشرات
+        var current = await admin.GetFromJsonAsync<JsonElement>("/api/superadmin/roles/permissions");
+        var perms = current.GetProperty("roles").GetProperty("STORE_MANAGER").EnumerateArray().Select(x => x.GetString()!).ToList();
+        perms.Remove("dashboard.view");
+        perms.Add("customers.view");
+        var save = await admin.PutAsJsonAsync("/api/superadmin/roles/STORE_MANAGER/permissions", new { permissions = perms });
+        Assert.Equal(HttpStatusCode.OK, save.StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await mgr.GetAsync("/api/superadmin/customers")).StatusCode);
+        var home = await mgr.GetAsync("/AdminDashboard/Index");
+        Assert.Equal(HttpStatusCode.Redirect, home.StatusCode); // يُحوَّل لأول صفحة مسموحة
+
+        // المدير العام لا يمكن تعديل صلاحياته، وغير المدير العام لا يعدّل الصلاحيات
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync("/api/superadmin/roles/SUPER_ADMIN/permissions", new { permissions = new string[0] })).StatusCode);
+        var auditor = await SignedInAsync("USR-MOURAD", "Auditor123!");
+        Assert.Equal(HttpStatusCode.Forbidden, (await auditor.PutAsJsonAsync("/api/superadmin/roles/CASHIER/permissions", new { permissions = new[] { "staff.manage" } })).StatusCode);
+
+        // الإرجاع للافتراضي
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsync("/api/superadmin/roles/STORE_MANAGER/permissions/reset", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await mgr.GetAsync("/api/superadmin/customers")).StatusCode);
+        Assert.Contains("تعديل صلاحيات دور", await admin.GetStringAsync("/AdminDashboard/Settings?tab=audit"));
     }
 }

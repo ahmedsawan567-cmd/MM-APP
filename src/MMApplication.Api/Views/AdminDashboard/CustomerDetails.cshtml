@@ -73,7 +73,7 @@
                             <button type="button" class="dropdown-item" onclick="MMCustomers.resetPassword(customer)"><i data-lucide="key-round" class="w-4 h-4"></i> كلمة مرور جديدة للتطبيق</button>
                             <button type="button" class="dropdown-item" onclick="MMCustomers.toggleSuspend(customer)"><i data-lucide="@(m.IsFrozen ? "lock-open" : "lock")" class="w-4 h-4"></i> @(m.IsFrozen ? "تنشيط الحساب" : "تجميد الحساب")</button>
                             <button type="button" class="dropdown-item" onclick="window.print()"><i data-lucide="printer" class="w-4 h-4"></i> طباعة كشف الحساب</button>
-                            @if (m.IsSuperAdmin)
+                            @if (m.CanDelete)
                             {
                                 <div class="my-1 border-t border-line"></div>
                                 <button type="button" class="dropdown-item !text-rose-600" onclick="MMCustomers.remove(customer, '/AdminDashboard/Customers')"><i data-lucide="trash-2" class="w-4 h-4"></i> حذف العميل</button>

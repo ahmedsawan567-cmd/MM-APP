@@ -34,6 +34,7 @@ public class CustomerProfileViewModel
 
     public bool CanEdit { get; set; }
     public bool IsSuperAdmin { get; set; }
+    public bool CanDelete { get; set; }
 
     public List<InvoiceRow> Invoices { get; set; } = new();
     public List<LedgerRow> Ledger { get; set; } = new();

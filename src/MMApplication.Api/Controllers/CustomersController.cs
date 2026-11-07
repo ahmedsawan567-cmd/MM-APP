@@ -6,12 +6,15 @@ using MMApplication.Domain.Entities;
 using MMApplication.Domain.Enums;
 using MMApplication.Infrastructure.Data;
 
+using MMApplication.Api.Security;
+using MMApplication.Infrastructure.Security;
+
 namespace MMApplication.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-[Authorize(Roles = StaffRoles.Management)]
+[Authorize(Roles = StaffRoles.All)]
 public class CustomersController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -27,6 +30,7 @@ public class CustomersController : ControllerBase
     /// استعلام قائمة العملاء مع أرصدة محافظهم.
     /// </summary>
     [HttpGet]
+    [RequirePermission(Permissions.CustomersView)]
     [ProducesResponseType(typeof(IEnumerable<CustomerDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllCustomers()
     {
@@ -50,6 +54,7 @@ public class CustomersController : ControllerBase
     /// استعلام تفاصيل عميل محدد بالمعرف.
     /// </summary>
     [HttpGet("{id}")]
+    [RequirePermission(Permissions.CustomersView)]
     [ProducesResponseType(typeof(CustomerDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetCustomerById(string id)
@@ -80,6 +85,7 @@ public class CustomersController : ControllerBase
     /// تسجيل عميل جديد مع إنشاء محفظته برصيد 0.
     /// </summary>
     [HttpPost]
+    [RequirePermission(Permissions.CustomersEdit)]
     [ProducesResponseType(typeof(CustomerDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

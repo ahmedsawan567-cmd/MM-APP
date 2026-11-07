@@ -8,6 +8,9 @@ using MMApplication.Domain.Entities;
 using MMApplication.Domain.Enums;
 using MMApplication.Infrastructure.Data;
 
+using MMApplication.Api.Security;
+using MMApplication.Infrastructure.Security;
+
 namespace MMApplication.Api.Controllers;
 
 [ApiController]
@@ -97,6 +100,7 @@ public class RewardsController : ControllerBase
     /// إنشاء مكافأة جديدة في النظام (للمدراء فقط).
     /// </summary>
     [HttpPost]
+    [RequirePermission(Permissions.RewardsManage)]
     [Authorize(Roles = "Admin,SUPER_ADMIN,STORE_MANAGER")]
     [ProducesResponseType(typeof(RewardDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
