@@ -333,6 +333,7 @@ public class SuperAdminCustomerDto
     public string? Gender { get; set; }
     public bool HasAppAccess { get; set; }
     public string Tier { get; set; } = "Bronze";
+    public bool TierLocked { get; set; }
     public int CurrentPoints { get; set; }
     public int TotalInvoicesScanned { get; set; }
     public decimal TotalSpent { get; set; }
@@ -440,6 +441,8 @@ public class UpdateCustomerRequest
     public string? Email { get; set; }
     public DateTime? BirthDate { get; set; }
     public string? Gender { get; set; }
+    /// <summary>تثبيت العضوية يدوياً (لا تتغير بالترقية التلقائية).</summary>
+    public bool? TierLocked { get; set; }
 }
 
 public class ResetCustomerPasswordRequest

@@ -20,6 +20,12 @@ public class UserProfileHomeDto
     public int PointsToNextTier { get; set; }
     public string NextTierName { get; set; } = "SILVER";
     public decimal TierMultiplier { get; set; } = 1.0m;
+    /// <summary>اسم العضوية الحالية والتالية بالعربية ولونها ومزاياها (من إعدادات العضويات).</summary>
+    public string LoyaltyTierName { get; set; } = string.Empty;
+    public string? NextTierNameAr { get; set; }
+    public string? TierColor { get; set; }
+    public List<string> TierBenefits { get; set; } = new();
+    public decimal SpendToNextTier { get; set; }
 }
 
 public class MobileBannerDto

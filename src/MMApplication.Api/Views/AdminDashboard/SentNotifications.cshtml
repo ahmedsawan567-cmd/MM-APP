@@ -1,14 +1,15 @@
 @model MMApplication.Api.Controllers.AdminDashboardController.SentNotificationsViewModel
+@inject MMApplication.Infrastructure.Data.AppDbContext TierDb
 @{
     Layout = "_Layout";
     ViewData["Title"] = "الإشعارات المرسلة";
     ViewData["ActiveTab"] = "sent_notifications";
+    var tierList = await MMApplication.Infrastructure.Data.MembershipTiers.AllAsync(TierDb);
     string AudienceLabel(string a) => a switch
     {
         "VIP_GOLD" => "الذهبية و VIP",
-        "SILVER" => "الفضية",
-        "BRONZE" => "البرونزية",
-        _ => "كل العملاء",
+        "ALL" or "" => "كل العملاء",
+        _ => "عضوية " + MMApplication.Infrastructure.Data.MembershipTiers.NameOf(a),
     };
     var totalRecipients = Model.Items.Sum(i => i.Recipients);
     var totalRead = Model.Items.Sum(i => i.Read);
@@ -165,9 +166,10 @@
                 <label class="form-label">الشريحة</label>
                 <select id="notif-audience" class="form-select">
                     <option value="ALL">كل العملاء</option>
-                    <option value="VIP_GOLD">الذهبية و VIP</option>
-                    <option value="SILVER">الفضية</option>
-                    <option value="BRONZE">البرونزية</option>
+                    @foreach (var t in tierList.Where(t => t.IsActive).OrderByDescending(t => t.SortOrder))
+                    {
+                        <option value="@t.Code">أعضاء @t.NameAr فقط</option>
+                    }
                 </select>
             </div>
         </div>

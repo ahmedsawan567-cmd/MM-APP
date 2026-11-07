@@ -353,7 +353,7 @@ public class FlexibleLoyaltyEvaluationTests
         Assert.Equal("أحمد الترهوني", homeDto.User.FullName);
         Assert.Equal("GOLD", homeDto.User.LoyaltyTier);
         Assert.Equal(1850, homeDto.User.PointsBalance);
-        Assert.Equal("PLATINUM", homeDto.User.NextTierName);
+        Assert.Equal("VIP", homeDto.User.NextTierName); // من إعدادات العضويات الافتراضية
 
         // Targeted Banners: Gold user should receive "ALL" and "GOLD_ONLY", but NOT "PLATINUM_ONLY"
         Assert.Equal(2, homeDto.HeroBanners.Count);

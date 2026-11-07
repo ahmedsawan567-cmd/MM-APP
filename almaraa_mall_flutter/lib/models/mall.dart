@@ -81,6 +81,10 @@ class HomeUser {
   final int pointsToNextTier;
   final String nextTierName;
   final double tierMultiplier;
+  /// أسماء العضويات بالعربية ومزاياها كما يضبطها المول من المنظومة.
+  final String tierName;
+  final String? nextTierNameAr;
+  final List<String> tierBenefits;
 
   HomeUser({
     required this.fullName,
@@ -90,6 +94,9 @@ class HomeUser {
     required this.pointsToNextTier,
     required this.nextTierName,
     required this.tierMultiplier,
+    this.tierName = '',
+    this.nextTierNameAr,
+    this.tierBenefits = const [],
   });
 
   factory HomeUser.fromJson(Map<String, dynamic> j) => HomeUser(
@@ -100,6 +107,9 @@ class HomeUser {
         pointsToNextTier: jInt(j['pointsToNextTier']),
         nextTierName: jStr(j['nextTierName']),
         tierMultiplier: jDouble(j['tierMultiplier'], 1),
+        tierName: jStr(j['loyaltyTierName']),
+        nextTierNameAr: jStrOrNull(j['nextTierNameAr']),
+        tierBenefits: (j['tierBenefits'] as List? ?? const []).map((e) => '$e').toList(),
       );
 }
 

@@ -375,3 +375,29 @@ public class RewardEditRequest
     public DateTime? ValidUntil { get; set; }
     public bool IsActive { get; set; } = true;
 }
+
+public class TiersPageViewModel
+{
+    public List<TierRow> Tiers { get; set; } = new();
+    public int TotalCustomers { get; set; }
+    public int LockedCustomers { get; set; }
+    public int UpgradedLast30 { get; set; }
+    public bool CanManage { get; set; }
+}
+
+public record TierRow(MMApplication.Domain.Entities.MembershipTier Tier, int Members, decimal AvgSpend, int AvgPoints);
+
+public class TierSaveRequest
+{
+    public string? OriginalCode { get; set; }
+    public string? Code { get; set; }
+    public string? NameAr { get; set; }
+    public string? Benefits { get; set; }
+    public string? Color { get; set; }
+    public int SortOrder { get; set; }
+    public int MinPoints { get; set; }
+    public decimal MinSpend { get; set; }
+    public int QualificationMonths { get; set; }
+    public decimal PointsMultiplier { get; set; } = 1m;
+    public bool IsActive { get; set; } = true;
+}

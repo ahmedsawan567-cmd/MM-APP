@@ -34,7 +34,8 @@ window.MMCustomers = (() => {
     $('cf-email').value = c.Email || '';
     $('cf-birth').value = c.BirthDate || '';
     $('cf-gender').value = c.Gender || '';
-    $('cf-tier').value = c.Tier || 'BRONZE';
+    $('cf-tier').value = c.Tier || $('cf-tier').options[0]?.value || 'BRONZE';
+    $('cf-tier-locked').checked = !!c.TierLocked;
     $('cf-points').value = 0;
     $('cf-password').value = '';
     $('cf-points-row').classList.toggle('hidden', !!editing);
@@ -46,7 +47,8 @@ window.MMCustomers = (() => {
     const v = id => $(id).value.trim();
     const body = {
       fullName: v('cf-name'), phoneNumber: v('cf-phone'), email: v('cf-email') || null,
-      birthDate: v('cf-birth') || null, gender: v('cf-gender') || null, tier: v('cf-tier')
+      birthDate: v('cf-birth') || null, gender: v('cf-gender') || null, tier: v('cf-tier'),
+      tierLocked: $('cf-tier-locked').checked
     };
     if (body.fullName.length < 3) return showToast('أدخل الاسم الكامل.', 'warning');
     if (!body.phoneNumber) return showToast('أدخل رقم الهاتف.', 'warning');

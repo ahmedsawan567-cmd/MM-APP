@@ -49,26 +49,24 @@ public class MobileHomeController : ControllerBase
                 var pointsWallet = customer.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS);
                 var balance = (int)(pointsWallet?.CurrentBalance ?? 0);
 
-                var tierMultiplier = userTier switch
-                {
-                    "PLATINUM" => 2.0m,
-                    "GOLD" or "VIP" => 1.5m,
-                    "SILVER" => 1.25m,
-                    _ => 1.0m
-                };
-
-                var (nextTier, needed, progress) = CalculateTierProgress(userTier, balance);
+                var tierMultiplier = await MembershipTiers.MultiplierAsync(_context, userTier);
+                var p = await MembershipTiers.ProgressAsync(_context, customer);
 
                 userProfile = new UserProfileHomeDto
                 {
                     CustomerId = customer.CustomerId,
                     FullName = customer.FullName,
                     LoyaltyTier = userTier,
+                    LoyaltyTierName = p.Current?.NameAr ?? MembershipTiers.NameOf(userTier),
+                    TierColor = p.Current?.Color,
+                    TierBenefits = (p.Current?.Benefits ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
                     PointsBalance = balance,
                     TierMultiplier = tierMultiplier,
-                    NextTierName = nextTier,
-                    PointsToNextTier = needed,
-                    TierProgressPercentage = progress
+                    NextTierName = p.Next?.Code ?? "MAX_TIER",
+                    NextTierNameAr = p.Next?.NameAr,
+                    PointsToNextTier = p.PointsToNext,
+                    SpendToNextTier = p.SpendToNext,
+                    TierProgressPercentage = p.Percent
                 };
             }
         }
@@ -179,17 +177,6 @@ public class MobileHomeController : ControllerBase
         };
 
         return Ok(response);
-    }
-
-    private static (string NextTier, int PointsNeeded, decimal Progress) CalculateTierProgress(string tier, int currentPoints)
-    {
-        return tier switch
-        {
-            "BRONZE" => ("SILVER", Math.Max(0, 500 - currentPoints), Math.Min(100m, (currentPoints / 500m) * 100m)),
-            "SILVER" => ("GOLD", Math.Max(0, 1500 - currentPoints), Math.Min(100m, ((currentPoints - 500) / 1000m) * 100m)),
-            "GOLD" or "VIP" => ("PLATINUM", Math.Max(0, 5000 - currentPoints), Math.Min(100m, ((currentPoints - 1500) / 3500m) * 100m)),
-            _ => ("MAX_TIER", 0, 100m)
-        };
     }
 
     /// <summary>

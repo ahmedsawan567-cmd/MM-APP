@@ -408,6 +408,9 @@ public class InvoicesController : ControllerBase
         }
         await _context.SaveChangesAsync();
 
+        if (invoice.ProcessingStatus == InvoiceStatus.APPROVED)
+            await MembershipTiers.EvaluateAsync(_context, customer.CustomerId);
+
         _logger.LogInformation(
             "تمت معالجة الفاتورة بنجاح: {InvoiceId}, العميل: {CustomerId}, الحالة: {Status}, النقاط: +{Points}, الرصيد الحالي: {Balance}",
             invoice.InvoiceId, customer.CustomerId, invoice.ProcessingStatus, pointsEarned, updatedPointsBalance);

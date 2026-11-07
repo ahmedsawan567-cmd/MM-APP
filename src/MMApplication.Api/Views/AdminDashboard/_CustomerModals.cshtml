@@ -1,3 +1,7 @@
+@inject MMApplication.Infrastructure.Data.AppDbContext TierDb
+@{
+    var tierList = await MMApplication.Infrastructure.Data.MembershipTiers.AllAsync(TierDb);
+}
 <!-- إضافة / تعديل عميل -->
 <div id="customer-modal" class="hidden modal-overlay">
     <div class="modal-box max-w-lg">
@@ -32,13 +36,14 @@
                 </select>
             </div>
             <div>
-                <label class="form-label">فئة العضوية</label>
+                <label class="form-label">العضوية</label>
                 <select id="cf-tier" class="form-select">
-                    <option value="BRONZE">برونزي</option>
-                    <option value="SILVER">فضي</option>
-                    <option value="GOLD">ذهبي</option>
-                    <option value="VIP">VIP</option>
+                    @foreach (var t in tierList)
+                    {
+                        <option value="@t.Code">@t.NameAr@(t.IsActive ? "" : " (موقوفة)")</option>
+                    }
                 </select>
+                <label class="mt-2 flex items-center gap-2 text-sm text-slate-600"><input id="cf-tier-locked" type="checkbox" class="form-check" /> تثبيت العضوية (لا تتغير بالترقية التلقائية)</label>
             </div>
             <div id="cf-points-row">
                 <label class="form-label">رصيد افتتاحي (نقاط)</label>

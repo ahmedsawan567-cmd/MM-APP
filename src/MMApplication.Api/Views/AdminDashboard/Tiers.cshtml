@@ -1,0 +1,265 @@
+@model MMApplication.Api.ViewModels.TiersPageViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "العضويات";
+    ViewData["ActiveTab"] = "tiers";
+    var m = Model;
+    var maxMembers = Math.Max(1, m.Tiers.Count == 0 ? 1 : m.Tiers.Max(t => t.Members));
+    string Window(int months) => months == 0 ? "منذ التسجيل" : months == 12 ? "خلال آخر سنة" : $"خلال آخر {months} أشهر";
+}
+@Html.AntiForgeryToken()
+
+<div class="space-y-5">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">العضويات</h1>
+            <p class="page-subtitle">مستويات العضوية، شروط الوصول لكل مستوى، ومزاياه. العميل يرتقي تلقائياً عند تحقق الشروط ويصله إشعار.</p>
+        </div>
+        <div class="page-actions">
+            <button type="button" onclick="reevaluate()" class="btn-secondary"><i data-lucide="refresh-cw" class="w-4 h-4"></i> إعادة تقييم العملاء</button>
+            <button type="button" onclick="openTier()" class="btn-primary"><i data-lucide="plus" class="w-4 h-4"></i> عضوية جديدة</button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">مستويات العضوية</span><span class="stat-icon bg-brand-50 text-brand-600"><i data-lucide="crown" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.Tiers.Count(t => t.Tier.IsActive)</div>
+            <div class="stat-meta">مفعّلة من <span class="num">@m.Tiers.Count</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">الأعضاء</span><span class="stat-icon bg-emerald-50 text-emerald-600"><i data-lucide="users" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.TotalCustomers.ToString("N0")</div>
+            <div class="stat-meta">كل العملاء النشطين</div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">ترقيات آخر 30 يوماً</span><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="trending-up" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.UpgradedLast30</div>
+            <div class="stat-meta">ترقية تلقائية أو يدوية</div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">عضويات مثبّتة يدوياً</span><span class="stat-icon bg-slate-100 text-slate-600"><i data-lucide="lock" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.LockedCustomers</div>
+            <div class="stat-meta">لا تتغير تلقائياً</div>
+        </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+        @foreach (var row in m.Tiers)
+        {
+            var t = row.Tier;
+            <article class="card overflow-hidden flex flex-col @(t.IsActive ? "" : "opacity-60")">
+                <div class="h-2" style="background:@t.Color"></div>
+                <div class="p-5 flex-1 flex flex-col">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="flex items-center gap-3">
+                            <span class="w-11 h-11 rounded-xl flex items-center justify-center" style="background:@(t.Color)1a;color:@t.Color"><i data-lucide="crown" class="w-5 h-5"></i></span>
+                            <div>
+                                <h3 class="text-lg font-bold text-slate-900">@t.NameAr</h3>
+                                <div class="text-xs text-slate-400 num" dir="ltr">@t.Code</div>
+                            </div>
+                        </div>
+                        @if (!t.IsActive) { <span class="badge badge-slate">موقوفة</span> }
+                    </div>
+
+                    <div class="mt-4 rounded-xl bg-slate-50 p-3 text-sm space-y-1.5">
+                        <div class="font-semibold text-slate-700">شرط الوصول</div>
+                        @if (t.MinPoints <= 0 && t.MinSpend <= 0)
+                        {
+                            <div class="text-slate-600">تلقائية لكل عميل جديد</div>
+                        }
+                        else
+                        {
+                            @if (t.MinPoints > 0) { <div class="text-slate-600">كسب <b class="num text-slate-900">@t.MinPoints.ToString("N0")</b> نقطة</div> }
+                            @if (t.MinSpend > 0) { <div class="text-slate-600">@(t.MinPoints > 0 ? "و" : "")مشتريات <b class="num text-slate-900">@t.MinSpend.ToString("N0")</b> د.ل</div> }
+                            <div class="text-xs text-slate-500">@Window(t.QualificationMonths)</div>
+                        }
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between text-sm">
+                        <span class="text-slate-500">مضاعف النقاط</span>
+                        <span class="font-bold num @(t.PointsMultiplier > 1 ? "text-emerald-600" : "text-slate-700")">@(t.PointsMultiplier > 1 ? $"×{t.PointsMultiplier:0.##} (+{(t.PointsMultiplier - 1) * 100:0}%)" : "بدون")</span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(t.Benefits))
+                    {
+                        <ul class="mt-3 space-y-1.5 text-sm text-slate-600">
+                            @foreach (var b in t.Benefits.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                            {
+                                <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 shrink-0 mt-0.5" style="color:@t.Color"></i>@b</li>
+                            }
+                        </ul>
+                    }
+
+                    <div class="mt-4 pt-4 border-t border-line">
+                        <div class="flex items-center justify-between text-sm">
+                            <a href="/AdminDashboard/Customers?tier=@t.Code" class="font-semibold text-slate-800 hover:text-brand-700"><span class="num">@row.Members.ToString("N0")</span> عضو</a>
+                            <span class="text-xs text-slate-500">متوسط المشتريات <span class="num">@row.AvgSpend.ToString("N0")</span> د.ل</span>
+                        </div>
+                        <div class="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full" style="width:@((int)(100.0 * row.Members / maxMembers))%;background:@t.Color"></div></div>
+                    </div>
+
+                    <div class="mt-auto pt-4 flex gap-2">
+                        <button type="button" class="btn-secondary btn-sm flex-1" onclick='openTier(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { t.Code, t.NameAr, t.Benefits, t.Color, t.SortOrder, t.MinPoints, t.MinSpend, t.QualificationMonths, t.PointsMultiplier, t.IsActive })))'><i data-lucide="pencil" class="w-4 h-4"></i> تعديل</button>
+                        <button type="button" class="btn-icon !w-9 !h-9 text-rose-600 hover:bg-rose-50" title="حذف" onclick="deleteTier('@t.Code', @Json.Serialize(t.NameAr), @row.Members)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            </article>
+        }
+    </div>
+
+    <div class="card p-5 flex items-start gap-3">
+        <span class="stat-icon bg-brand-50 text-brand-600 shrink-0"><i data-lucide="info" class="w-5 h-5"></i></span>
+        <div class="text-sm text-slate-600 leading-relaxed space-y-1">
+            <p><b>كيف تعمل الترقية؟</b> بعد اعتماد كل فاتورة يُحسب ما كسبه العميل من نقاط ومشتريات خلال فترة المستوى، فإن تحققت شروط مستوى أعلى يُرقّى فوراً ويصله إشعار بمزاياه الجديدة.</p>
+            <p>الترقية تلقائية فقط؛ تخفيض العضوية يتم يدوياً من ملف العميل. ولتمييز عميل بعضوية دون شروط (مثل كبار الزبائن) غيّر عضويته من ملفه وفعّل "تثبيت العضوية".</p>
+            <p>مضاعف النقاط يطبَّق على نقاط الفواتير الأساسية. إن تزامن مع حملة مضاعفة تُطبَّق القيمة الأعلى فقط.</p>
+        </div>
+    </div>
+</div>
+
+<div id="tier-modal" class="hidden modal-overlay">
+    <form class="modal-box max-w-xl" onsubmit="saveTier(); return false">
+        <div class="modal-header">
+            <h3 class="font-bold text-slate-900 flex items-center gap-2"><i data-lucide="crown" class="w-4 h-4 text-brand-600"></i> <span id="t-title">عضوية جديدة</span></h3>
+            <button type="button" onclick="MM.closeModal('tier-modal')" class="btn-icon" aria-label="إغلاق"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="t-original" />
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label" for="t-name">اسم العضوية</label>
+                    <input id="t-name" required maxlength="50" class="form-input" placeholder="مثال: بلاتيني" />
+                </div>
+                <div>
+                    <label class="form-label" for="t-code">الرمز (بالإنجليزية)</label>
+                    <input id="t-code" required maxlength="20" dir="ltr" class="form-input num uppercase" placeholder="PLATINUM" />
+                </div>
+            </div>
+            <div class="rounded-xl border border-line p-4 space-y-3">
+                <div class="font-semibold text-slate-800 text-sm">شروط الوصول <span class="font-normal text-slate-500">(0 = بدون شرط)</span></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="form-label" for="t-points">النقاط المكتسبة</label>
+                        <input id="t-points" type="number" min="0" class="form-input num" value="0" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="t-spend">المشتريات (د.ل)</label>
+                        <input id="t-spend" type="number" min="0" step="1" class="form-input num" value="0" />
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label" for="t-months">الفترة المحتسبة</label>
+                    <select id="t-months" class="form-select">
+                        <option value="0">منذ تسجيل العميل</option>
+                        <option value="12">آخر 12 شهراً</option>
+                        <option value="6">آخر 6 أشهر</option>
+                        <option value="3">آخر 3 أشهر</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="form-label" for="t-mult">مضاعف النقاط</label>
+                    <input id="t-mult" type="number" min="1" max="5" step="0.05" class="form-input num" value="1" />
+                </div>
+                <div>
+                    <label class="form-label" for="t-order">الترتيب</label>
+                    <input id="t-order" type="number" min="0" class="form-input num" value="1" />
+                </div>
+                <div>
+                    <label class="form-label" for="t-color">اللون</label>
+                    <input id="t-color" type="color" class="form-input !p-1 h-[42px]" value="#B607BC" />
+                </div>
+            </div>
+            <div>
+                <label class="form-label" for="t-benefits">المزايا <span class="font-normal text-slate-500">(سطر لكل ميزة — تظهر للعميل)</span></label>
+                <textarea id="t-benefits" rows="4" maxlength="1000" class="form-input" placeholder="نقاط إضافية 50% على كل فاتورة&#10;هدايا في المناسبات"></textarea>
+            </div>
+            <label class="flex items-center gap-2 text-sm"><input id="t-active" type="checkbox" class="form-check" checked /> مفعّلة</label>
+        </div>
+        <div class="modal-footer">
+            <button type="button" onclick="MM.closeModal('tier-modal')" class="btn-secondary">إلغاء</button>
+            <button type="submit" class="btn-primary">حفظ</button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+<script>
+    const tierOptions = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(m.Tiers.Select(t => new { t.Tier.Code, t.Tier.NameAr })));
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    async function post(url, body, isJson = true) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: isJson ? { 'Content-Type': 'application/json', 'RequestVerificationToken': token() } : { 'RequestVerificationToken': token() },
+            body: isJson ? JSON.stringify(body) : body
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.message || 'تعذّر تنفيذ العملية.');
+        return data;
+    }
+
+    function openTier(t) {
+        t = t || { Code: '', NameAr: '', Benefits: '', Color: '#B607BC', SortOrder: tierOptions.length + 1, MinPoints: 0, MinSpend: 0, QualificationMonths: 0, PointsMultiplier: 1, IsActive: true };
+        document.getElementById('t-title').textContent = t.Code ? `تعديل عضوية ${t.NameAr}` : 'عضوية جديدة';
+        document.getElementById('t-original').value = t.Code || '';
+        document.getElementById('t-name').value = t.NameAr;
+        document.getElementById('t-code').value = t.Code;
+        document.getElementById('t-points').value = t.MinPoints;
+        document.getElementById('t-spend').value = t.MinSpend;
+        document.getElementById('t-months').value = String(t.QualificationMonths);
+        document.getElementById('t-mult').value = t.PointsMultiplier;
+        document.getElementById('t-order').value = t.SortOrder;
+        document.getElementById('t-color').value = t.Color || '#B607BC';
+        document.getElementById('t-benefits').value = t.Benefits || '';
+        document.getElementById('t-active').checked = t.IsActive !== false;
+        MM.openModal('tier-modal');
+    }
+
+    async function saveTier() {
+        const v = id => document.getElementById(id).value;
+        try {
+            const d = await post('/AdminDashboard/TierSave', {
+                originalCode: v('t-original') || null, code: v('t-code').trim().toUpperCase(), nameAr: v('t-name').trim(),
+                benefits: v('t-benefits'), color: v('t-color'), sortOrder: Number(v('t-order')) || 0,
+                minPoints: Number(v('t-points')) || 0, minSpend: Number(v('t-spend')) || 0, qualificationMonths: Number(v('t-months')) || 0,
+                pointsMultiplier: Number(v('t-mult')) || 1, isActive: document.getElementById('t-active').checked
+            });
+            MM.closeModal('tier-modal');
+            showToast(d.message, 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function deleteTier(code, name, members) {
+        const others = tierOptions.filter(t => t.Code !== code);
+        const result = await Swal.fire({
+            title: `حذف عضوية ${name}؟`,
+            html: members > 0
+                ? `في هذه العضوية <b>${members}</b> عميل. اختر العضوية التي ينتقلون إليها:<br><br><select id="move-to" class="form-select">${others.map(t => `<option value="${t.Code}">${MM.esc(t.NameAr)}</option>`).join('')}</select>`
+                : 'لا يوجد أعضاء في هذه العضوية.',
+            icon: 'warning', showCancelButton: true, confirmButtonText: 'حذف', cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' },
+            preConfirm: () => document.getElementById('move-to')?.value || ''
+        });
+        if (!result.isConfirmed) return;
+        try {
+            const form = new URLSearchParams({ code, moveTo: result.value || '' });
+            const d = await post('/AdminDashboard/TierDelete', form, false);
+            showToast(d.message, 'success');
+            setTimeout(() => location.reload(), 600);
+        } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function reevaluate() {
+        const ok = await Swal.fire({ title: 'إعادة تقييم كل العملاء؟', text: 'يُرقّى كل عميل تحققت فيه شروط عضوية أعلى، ويصله إشعار. لا يُخفَّض أحد.', icon: 'question', showCancelButton: true, confirmButtonText: 'ابدأ', cancelButtonText: 'إلغاء' });
+        if (!ok.isConfirmed) return;
+        try {
+            const d = await post('/AdminDashboard/TiersReevaluate', {});
+            await Swal.fire({ icon: 'success', title: 'تم', text: d.message, confirmButtonText: 'حسناً' });
+            location.reload();
+        } catch (e) { showToast(e.message, 'error'); }
+    }
+</script>
+}

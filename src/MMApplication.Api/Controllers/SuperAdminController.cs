@@ -1790,6 +1790,7 @@ public class SuperAdminController : ControllerBase
         Gender = c.Gender,
         HasAppAccess = !string.IsNullOrEmpty(c.PasswordHash),
         Tier = c.LoyaltyTier,
+        TierLocked = c.TierLocked,
         CurrentPoints = (int)(c.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS)?.CurrentBalance ?? 0),
         TotalInvoicesScanned = c.Invoices.Count,
         TotalSpent = c.Invoices.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED).Sum(i => i.TotalAmount) ?? 0m,
@@ -1816,7 +1817,7 @@ public class SuperAdminController : ControllerBase
         }
         if (birthDate is { } b && (b.Date > DateTime.UtcNow.Date.AddYears(-5) || b.Year < 1900)) return "تاريخ الميلاد غير صالح.";
         if (gender is not (null or "M" or "F")) return "قيمة الجنس غير صالحة.";
-        if (tier != null && !AllowedTiers.Contains(tier)) return "فئة العضوية غير صالحة.";
+        if (tier != null && !await _context.MembershipTiers.AnyAsync(t => t.Code == tier) && !AllowedTiers.Contains(tier)) return "العضوية غير موجودة.";
         return null;
     }
 
@@ -1933,7 +1934,9 @@ public class SuperAdminController : ControllerBase
         customer.Email = email;
         customer.BirthDate = req.BirthDate?.Date;
         customer.Gender = gender;
+        if (!string.Equals(customer.LoyaltyTier, tier, StringComparison.OrdinalIgnoreCase)) customer.TierUpdatedAt = DateTime.UtcNow;
         customer.LoyaltyTier = tier;
+        if (req.TierLocked.HasValue) { Track("تثبيت العضوية", customer.TierLocked, req.TierLocked.Value); customer.TierLocked = req.TierLocked.Value; }
         if (req.IsFrozen.HasValue) { Track("مجمّد", customer.IsFrozen, req.IsFrozen.Value); customer.IsFrozen = req.IsFrozen.Value; }
         if (req.IsArchived.HasValue) { Track("مؤرشف", customer.IsArchived, req.IsArchived.Value); customer.IsArchived = req.IsArchived.Value; }
         customer.UpdatedAt = DateTime.UtcNow;

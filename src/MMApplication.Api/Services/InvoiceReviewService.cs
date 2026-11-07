@@ -140,6 +140,7 @@ public class InvoiceReviewService
         });
 
         _logger.LogInformation("Invoice {InvoiceId} approved by {Reviewer}: +{Points} points", invoice.InvoiceId, reviewer, points);
+        await MembershipTiers.EvaluateAsync(_context, invoice.CustomerId);
         return new InvoiceReviewOutcome(true, $"تم اعتماد الفاتورة وإضافة {points} نقطة للعميل.", points);
     }
 

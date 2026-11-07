@@ -13,6 +13,8 @@ public class CustomerProfileViewModel
     public DateTime? BirthDate { get; set; }
     public string? Gender { get; set; }
     public string Tier { get; set; } = "BRONZE";
+    public bool TierLocked { get; set; }
+    public MMApplication.Infrastructure.Data.MembershipTiers.Progress? TierProgress { get; set; }
     public bool IsFrozen { get; set; }
     public bool IsArchived { get; set; }
     public bool HasAppPassword { get; set; }

@@ -16,7 +16,10 @@ public class Customer
     public string? Gender { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public string? DeviceFingerprint { get; set; }
-    public string LoyaltyTier { get; set; } = "BRONZE"; // BRONZE, SILVER, GOLD, VIP
+    public string LoyaltyTier { get; set; } = "BRONZE"; // رمز مستوى العضوية من جدول MembershipTiers
+    /// <summary>العضوية مثبّتة يدوياً من موظف: لا تتغير تلقائياً.</summary>
+    public bool TierLocked { get; set; }
+    public DateTime? TierUpdatedAt { get; set; }
     public bool IsFrozen { get; set; } = false;
     public bool IsArchived { get; set; } = false;        // Soft archiving / deactivation without deleting ledger
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;

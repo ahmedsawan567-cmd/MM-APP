@@ -1,5 +1,6 @@
 @model List<MMApplication.Application.DTOs.SuperAdminCustomerDto>
 @using MMApplication.Api.ViewModels
+@inject MMApplication.Infrastructure.Data.AppDbContext TierDb
 @{
     Layout = "_Layout";
     ViewData["Title"] = "العملاء";
@@ -22,7 +23,8 @@
     var statPoints = (int)(ViewData["StatPoints"] ?? 0);
     var statNew30 = (int)(ViewData["StatNew30"] ?? 0);
     var statShared = (int)(ViewData["StatShared"] ?? 0);
-    var tiers = new[] { ("ALL", "كل الفئات"), ("VIP", "VIP"), ("GOLD", "ذهبي"), ("SILVER", "فضي"), ("BRONZE", "برونزي") };
+    var tierList = await MMApplication.Infrastructure.Data.MembershipTiers.AllAsync(TierDb);
+    var tiers = new[] { ("ALL", "كل العضويات") }.Concat(tierList.OrderByDescending(t => t.SortOrder).Select(t => (t.Code, t.NameAr))).ToArray();
     var statuses = new[] { ("ALL", "الكل"), ("ACTIVE", "نشط"), ("FROZEN", "مجمّد"), ("NOAPP", "بدون تطبيق"), ("SHARED", "جهاز مشترك"), ("DELETED", "محذوف") };
     var sorts = new[] { ("new", "الأحدث تسجيلاً"), ("old", "الأقدم تسجيلاً"), ("points", "الأعلى نقاطاً"), ("spent", "الأعلى إنفاقاً"), ("invoices", "الأكثر فواتير"), ("name", "الاسم") };
     string Url(string? tier = null, string? status = null, string? sortBy = null, int? pg = null, string? export = null) =>
@@ -90,8 +92,8 @@
         </div>
         <div class="card p-5 space-y-3">
             <div>
-                <h3 class="card-title">توزيع الفئات</h3>
-                <p class="card-subtitle">العملاء حسب فئة العضوية</p>
+                <h3 class="card-title">توزيع العضويات</h3>
+                <p class="card-subtitle">عدد العملاء في كل عضوية</p>
             </div>
             <div id="tierChart" class="w-full h-44"></div>
         </div>
@@ -108,7 +110,7 @@
                     <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
                 </form>
                 <div class="flex gap-2">
-                    <select class="form-select w-auto" onchange="location.href=this.value" aria-label="الفئة">
+                    <select class="form-select w-auto" onchange="location.href=this.value" aria-label="العضوية">
                         @foreach (var (value, label) in tiers)
                         {
                             <option value="@Url(tier: value)" selected="@(tierFilter == value)">@label</option>
@@ -136,7 +138,7 @@
                     <tr>
                         <th>العميل</th>
                         <th>رقم العضوية</th>
-                        <th>الفئة</th>
+                        <th>العضوية</th>
                         <th>النقاط</th>
                         <th>الفواتير</th>
                         <th>الإنفاق المعتمد</th>
@@ -161,7 +163,7 @@
                     {
                         var profile = $"/AdminDashboard/CustomerDetails/{Uri.EscapeDataString(c.Id)}";
                         var initial = c.FullName.Trim().Length > 0 ? c.FullName.Trim()[..1] : "ع";
-                        <tr data-customer="@System.Text.Json.JsonSerializer.Serialize(new { c.Id, c.MembershipNumber, c.FullName, c.PhoneNumber, c.Email, BirthDate = c.BirthDate?.ToString("yyyy-MM-dd"), c.Gender, Tier = c.Tier.ToUpperInvariant(), c.CurrentPoints, c.IsSuspended })"
+                        <tr data-customer="@System.Text.Json.JsonSerializer.Serialize(new { c.Id, c.MembershipNumber, c.FullName, c.PhoneNumber, c.Email, BirthDate = c.BirthDate?.ToString("yyyy-MM-dd"), c.Gender, Tier = c.Tier.ToUpperInvariant(), c.TierLocked, c.CurrentPoints, c.IsSuspended })"
                             class="@(c.IsArchived ? "opacity-60" : "") @(canOpen ? "cursor-pointer hover:bg-slate-50" : "")" @if (canOpen) { <text>onclick="openRow(event, '@profile')"</text> }>
                             <td>
                                 <div class="flex items-center gap-3">
@@ -179,7 +181,7 @@
                                 </div>
                             </td>
                             <td class="font-bold text-brand-700 num whitespace-nowrap" dir="ltr">@(c.MembershipNumber ?? "—")</td>
-                            <td><span class="badge @DisplayLabels.TierBadge(c.Tier)">@DisplayLabels.Tier(c.Tier)</span></td>
+                            <td><span class="badge @DisplayLabels.TierBadge(c.Tier)" style="@DisplayLabels.TierStyle(c.Tier)">@DisplayLabels.Tier(c.Tier)@if (c.TierLocked) { <i data-lucide="lock" class="w-3 h-3" title="مثبّتة يدوياً"></i> }</span></td>
                             <td class="num font-bold text-slate-900">@c.CurrentPoints.ToString("N0")</td>
                             <td class="num text-slate-700">@c.TotalInvoicesScanned</td>
                             <td class="num font-semibold text-slate-700 whitespace-nowrap">@c.TotalSpent.ToString("N2") <span class="text-xs text-slate-400">د.ل</span></td>
@@ -265,7 +267,7 @@
             }));
         }
         const tierEl = document.getElementById('tierChart');
-        const order = [['VIP', 'VIP'], ['GOLD', 'ذهبي'], ['SILVER', 'فضي'], ['BRONZE', 'برونزي']];
+        const order = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(tierList.OrderByDescending(t => t.SortOrder).Select(t => new[] { t.Code.ToUpperInvariant(), t.NameAr })));
         const tierData = order.map(([k]) => (tiers.find(t => t.tier === k) || {}).count || 0);
         if (tierEl && window.ApexCharts) {
             MM.chart(tierEl, () => ({

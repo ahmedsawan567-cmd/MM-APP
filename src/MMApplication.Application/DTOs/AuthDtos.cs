@@ -49,6 +49,8 @@ public class UserProfileDto
     public DateTime? BirthDate { get; set; }
     public string? Gender { get; set; }
     public string LoyaltyTier { get; set; } = "BRONZE";
+    /// <summary>اسم العضوية بالعربية كما ضبطه المول.</summary>
+    public string LoyaltyTierName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public int PointsBalance { get; set; }
     public DateTime CreatedAt { get; set; }

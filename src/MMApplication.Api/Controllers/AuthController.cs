@@ -259,6 +259,7 @@ public class AuthController : ControllerBase
         BirthDate = customer.BirthDate,
         Gender = customer.Gender,
         LoyaltyTier = customer.LoyaltyTier,
+        LoyaltyTierName = MembershipTiers.NameOf(customer.LoyaltyTier),
         Role = "CUSTOMER",
         PointsBalance = (int)(customer.Wallets.FirstOrDefault(w => w.BalanceType == BalanceType.POINTS)?.CurrentBalance ?? 0),
         CreatedAt = customer.RegisteredAt

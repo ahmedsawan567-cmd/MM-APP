@@ -145,13 +145,8 @@ public class FlexibleLoyaltyEvaluationService : IFlexibleLoyaltyEvaluationServic
         }
 
         // 4. تطبيق مضاعف فئة العضوية (Tier Multiplier) والحملات الترويجية
-        var tierMultiplier = request.CustomerTier?.ToUpperInvariant() switch
-        {
-            "PLATINUM" => 2.00m,
-            "GOLD" or "VIP" => 1.50m,
-            "SILVER" => 1.25m,
-            _ => 1.00m
-        };
+        // مضاعف العضوية من إعدادات العضويات في المنظومة
+        var tierMultiplier = await MembershipTiers.MultiplierAsync(_context, request.CustomerTier);
 
         // فحص وجود حملة مضاعفة نشطة في المول
         var activeCampaign = await _context.LoyaltyCampaigns

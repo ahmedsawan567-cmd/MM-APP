@@ -11,6 +11,7 @@ class UserProfile {
   /// M أو F
   final String? gender;
   final String loyaltyTier;
+  final String loyaltyTierName;
   final String role;
   final int pointsBalance;
   final DateTime createdAt;
@@ -24,6 +25,7 @@ class UserProfile {
     this.birthDate,
     this.gender,
     this.loyaltyTier = 'BRONZE',
+    this.loyaltyTierName = '',
     required this.role,
     required this.pointsBalance,
     required this.createdAt,
@@ -38,12 +40,13 @@ class UserProfile {
         birthDate: jDateOrNull(j['birthDate']),
         gender: jStrOrNull(j['gender']),
         loyaltyTier: jStr(j['loyaltyTier'], 'BRONZE'),
+        loyaltyTierName: jStr(j['loyaltyTierName']),
         role: jStr(j['role'], 'CUSTOMER'),
         pointsBalance: jInt(j['pointsBalance']),
         createdAt: jDate(j['createdAt']),
       );
 
-  String get tierLabel => switch (loyaltyTier.toUpperCase()) {
+  String get tierLabel => loyaltyTierName.isNotEmpty ? 'عضوية $loyaltyTierName' : switch (loyaltyTier.toUpperCase()) {
         'VIP' => 'عضوية VIP',
         'GOLD' => 'العضوية الذهبية',
         'SILVER' => 'العضوية الفضية',

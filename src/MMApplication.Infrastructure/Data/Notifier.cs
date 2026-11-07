@@ -56,7 +56,8 @@ public static class Notifier
             "VIP_GOLD" => query.Where(c => c.LoyaltyTier == "GOLD" || c.LoyaltyTier == "VIP"),
             "SILVER" => query.Where(c => c.LoyaltyTier == "SILVER"),
             "BRONZE" => query.Where(c => c.LoyaltyTier == "BRONZE"),
-            _ => query,
+            "ALL" or "" or null => query,
+            _ => query.Where(c => c.LoyaltyTier == segment), // أي عضوية مخصصة بالرمز
         };
         var ids = await query.Select(c => c.CustomerId).ToListAsync();
         var now = DateTime.UtcNow;

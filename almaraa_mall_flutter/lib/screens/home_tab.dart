@@ -202,7 +202,7 @@ class MembershipCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(color: gold.withValues(alpha: 0.5)),
                       ),
-                      child: Text(tierNameAr(u?.loyaltyTier ?? 'BRONZE'),
+                      child: Text(u != null && u.tierName.isNotEmpty ? 'عضوية ${u.tierName}' : tierNameAr(u?.loyaltyTier ?? 'BRONZE'),
                           style: const TextStyle(color: gold, fontSize: 12, fontWeight: FontWeight.w800)),
                     ),
                   ],
@@ -242,7 +242,7 @@ class MembershipCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'باقي ${formatPoints(u.pointsToNextTier)} نقطة للوصول إلى ${tierNameAr(u.nextTierName)}',
+                    'باقي ${formatPoints(u.pointsToNextTier)} نقطة للوصول إلى ${u.nextTierNameAr != null ? 'عضوية ${u.nextTierNameAr}' : tierNameAr(u.nextTierName)}',
                     style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
                   ),
                 ] else

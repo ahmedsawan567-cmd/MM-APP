@@ -5,13 +5,11 @@ namespace MMApplication.Api.ViewModels;
 /// <summary>تسميات عربية موحّدة لعرض القيم الداخلية في المنصة.</summary>
 public static class DisplayLabels
 {
-    public static string Tier(string? tier) => (tier ?? "").ToUpperInvariant() switch
-    {
-        "VIP" => "VIP",
-        "GOLD" => "ذهبي",
-        "SILVER" => "فضي",
-        _ => "برونزي",
-    };
+    public static string Tier(string? tier) => MMApplication.Infrastructure.Data.MembershipTiers.NameOf(tier);
+
+    /// <summary>لون العضوية المخصص (يُستخدم كنمط مباشر على الشارة).</summary>
+    public static string TierStyle(string? tier) =>
+        MMApplication.Infrastructure.Data.MembershipTiers.ColorOf(tier) is { } c ? $"background-color:{c}1a;color:{c};--tw-ring-color:{c}40" : "";
 
     public static string TierBadge(string? tier) => (tier ?? "").ToUpperInvariant() switch
     {

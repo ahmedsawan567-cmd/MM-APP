@@ -1411,6 +1411,132 @@ public class AdminDashboardController : Controller
     }
 
     // ----------------------------------------------------
+    // العضويات (مستويات العضوية وشروطها ومزاياها)
+    // ----------------------------------------------------
+    [HttpGet]
+    [RequirePermission(Permissions.TiersManage)]
+    public async Task<IActionResult> Tiers()
+    {
+        var tiers = await MembershipTiers.AllAsync(_context);
+        var customers = _context.Customers.AsNoTracking().Where(c => !c.IsArchived);
+        var counts = await customers.GroupBy(c => c.LoyaltyTier.ToUpper()).Select(g => new { g.Key, Count = g.Count() }).ToListAsync();
+        var approved = _context.Invoices.AsNoTracking().Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED && i.Customer != null && !i.Customer.IsArchived);
+        var spend = await approved.GroupBy(i => i.Customer!.LoyaltyTier.ToUpper())
+            .Select(g => new { g.Key, Spent = g.Sum(i => i.TotalAmount ?? 0), Points = g.Sum(i => i.PointsAwarded) }).ToListAsync();
+        var since = DateTime.UtcNow.AddDays(-30);
+        var vm = new TiersPageViewModel
+        {
+            TotalCustomers = await customers.CountAsync(),
+            LockedCustomers = await customers.CountAsync(c => c.TierLocked),
+            UpgradedLast30 = await _context.AuditLogs.CountAsync(a => a.Action == "CUSTOMER_TIER_CHANGE" && a.CreatedAt >= since),
+            CanManage = true,
+            Tiers = tiers.Select(t =>
+            {
+                var n = counts.FirstOrDefault(c => c.Key == t.Code.ToUpper())?.Count ?? 0;
+                var sp = spend.FirstOrDefault(x => x.Key == t.Code.ToUpper());
+                return new TierRow(t, n, n == 0 ? 0 : (sp?.Spent ?? 0) / n, n == 0 ? 0 : (sp?.Points ?? 0) / n);
+            }).ToList(),
+        };
+        ViewData["ActiveTab"] = "tiers";
+        ViewData["Title"] = "العضويات";
+        return View(vm);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequirePermission(Permissions.TiersManage)]
+    public async Task<IActionResult> TierSave([FromBody] TierSaveRequest req)
+    {
+        var code = (req.Code ?? "").Trim().ToUpperInvariant();
+        var name = (req.NameAr ?? "").Trim();
+        if (!System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{1,19}$"))
+            return BadRequest(new { success = false, message = "الرمز بالإنجليزية بحروف كبيرة وأرقام (مثل GOLD أو PLATINUM)." });
+        if (name.Length < 2) return BadRequest(new { success = false, message = "اكتب اسم العضوية." });
+        if (req.MinPoints < 0 || req.MinSpend < 0 || req.QualificationMonths < 0 || req.QualificationMonths > 60)
+            return BadRequest(new { success = false, message = "تحقق من الشروط (قيم موجبة، والفترة حتى 60 شهراً)." });
+        if (req.PointsMultiplier < 1 || req.PointsMultiplier > 5)
+            return BadRequest(new { success = false, message = "مضاعف النقاط بين 1 و 5." });
+        var color = System.Text.RegularExpressions.Regex.IsMatch(req.Color ?? "", "^#[0-9A-Fa-f]{6}$") ? req.Color! : "#B607BC";
+
+        var original = string.IsNullOrWhiteSpace(req.OriginalCode) ? null : req.OriginalCode.Trim().ToUpperInvariant();
+        MembershipTier? tier = original == null ? null : await _context.MembershipTiers.FirstOrDefaultAsync(t => t.Code == original);
+        if (original != null && tier == null) return NotFound(new { success = false, message = "العضوية غير موجودة." });
+        if ((tier == null || original != code) && await _context.MembershipTiers.AnyAsync(t => t.Code == code))
+            return BadRequest(new { success = false, message = "يوجد عضوية بنفس الرمز." });
+        if (await _context.MembershipTiers.AnyAsync(t => t.NameAr == name && t.Code != original))
+            return BadRequest(new { success = false, message = "يوجد عضوية بنفس الاسم." });
+
+        var isNew = tier == null;
+        if (tier != null && original != code)
+        {
+            // تغيير الرمز: ننقل العملاء للرمز الجديد
+            _context.MembershipTiers.Remove(tier);
+            await _context.SaveChangesAsync();
+            var members = await _context.Customers.Where(c => c.LoyaltyTier == original).ToListAsync();
+            foreach (var c in members) c.LoyaltyTier = code;
+            tier = null;
+        }
+        tier ??= new MembershipTier { Code = code };
+        tier.NameAr = name;
+        tier.Benefits = (req.Benefits ?? "").Trim();
+        tier.Color = color;
+        tier.SortOrder = req.SortOrder;
+        tier.MinPoints = req.MinPoints;
+        tier.MinSpend = req.MinSpend;
+        tier.QualificationMonths = req.QualificationMonths;
+        tier.PointsMultiplier = req.PointsMultiplier;
+        tier.IsActive = req.IsActive;
+        tier.UpdatedAt = DateTime.UtcNow;
+        if (_context.Entry(tier).State == EntityState.Detached) _context.MembershipTiers.Add(tier);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ReviewerName, Action = isNew ? "TIER_CREATE" : "TIER_UPDATE", EntityName = "MembershipTier", EntityId = code,
+            Details = $"{(isNew ? "إضافة" : "تعديل")} عضوية {name}: من {req.MinPoints} نقطة" + (req.MinSpend > 0 ? $" و{req.MinSpend:N0} د.ل" : "") +
+                      $"، مضاعف {req.PointsMultiplier}x" + (req.IsActive ? "" : "، موقوفة"),
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        await MembershipTiers.AllAsync(_context); // تحديث أسماء العرض
+        return Json(new { success = true, message = isNew ? "أُضيفت العضوية." : "حُفظت العضوية." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequirePermission(Permissions.TiersManage)]
+    public async Task<IActionResult> TierDelete(string code, string? moveTo)
+    {
+        var tier = await _context.MembershipTiers.FirstOrDefaultAsync(t => t.Code == code);
+        if (tier == null) return NotFound(new { success = false, message = "العضوية غير موجودة." });
+        if (await _context.MembershipTiers.CountAsync() <= 1) return BadRequest(new { success = false, message = "يجب أن تبقى عضوية واحدة على الأقل." });
+        var members = await _context.Customers.Where(c => c.LoyaltyTier == code).ToListAsync();
+        if (members.Count > 0)
+        {
+            if (string.IsNullOrWhiteSpace(moveTo) || moveTo == code || !await _context.MembershipTiers.AnyAsync(t => t.Code == moveTo))
+                return BadRequest(new { success = false, message = $"في هذه العضوية {members.Count} عميل. اختر عضوية ينتقلون إليها." });
+            foreach (var c in members) { c.LoyaltyTier = moveTo; c.TierUpdatedAt = DateTime.UtcNow; }
+        }
+        _context.MembershipTiers.Remove(tier);
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ReviewerName, Action = "TIER_DELETE", EntityName = "MembershipTier", EntityId = code,
+            Details = $"حذف عضوية {tier.NameAr}" + (members.Count > 0 ? $" ونقل {members.Count} عميل إلى {MembershipTiers.NameOf(moveTo)}" : ""),
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        return Json(new { success = true, message = "حُذفت العضوية." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequirePermission(Permissions.TiersManage)]
+    public async Task<IActionResult> TiersReevaluate()
+    {
+        var n = await MembershipTiers.EvaluateAllAsync(_context, ReviewerName);
+        return Json(new { success = true, message = n == 0 ? "لا يوجد عملاء يستحقون الترقية حالياً." : $"تمت ترقية {n} عميل وأُبلغوا بإشعار." });
+    }
+
+    // ----------------------------------------------------
     // الإشعارات المرسلة للعملاء (سجل الإرسال الجماعي)
     // ----------------------------------------------------
     public record SentNotificationRow(Guid Id, string Title, string Body, string Audience, int Recipients, int Read, int Pushed,
@@ -1997,6 +2123,8 @@ public class AdminDashboardController : Controller
             BirthDate = c.BirthDate,
             Gender = c.Gender,
             Tier = c.LoyaltyTier,
+            TierLocked = c.TierLocked,
+            TierProgress = await MembershipTiers.ProgressAsync(_context, c),
             IsFrozen = c.IsFrozen,
             IsArchived = c.IsArchived,
             HasAppPassword = !string.IsNullOrEmpty(c.PasswordHash),
