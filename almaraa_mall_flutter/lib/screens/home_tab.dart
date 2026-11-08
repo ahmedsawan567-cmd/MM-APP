@@ -213,7 +213,7 @@ class MembershipCard extends StatelessWidget {
                     const Text(AppConstants.appNameAr,
                         style: TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w700,
                             fontSize: 15)),
                     const Spacer(),
                     GestureDetector(
@@ -235,7 +235,7 @@ class MembershipCard extends StatelessWidget {
                             style: const TextStyle(
                                 color: gold,
                                 fontSize: 12,
-                                fontWeight: FontWeight.w800)),
+                                fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ],
@@ -256,7 +256,7 @@ class MembershipCard extends StatelessWidget {
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 40,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                           height: 1.1),
                     ),
                     const SizedBox(width: 8),
@@ -467,7 +467,7 @@ class _BannersCarouselState extends State<_BannersCarousel> {
                                 style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 18,
-                                    fontWeight: FontWeight.w800)),
+                                    fontWeight: FontWeight.w700)),
                             if (b.subtitle != null) ...[
                               const SizedBox(height: 2),
                               Text(b.subtitle!,
@@ -543,7 +543,7 @@ class _BoosterCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style:
-                    const TextStyle(fontWeight: FontWeight.w800, height: 1.35)),
+                    const TextStyle(fontWeight: FontWeight.w700, height: 1.35)),
             const Spacer(),
             Row(
               children: [
@@ -584,7 +584,7 @@ class _StoreTile extends StatelessWidget {
                 Text(store.nameAr,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 3),
                 Text('${store.floorLabel} • ${store.unitNumber}',
                     style: TextStyle(fontSize: 12, color: p.muted)),

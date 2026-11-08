@@ -188,7 +188,7 @@ class _NotificationTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(item.title,
-                              style: TextStyle(fontWeight: item.isRead ? FontWeight.w600 : FontWeight.w800, fontSize: 15)),
+                              style: TextStyle(fontWeight: item.isRead ? FontWeight.w600 : FontWeight.w700, fontSize: 15)),
                         ),
                         if (!item.isRead)
                           Container(width: 8, height: 8, decoration: BoxDecoration(color: p.brand, shape: BoxShape.circle)),
@@ -246,7 +246,7 @@ class NotificationBell extends StatelessWidget {
                 decoration: BoxDecoration(color: p.danger, borderRadius: BorderRadius.circular(10), border: Border.all(color: p.canvas, width: 2)),
                 alignment: Alignment.center,
                 child: Text(count > 99 ? '99+' : '$count',
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
               ),
             ),
         ],

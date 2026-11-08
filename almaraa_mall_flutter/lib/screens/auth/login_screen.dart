@@ -85,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? null
                       : () => pushPage(context, const RegisterScreen()),
                   child: Text('أنشئ حساباً جديداً',
-                      style: TextStyle(color: context.palette.brand, fontWeight: FontWeight.w800)),
+                      style: TextStyle(color: context.palette.brand, fontWeight: FontWeight.w700)),
                 ),
               ],
             ),

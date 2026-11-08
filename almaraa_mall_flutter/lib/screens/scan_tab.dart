@@ -106,7 +106,7 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
                 const SizedBox(height: 14),
                 AnimatedCount(
                   value: r.pointsEarned,
-                  style: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: p.success),
+                  style: TextStyle(fontSize: 40, fontWeight: FontWeight.w700, color: p.success),
                 ),
                 Text('نقطة جديدة', style: TextStyle(color: p.success, fontWeight: FontWeight.w700)),
               ],
@@ -257,7 +257,7 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
                     ),
                     const SizedBox(height: 18),
                     const Text('صوّر فاتورة الشراء',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 6),
                     Text('نقرأ المتجر والمبلغ تلقائياً ونضيف نقاطك',
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13)),
@@ -303,7 +303,7 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
             children: [
               Icon(LucideIcons.lightbulb, color: p.gold, size: 20),
               const SizedBox(width: 8),
-              const Text('لقبول الفاتورة بسرعة', style: TextStyle(fontWeight: FontWeight.w800)),
+              const Text('لقبول الفاتورة بسرعة', style: TextStyle(fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 12),

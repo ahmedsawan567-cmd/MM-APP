@@ -52,7 +52,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
               Text('سيتم خصم ${formatPoints(reward.pointsCost)} نقطة مقابل:',
                   textAlign: TextAlign.center, style: TextStyle(color: p.muted)),
               const SizedBox(height: 4),
-              Text(reward.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              Text(reward.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
               const SizedBox(height: 22),
               Row(
                 children: [
@@ -149,7 +149,7 @@ class _BalanceStrip extends StatelessWidget {
           ),
           const SizedBox(width: 14),
           Expanded(child: Text('رصيدك الحالي', style: TextStyle(color: Colors.white.withValues(alpha: 0.8)))),
-          AnimatedCount(value: balance, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
+          AnimatedCount(value: balance, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
           const SizedBox(width: 6),
           const Text('نقطة', style: TextStyle(color: Brand.glow, fontWeight: FontWeight.w700)),
         ],
@@ -194,7 +194,7 @@ class _RewardCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: Text(r.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.35))),
+                    Expanded(child: Text(r.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, height: 1.35))),
                     if (r.discountValue > 0) ...[
                       const SizedBox(width: 8),
                       StatusChip(label: 'خصم ${formatMoney(r.discountValue)}', tone: Tone.gold),
@@ -219,7 +219,7 @@ class _RewardCard extends StatelessWidget {
                     Icon(LucideIcons.coins, color: p.gold, size: 20),
                     const SizedBox(width: 6),
                     Text('${formatPoints(r.pointsCost)} نقطة',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: p.gold)),
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: p.gold)),
                     const Spacer(),
                     if (r.isOutOfStock)
                       const StatusChip(label: 'نفدت الكمية', tone: Tone.danger)

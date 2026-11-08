@@ -328,7 +328,7 @@ class StatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[Icon(icon, size: 12, color: fg), const SizedBox(width: 4)],
-          Text(label, style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w800)),
+          Text(label, style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -446,7 +446,7 @@ class StoreLogo extends StatelessWidget {
     final fallback = Center(
       child: Text(
         name.isNotEmpty ? name.characters.first.toUpperCase() : '?',
-        style: TextStyle(fontSize: size * 0.4, fontWeight: FontWeight.w800, color: p.brand),
+        style: TextStyle(fontSize: size * 0.4, fontWeight: FontWeight.w700, color: p.brand),
       ),
     );
     return Container(

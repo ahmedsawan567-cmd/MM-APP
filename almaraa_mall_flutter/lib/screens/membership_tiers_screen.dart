@@ -52,7 +52,7 @@ class _MembershipTiersScreenState extends State<MembershipTiersScreen> {
               children: [
                 if (currentTier != null) _CurrentCard(tier: currentTier, progress: progress, locked: locked),
                 const SizedBox(height: 20),
-                const Text('مستويات العضوية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const Text('مستويات العضوية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 for (var i = 0; i < tiers.length; i++)
                   FadeSlideIn(
@@ -96,7 +96,7 @@ class _CurrentCard extends StatelessWidget {
           Row(children: [
             const Icon(LucideIcons.crown, color: Colors.white, size: 22),
             const SizedBox(width: 8),
-            Text('عضوية ${tier['name']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+            Text('عضوية ${tier['name']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
           ]),
           const SizedBox(height: 14),
           if (locked)
@@ -152,7 +152,7 @@ class _TierTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${tier['name']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    Text('${tier['name']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                     Text('${tier['condition']}', style: TextStyle(fontSize: 12, color: p.muted)),
                   ],
                 ),

@@ -132,7 +132,7 @@ class _BalanceCard extends StatelessWidget {
             children: [
               AnimatedCount(
                 value: summary.pointsBalance,
-                style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w800, height: 1.1),
+                style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w700, height: 1.1),
               ),
               const SizedBox(width: 6),
               const Padding(
@@ -177,7 +177,7 @@ class _BalanceCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text(value, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w700)),
                   Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11)),
                 ],
               ),
@@ -239,7 +239,7 @@ class TransactionsList extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text('${t.isCredit ? '+' : ''}${formatPoints(t.amount)}',
-                        textDirection: TextDirection.ltr, style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 16)),
+                        textDirection: TextDirection.ltr, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 16)),
                     Text('الرصيد ${formatPoints(t.balanceAfter)}', style: TextStyle(fontSize: 11, color: p.muted)),
                   ],
                 ),
@@ -322,7 +322,7 @@ class VoucherCard extends StatelessWidget {
                           const SizedBox(height: 6),
                           if (v.discountValue > 0)
                             Text(v.discountValue.toStringAsFixed(v.discountValue % 1 == 0 ? 0 : 1),
-                                style: TextStyle(color: active ? Colors.white : p.muted, fontSize: 22, fontWeight: FontWeight.w800)),
+                                style: TextStyle(color: active ? Colors.white : p.muted, fontSize: 22, fontWeight: FontWeight.w700)),
                           if (v.discountValue > 0)
                             Text('د.ل', style: TextStyle(color: active ? Colors.white70 : p.muted, fontSize: 11)),
                         ],
@@ -337,7 +337,7 @@ class VoucherCard extends StatelessWidget {
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(child: Text(v.rewardTitle, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.3))),
+                                Expanded(child: Text(v.rewardTitle, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.3))),
                                 const SizedBox(width: 6),
                                 StatusChip.voucher(v.effectiveStatus),
                               ],
@@ -347,7 +347,7 @@ class VoucherCard extends StatelessWidget {
                             const SizedBox(height: 10),
                             Text(v.code,
                                 textDirection: TextDirection.ltr,
-                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: 2.5, color: p.brand)),
+                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: 2.5, color: p.brand)),
                             const SizedBox(height: 4),
                             Text(
                               v.usedAt != null ? 'استُخدمت في ${formatDate(v.usedAt!)}' : 'صالحة حتى ${formatDate(v.expiresAt)}',
@@ -416,7 +416,7 @@ Future<void> showVoucherCode(BuildContext context, {required String code, requir
               child: Text(code,
                   textAlign: TextAlign.center,
                   textDirection: TextDirection.ltr,
-                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: 5, color: p.brand)),
+                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w700, letterSpacing: 5, color: p.brand)),
             ),
             const SizedBox(height: 10),
             Text('صالحة حتى ${formatDate(expiresAt)}', style: TextStyle(fontSize: 12, color: p.muted)),

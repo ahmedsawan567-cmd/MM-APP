@@ -94,7 +94,7 @@ class ProfileTab extends StatelessWidget {
                               style: const TextStyle(
                                   fontSize: 26,
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w800)),
+                                  fontWeight: FontWeight.w700)),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -115,7 +115,7 @@ class ProfileTab extends StatelessWidget {
                                     style: TextStyle(
                                         fontSize: 12,
                                         color: p.brand,
-                                        fontWeight: FontWeight.w800,
+                                        fontWeight: FontWeight.w700,
                                         letterSpacing: 0.5))
                               else
                                 Text('عضو منذ ${formatDate(user.createdAt)}',
@@ -128,7 +128,7 @@ class ProfileTab extends StatelessWidget {
                           children: [
                             Text(formatPoints(user.pointsBalance),
                                 style: TextStyle(
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.w700,
                                     fontSize: 18,
                                     color: p.gold)),
                             Text('نقطة',
@@ -338,7 +338,7 @@ class ProfileTab extends StatelessWidget {
                     Text('${i + 1}',
                         style: TextStyle(
                             color: ctx.palette.muted,
-                            fontWeight: FontWeight.w800)),
+                            fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),

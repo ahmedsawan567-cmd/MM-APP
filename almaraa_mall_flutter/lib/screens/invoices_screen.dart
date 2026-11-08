@@ -149,7 +149,7 @@ class _InvoiceTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(inv.merchantName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(inv.merchantName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 3),
                 Text('${inv.totalAmount > 0 ? formatMoney(inv.totalAmount) : '—'}  •  ${formatDate(inv.invoiceDate)}',
                     style: TextStyle(fontSize: 12, color: p.muted)),
@@ -162,7 +162,7 @@ class _InvoiceTile extends StatelessWidget {
             Column(
               children: [
                 Text('+${formatPoints(inv.pointsEarned)}',
-                    textDirection: TextDirection.ltr, style: TextStyle(color: p.success, fontWeight: FontWeight.w800, fontSize: 17)),
+                    textDirection: TextDirection.ltr, style: TextStyle(color: p.success, fontWeight: FontWeight.w700, fontSize: 17)),
                 Text('نقطة', style: TextStyle(fontSize: 11, color: p.muted)),
               ],
             ),
@@ -303,7 +303,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                     if (inv.pointsEarned > 0 && inv.status == 'APPROVED') ...[
                       const SizedBox(height: 14),
                       Text('+${formatPoints(inv.pointsEarned)} نقطة',
-                          textDirection: TextDirection.ltr, style: TextStyle(color: p.success, fontWeight: FontWeight.w800, fontSize: 24)),
+                          textDirection: TextDirection.ltr, style: TextStyle(color: p.success, fontWeight: FontWeight.w700, fontSize: 24)),
                     ],
                     const SizedBox(height: 14),
                     const Divider(),

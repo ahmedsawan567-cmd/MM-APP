@@ -49,7 +49,7 @@ class _StoreDetailsScreenState extends State<StoreDetailsScreen> {
               Text('سيتم خصم ${formatPoints(reward.pointsCost)} نقطة مقابل:',
                   textAlign: TextAlign.center, style: TextStyle(color: p.muted)),
               const SizedBox(height: 4),
-              Text(reward.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              Text(reward.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
               const SizedBox(height: 22),
               Row(
                 children: [
@@ -158,7 +158,7 @@ class _SectionTitle extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: Brand.purple),
           const SizedBox(width: 8),
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         ],
       );
 }
@@ -180,7 +180,7 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(d.nameAr, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, height: 1.3)),
+              Text(d.nameAr, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, height: 1.3)),
               if (d.nameEn.isNotEmpty && d.nameEn != d.nameAr)
                 Text(d.nameEn, style: TextStyle(fontSize: 13, color: p.muted)),
               const SizedBox(height: 8),
@@ -241,9 +241,9 @@ class _ProgressCard extends StatelessWidget {
           Text.rich(
             TextSpan(style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5), children: [
               const TextSpan(text: 'باقي لك '),
-              TextSpan(text: formatPoints(next.remainingPoints), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Brand.glow)),
+              TextSpan(text: formatPoints(next.remainingPoints), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Brand.glow)),
               const TextSpan(text: ' نقطة للحصول على '),
-              TextSpan(text: next.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              TextSpan(text: next.title, style: const TextStyle(fontWeight: FontWeight.w700)),
             ]),
           ),
           const SizedBox(height: 12),
@@ -289,7 +289,7 @@ class _ProgressCard extends StatelessWidget {
               if (balance != null)
                 AnimatedCount(
                   value: balance,
-                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
+                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800),
                 ),
             ],
           ),
@@ -321,7 +321,7 @@ class _Boosters extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(b.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          Text(b.title, style: const TextStyle(fontWeight: FontWeight.w700)),
                           Text('ينتهي ${formatDate(b.endsAt)}', style: TextStyle(fontSize: 12, color: context.palette.muted)),
                         ],
                       ),
@@ -389,7 +389,7 @@ class _RewardTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(r.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    Text(r.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                     if (r.description.isNotEmpty)
                       Text(r.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: p.muted)),
                   ],
@@ -456,7 +456,7 @@ class _MyActivity extends StatelessWidget {
               children: [
                 Icon(icon, size: 20, color: Brand.purple),
                 const SizedBox(height: 6),
-                Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+                Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
                 Text(label, style: TextStyle(fontSize: 12, color: p.muted)),
               ],
             ),

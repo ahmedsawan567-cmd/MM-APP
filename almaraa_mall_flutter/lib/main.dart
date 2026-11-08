@@ -19,9 +19,9 @@ import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // رخصة خط تجوال تظهر ضمن تراخيص التطبيق
+  // رخصة خط القاهرة تظهر ضمن تراخيص التطبيق
   LicenseRegistry.addLicense(() async* {
-    yield LicenseEntryWithLineBreaks(['Tajawal'], await rootBundle.loadString('assets/fonts/OFL.txt'));
+    yield LicenseEntryWithLineBreaks(['Cairo'], await rootBundle.loadString('assets/fonts/OFL.txt'));
   });
   await initializeDateFormatting('ar');
   await ThemeController.instance.load();

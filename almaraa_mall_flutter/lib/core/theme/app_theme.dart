@@ -166,8 +166,8 @@ class Brand {
 }
 
 class AppTheme {
-  /// خط تجوال مضمّن في التطبيق (assets/fonts) فيعمل بدون إنترنت.
-  static const fontFamily = 'Tajawal';
+  /// خط القاهرة (Cairo) مضمّن في التطبيق (assets/fonts) فيعمل بدون إنترنت.
+  static const fontFamily = 'Cairo';
 
   static ThemeData get lightTheme => _build(Brightness.light, AppPalette.light);
   static ThemeData get darkTheme => _build(Brightness.dark, AppPalette.dark);
@@ -205,13 +205,13 @@ class AppTheme {
       scaffoldBackgroundColor: p.canvas,
       extensions: [p],
       textTheme: text.copyWith(
-        headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2),
-        titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w800, fontSize: 20),
+        headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+        titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w700, fontSize: 20),
         titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 16),
         titleSmall: text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-        bodyLarge: text.bodyLarge?.copyWith(fontSize: 15),
-        bodyMedium: text.bodyMedium?.copyWith(fontSize: 14),
-        bodySmall: text.bodySmall?.copyWith(fontSize: 12, color: p.muted),
+        bodyLarge: text.bodyLarge?.copyWith(fontSize: 15, height: 1.6),
+        bodyMedium: text.bodyMedium?.copyWith(fontSize: 14, height: 1.55),
+        bodySmall: text.bodySmall?.copyWith(fontSize: 12.5, height: 1.5, color: p.muted),
         labelLarge: text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
       ),
       dividerTheme: DividerThemeData(color: p.border, thickness: 1, space: 1),
@@ -223,7 +223,7 @@ class AppTheme {
         centerTitle: false,
         foregroundColor: p.ink,
         systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-        titleTextStyle: TextStyle(fontFamily: fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: p.ink),
+        titleTextStyle: TextStyle(fontFamily: fontFamily, fontSize: 20, fontWeight: FontWeight.w700, color: p.ink),
       ),
       cardTheme: CardThemeData(
         color: p.surface,
@@ -244,7 +244,7 @@ class AppTheme {
           minimumSize: const Size(0, 52),
           padding: const EdgeInsets.symmetric(horizontal: 22),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-          textStyle: TextStyle(fontFamily: fontFamily, fontSize: 15, fontWeight: FontWeight.w800),
+          textStyle: TextStyle(fontFamily: fontFamily, fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -290,7 +290,7 @@ class AppTheme {
         elevation: 0,
         labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(fontFamily: fontFamily, 
               fontSize: 12,
-              fontWeight: s.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
+              fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w600,
               color: s.contains(WidgetState.selected) ? p.brand : p.muted,
             )),
         iconTheme: WidgetStateProperty.resolveWith(
@@ -301,7 +301,7 @@ class AppTheme {
         unselectedLabelColor: p.muted,
         indicatorColor: p.brand,
         dividerColor: p.border,
-        labelStyle: TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w800),
+        labelStyle: TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w700),
         unselectedLabelStyle: TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w600),
       ),
       snackBarTheme: SnackBarThemeData(
