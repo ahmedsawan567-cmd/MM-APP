@@ -72,6 +72,7 @@
                         <th>المتجر</th>
                         <th>النشاط</th>
                         <th>الموقع</th>
+                        <th>نقاط الباركود</th>
                         <th>العمولة</th>
                         <th>مسؤول التواصل</th>
                         <th>نموذج الفاتورة</th>
@@ -82,11 +83,11 @@
                 <tbody data-paginate="12">
                     @if (Model.Count == 0)
                     {
-                        <tr><td colspan="8" class="py-12 text-center text-slate-500">لا توجد متاجر مطابقة.</td></tr>
+                        <tr><td colspan="9" class="py-12 text-center text-slate-500">لا توجد متاجر مطابقة.</td></tr>
                     }
                     @foreach (var s in Model)
                     {
-                        <tr data-store="@System.Text.Json.JsonSerializer.Serialize(new { s.Id, s.Name, s.NameEn, s.Category, s.FloorNumber, s.UnitNumber, s.CommissionRate, s.ContactPerson, s.ContactPhone, s.IsActive, s.LogoUrl, s.CoverImageUrl })"
+                        <tr data-store="@System.Text.Json.JsonSerializer.Serialize(new { s.Id, s.Name, s.NameEn, s.Category, s.FloorNumber, s.UnitNumber, s.CommissionRate, s.ContactPerson, s.ContactPhone, s.IsActive, s.LogoUrl, s.CoverImageUrl, s.ScanPoints, s.ScanDailyLimit })"
                             class="@(s.IsActive ? "" : "opacity-60")">
                             <td>
                                 <div class="flex items-center gap-3">
@@ -106,6 +107,7 @@
                             </td>
                             <td><span class="badge badge-slate">@s.Category</span></td>
                             <td class="text-xs text-slate-700">@(string.IsNullOrEmpty(s.FloorNumber) ? "" : s.FloorNumber + " • ")<span class="num" dir="ltr">@(string.IsNullOrEmpty(s.UnitNumber) ? "—" : s.UnitNumber)</span></td>
+                            <td>@if ((s.ScanPoints ?? 0) > 0) { <span class="badge badge-amber num">@s.ScanPoints نقطة</span><div class="text-xs text-slate-500 mt-1">@(s.ScanDailyLimit ?? 1) مرة يومياً</div> } else { <span class="text-slate-400 text-sm">متوقف</span> }</td>
                             <td class="num font-bold text-slate-900">@s.CommissionRate.ToString("0.##")%</td>
                             <td>
                                 <div class="text-xs font-semibold text-slate-800">@(s.ContactPerson ?? "—")</div>
@@ -186,6 +188,18 @@
                 <label class="form-label">عمولة المول (%)</label>
                 <input id="sf-commission" type="number" min="0" max="100" step="0.5" class="form-input num" value="5" />
             </div>
+            <div class="sm:col-span-2 rounded-xl border border-line p-3 grid grid-cols-2 gap-3">
+                <div class="col-span-2 font-semibold text-sm text-slate-800 flex items-center gap-2"><i data-lucide="qr-code" class="w-4 h-4 text-brand-600"></i> نقاط الباركود وبطاقة NFC</div>
+                <div>
+                    <label class="form-label" for="sf-scan-points">النقاط لكل مسح</label>
+                    <input id="sf-scan-points" type="number" min="0" max="10000" class="form-input num" value="10" />
+                    <p class="form-hint">0 = الباركود متوقف لهذا المتجر</p>
+                </div>
+                <div>
+                    <label class="form-label" for="sf-scan-limit">المرات المسموحة يومياً لكل عميل</label>
+                    <input id="sf-scan-limit" type="number" min="1" max="20" class="form-input num" value="1" />
+                </div>
+            </div>
             <div class="sm:col-span-2 grid grid-cols-2 gap-3">
                 <div>
                     <span class="form-label">شعار المتجر</span>
@@ -253,6 +267,8 @@
         document.getElementById('sf-commission').value = s.CommissionRate;
         document.getElementById('sf-active').checked = s.IsActive;
         document.getElementById('sf-active-row').classList.toggle('hidden', !editingStore);
+        document.getElementById('sf-scan-points').value = s.ScanPoints ?? 10;
+        document.getElementById('sf-scan-limit').value = s.ScanDailyLimit ?? 1;
         setStoreImage('logo', s.LogoUrl || null);
         setStoreImage('cover', s.CoverImageUrl || null);
         MM.openModal('store-modal');
@@ -289,6 +305,8 @@
             contactPhone: v('sf-phone') || null, commissionRate: parseFloat(v('sf-commission')) || 0,
             isActive: document.getElementById('sf-active').checked,
             logoUrl: document.getElementById('sf-logo').value || null,
+            scanPoints: parseInt(document.getElementById('sf-scan-points').value, 10) || 0,
+            scanDailyLimit: parseInt(document.getElementById('sf-scan-limit').value, 10) || 1,
             coverImageUrl: document.getElementById('sf-cover').value || null
         };
         if (!body.name || !body.category) return showToast('أدخل اسم المتجر ونشاطه.', 'warning');

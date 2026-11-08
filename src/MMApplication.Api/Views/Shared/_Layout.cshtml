@@ -17,10 +17,6 @@
             || i.ProcessingStatus == InvoiceStatus.PROCESSING
             || i.ProcessingStatus == InvoiceStatus.DISPUTED)
         : 0;
-    var claimsQuery = layoutDb?.Invoices.Where(i => i.ProcessingStatus == InvoiceStatus.AWAITING_STORE);
-    var layoutTenant = User.FindFirst("TenantId")?.Value;
-    if (claimsQuery != null && !(isDevOrSuperAdmin || isAuditor)) claimsQuery = claimsQuery.Where(i => i.TenantId == (string.IsNullOrEmpty(layoutTenant) ? "__no_store__" : layoutTenant));
-    var claimsCount = Can("claims.confirm") && claimsQuery != null ? claimsQuery.Count() : 0;
     var dbIsPersistent = layoutDb != null && !string.Equals(layoutDb.Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal);
 
     var currentUserName = User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(User.Identity.Name) ? User.Identity.Name : "المسؤول";
@@ -38,7 +34,7 @@
 
         ("الفواتير", "مراجعة الفواتير", "Review", "scan-search", "review", Can("invoices.review"), reviewQueueCount),
         ("الفواتير", "كل الفواتير", "Invoices", "receipt-text", "invoices", Can("invoices.view"), 0),
-        ("الفواتير", "طلبات الباركود وNFC", "StoreClaims", "scan-qr-code", "store_claims", Can("claims.confirm"), claimsCount),
+        ("الفواتير", "مسح الباركود وNFC", "StoreClaims", "scan-qr-code", "store_claims", Can("claims.confirm"), 0),
         ("الفواتير", "الفواتير المشبوهة", "Fraud", "shield-alert", "fraud", Can("fraud.view"), 0),
         ("الفواتير", "نماذج فواتير المتاجر", "InvoiceTemplates", "scan-text", "invoice_templates", Can("invoice_templates.manage"), 0),
 

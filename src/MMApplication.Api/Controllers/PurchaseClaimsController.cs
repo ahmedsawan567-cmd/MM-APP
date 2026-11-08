@@ -9,15 +9,13 @@ using MMApplication.Infrastructure.Data;
 namespace MMApplication.Api.Controllers;
 
 /// <summary>
-/// كسب النقاط بباركود المتجر أو بطاقة NFC (للمتاجر التي لا تصدر فواتير):
-/// العميل يمسح كود المتجر ويدخل مبلغ الشراء، والطلب ينتظر تأكيد كاشير المتجر قبل إضافة النقاط.
+/// كسب النقاط بباركود المتجر أو بطاقة NFC: نقاط ثابتة يحددها المول لكل متجر،
+/// تُضاف فوراً عند المسح، بحد أقصى مرات يومياً لكل عميل في كل متجر.
 /// </summary>
 [ApiController]
 [Route("api/v1/purchases")]
 public class PurchaseClaimsController : ControllerBase
 {
-    public const int MaxClaimsPerStorePerDay = 3;
-    public const decimal MaxAmount = 10000m;
     public static readonly TimeSpan ConfirmWindow = TimeSpan.FromHours(24);
 
     private readonly AppDbContext _context;
@@ -38,12 +36,18 @@ public class PurchaseClaimsController : ControllerBase
         {
             success = true,
             store = new { id = store.TenantId, nameAr = store.NameAr, nameEn = store.NameEn, category = store.Category, logoUrl = store.LogoUrl, unitNumber = store.UnitNumber },
+            points = store.ScanPoints,
+            dailyLimit = store.ScanDailyLimit,
             code = store.StoreCode,
         });
     }
 
-    public record ClaimRequest(string? Code, decimal Amount, string? Method, string? Note);
+    public record ClaimRequest(string? Code, string? Method);
 
+    /// <summary>
+    /// مسح باركود المتجر أو بطاقة NFC: يأخذ العميل نقاط المتجر المحددة من المنظومة فوراً،
+    /// بحد أقصى عدد مرات يومياً لكل متجر (يحدده المول لكل متجر).
+    /// </summary>
     [HttpPost("claim")]
     [Authorize(Roles = "CUSTOMER")]
     public async Task<IActionResult> Claim([FromBody] ClaimRequest req)
@@ -55,51 +59,73 @@ public class PurchaseClaimsController : ControllerBase
         var storeCode = StoreCodes.Parse(req.Code);
         var store = storeCode == null ? null : await _context.Tenants.FirstOrDefaultAsync(t => t.StoreCode == storeCode);
         if (store == null || !store.IsActive) return NotFound(new { success = false, message = "هذا الكود لا يخص متجراً في المرأة مول." });
+        if (store.ScanPoints <= 0) return BadRequest(new { success = false, message = $"نقاط الباركود غير مفعّلة في {store.NameAr} حالياً." });
 
-        var amount = Math.Round(req.Amount, 2);
-        if (amount <= 0) return BadRequest(new { success = false, message = "أدخل مبلغ الشراء." });
-        if (amount > MaxAmount) return BadRequest(new { success = false, message = $"المبلغ أكبر من الحد المسموح ({MaxAmount:N0} د.ل). صوّر الفاتورة بدلاً من ذلك." });
-
-        await StoreClaimsService.ExpireOldAsync(_context);
-
-        var since = DateTime.UtcNow.AddHours(-24);
-        var recent = await _context.Invoices.Where(i => i.CustomerId == customer.CustomerId && i.TenantId == store.TenantId &&
-                                                         (i.Source == "QR" || i.Source == "NFC") && i.CreatedAt >= since).ToListAsync();
-        if (recent.Any(i => i.ProcessingStatus == InvoiceStatus.AWAITING_STORE))
-            return Conflict(new { success = false, message = "لديك طلب سابق في هذا المتجر بانتظار تأكيد الكاشير." });
-        if (recent.Count >= MaxClaimsPerStorePerDay)
-            return StatusCode(StatusCodes.Status429TooManyRequests, new { success = false, message = $"وصلت للحد اليومي ({MaxClaimsPerStorePerDay} طلبات) في هذا المتجر." });
+        // اليوم بتوقيت الخادم المحلي
+        var dayStart = DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Local).ToUniversalTime();
+        var todayScans = await _context.Invoices.CountAsync(i => i.CustomerId == customer.CustomerId && i.TenantId == store.TenantId &&
+                                                                  (i.Source == "QR" || i.Source == "NFC") && i.CreatedAt >= dayStart);
+        if (todayScans >= Math.Max(1, store.ScanDailyLimit))
+            return StatusCode(StatusCodes.Status429TooManyRequests, new
+            {
+                success = false,
+                message = store.ScanDailyLimit <= 1
+                    ? $"أخذت نقاط {store.NameAr} اليوم. يمكنك المسح مرة أخرى غداً."
+                    : $"وصلت للحد اليومي ({store.ScanDailyLimit} مرات) في {store.NameAr}. عُد غداً.",
+            });
 
         var method = string.Equals(req.Method, "NFC", StringComparison.OrdinalIgnoreCase) ? "NFC" : "QR";
+        var points = store.ScanPoints;
+        var now = DateTime.UtcNow;
         var invoice = new Invoice
         {
             CustomerId = customer.CustomerId,
             TenantId = store.TenantId,
             Source = method,
             ExtractedMerchant = store.NameAr,
-            InvoiceNumber = $"{method}-{DateTime.UtcNow:yyMMdd}-{StoreCodes.NewCode()[..6]}",
-            InvoiceDate = DateTime.UtcNow,
-            TotalAmount = amount,
+            InvoiceNumber = $"{method}-{now:yyMMdd}-{StoreCodes.NewCode()[..6]}",
+            InvoiceDate = now,
+            TotalAmount = 0,
             ConfidenceScore = 1m,
-            ProcessingStatus = InvoiceStatus.AWAITING_STORE,
+            ProcessingStatus = InvoiceStatus.APPROVED,
+            PointsAwarded = points,
+            BasePointsEarned = points,
             ReceiptImageUrl = string.Empty,
-            ResubmissionNotes = string.IsNullOrWhiteSpace(req.Note) ? null : req.Note.Trim()[..Math.Min(200, req.Note.Trim().Length)],
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = now,
         };
         _context.Invoices.Add(invoice);
-        Notifier.Customer(_context, customer.CustomerId, "CLAIM_SENT", "أُرسل طلبك للمتجر",
-            $"طلب نقاط على مشتريات {amount:N2} د.ل في {store.NameAr}. تُضاف النقاط بعد تأكيد الكاشير.", $"invoice:{invoice.InvoiceId}");
-        await Notifier.StaffAsync(_context, "CLAIM_PENDING", "طلب نقاط بانتظار تأكيدك",
-            $"{customer.FullName} — {amount:N2} د.ل ({(method == "NFC" ? "بطاقة NFC" : "باركود المتجر")})", "/AdminDashboard/StoreClaims", store.TenantId, storeOnly: true);
+
+        var wallet = await _context.CustomerWallets.FirstOrDefaultAsync(w => w.CustomerId == customer.CustomerId && w.BalanceType == BalanceType.POINTS);
+        if (wallet == null)
+        {
+            wallet = new CustomerWallet { CustomerId = customer.CustomerId, BalanceType = BalanceType.POINTS, CurrentBalance = 0 };
+            _context.CustomerWallets.Add(wallet);
+        }
+        wallet.CurrentBalance += points;
+        _context.WalletLedger.Add(new WalletLedger
+        {
+            Wallet = wallet,
+            InvoiceId = invoice.InvoiceId,
+            AmountChanged = points,
+            BalanceAfter = wallet.CurrentBalance,
+            TransactionType = WalletTransactionType.EARN_RECEIPT,
+            ReferenceRemarks = $"نقاط {(method == "NFC" ? "بطاقة" : "باركود")} {store.NameAr}",
+            CreatedAt = now,
+        });
+        Notifier.Customer(_context, customer.CustomerId, "INVOICE_APPROVED", $"حصلت على {points} نقطة",
+            $"من {(method == "NFC" ? "بطاقة" : "باركود")} {store.NameAr}. رصيدك الآن {wallet.CurrentBalance:N0} نقطة.", $"invoice:{invoice.InvoiceId}");
         await _context.SaveChangesAsync();
+        await MembershipTiers.EvaluateAsync(_context, customer.CustomerId);
 
         return Ok(new
         {
             success = true,
-            message = "أُرسل طلبك. تُضاف النقاط بعد أن يؤكد كاشير المتجر المبلغ.",
-            invoiceId = invoice.InvoiceId,
+            message = $"حصلت على {points} نقطة من {store.NameAr}",
+            points,
+            newBalance = (int)wallet.CurrentBalance,
             storeName = store.NameAr,
-            amount,
+            remainingToday = Math.Max(0, store.ScanDailyLimit - todayScans - 1),
+            invoiceId = invoice.InvoiceId,
         });
     }
 }

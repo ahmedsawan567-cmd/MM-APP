@@ -52,6 +52,8 @@ public class StoreTenantDto
     public string? ContactPhone { get; set; }
     public string? LogoUrl { get; set; }
     public string? CoverImageUrl { get; set; }
+    public int? ScanPoints { get; set; }
+    public int? ScanDailyLimit { get; set; }
     public bool IsActive { get; set; }
     public int ActiveStaffCount { get; set; }
     public decimal TotalSales { get; set; }
@@ -72,6 +74,8 @@ public class CreateStoreTenantRequest
     public string? ContactPhone { get; set; }
     public string? LogoUrl { get; set; }
     public string? CoverImageUrl { get; set; }
+    public int? ScanPoints { get; set; }
+    public int? ScanDailyLimit { get; set; }
 }
 
 public class UpdateStoreTenantRequest
@@ -87,6 +91,8 @@ public class UpdateStoreTenantRequest
     public string? ContactPhone { get; set; }
     public string? LogoUrl { get; set; }
     public string? CoverImageUrl { get; set; }
+    public int? ScanPoints { get; set; }
+    public int? ScanDailyLimit { get; set; }
     public bool IsActive { get; set; }
 }
 

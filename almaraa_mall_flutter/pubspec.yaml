@@ -1,7 +1,7 @@
 name: almaraa_mall
 description: "تطبيق المرأة مول - منظومة التسوق والولاء الفاخرة (Almaraa Mall)"
 publish_to: 'none'
-version: 1.8.0+10
+version: 1.9.0+11
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

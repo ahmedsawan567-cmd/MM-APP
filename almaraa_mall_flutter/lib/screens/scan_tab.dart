@@ -255,7 +255,7 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
       children: [
         Text('متجر بدون فاتورة؟', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 4),
-        Text('امسح باركود المتجر أو قرّب هاتفك من بطاقته، ثم أدخل المبلغ ليؤكده الكاشير.',
+        Text('امسح باركود المتجر أو قرّب هاتفك من بطاقته، وتنزل النقاط في رصيدك فوراً.',
             style: TextStyle(color: p.muted, fontSize: 13)),
         const SizedBox(height: 10),
         Row(children: [
@@ -267,10 +267,7 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
     );
   }
 
-  Future<void> _openClaim(String code, String method) async {
-    final sent = await pushPage<bool>(context, StoreClaimScreen(code: code, method: method));
-    if (sent == true && mounted) pushPage(context, const InvoicesScreen());
-  }
+  Future<void> _openClaim(String code, String method) => claimStorePoints(context, code: code, method: method);
 
   Future<void> _scanStoreQr() async {
     final code = await pushPage<String>(context, const StoreQrScannerScreen());

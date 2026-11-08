@@ -58,70 +58,76 @@ public class StoreClaimTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task Customer_ScansStoreCode_CashierConfirms_PointsAdded()
+    public async Task Scan_AddsStorePointsInstantly_WithDailyLimit()
     {
+        var admin = await StaffAsync("USR-MOSTAFA", "Admin123!");
+        // المول يحدد نقاط الباركود للمتجر: 25 نقطة، مرتين يومياً
+        var stores = await admin.GetFromJsonAsync<JsonElement>("/api/superadmin/stores");
+        var zara = stores.EnumerateArray().First(x => x.GetProperty("id").GetString() == "TEN-ZARA");
+        var put = await admin.PutAsJsonAsync("/api/superadmin/stores/TEN-ZARA", new
+        {
+            name = zara.GetProperty("name").GetString(), category = zara.GetProperty("category").GetString(), commissionRate = 5,
+            isActive = true, scanPoints = 25, scanDailyLimit = 2,
+        });
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+
         var app = await CustomerAsync("0926100200");
         var payload = StoreCodes.Payload(CodeOf("TEN-ZARA"));
-
         var store = await app.GetFromJsonAsync<JsonElement>($"/api/v1/purchases/store?code={Uri.EscapeDataString(payload)}");
-        Assert.Equal("TEN-ZARA", store.GetProperty("store").GetProperty("id").GetString());
+        Assert.Equal(25, store.GetProperty("points").GetInt32());
         Assert.Equal(HttpStatusCode.NotFound, (await app.GetAsync("/api/v1/purchases/store?code=MMALL-STORE:WRONGCODE")).StatusCode);
 
-        var claim = await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, amount = 250, method = "NFC" });
-        Assert.Equal(HttpStatusCode.OK, claim.StatusCode);
-        var invoiceId = (await claim.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("invoiceId").GetGuid();
-        // طلب ثانٍ قبل التأكيد مرفوض
-        Assert.Equal(HttpStatusCode.Conflict, (await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, amount = 90 })).StatusCode);
+        var first = await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, method = "QR" });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var body = await first.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(25, body.GetProperty("points").GetInt32());
+        Assert.Equal(25, body.GetProperty("newBalance").GetInt32());
 
-        // كاشير متجر آخر لا يرى ولا يؤكد الطلب
-        var otherStore = await StaffAsync("USR-KADI-MGR", "Manager123!");
-        var otherPage = await otherStore.GetStringAsync("/AdminDashboard/StoreClaims");
-        Assert.DoesNotContain("عميل الباركود", otherPage);
+        Assert.Equal(HttpStatusCode.OK, (await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, method = "NFC" })).StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, method = "QR" })).StatusCode);
 
-        // كاشير زارا يؤكد مع تصحيح المبلغ
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var c = db.Customers.Single(x => x.PhoneNumber == "0926100200");
+            Assert.Equal(50, db.CustomerWallets.Single(w => w.CustomerId == c.CustomerId && w.BalanceType == BalanceType.POINTS).CurrentBalance);
+            Assert.Equal(2, db.WalletLedger.Count(l => l.Wallet.CustomerId == c.CustomerId));
+        }
+
+        // كاشير زارا يرى السجل ويلغي مسحاً مشبوهاً، وكاشير متجر آخر لا يراه
+        var other = await StaffAsync("USR-KADI-MGR", "Manager123!");
+        Assert.DoesNotContain("عميل الباركود", await other.GetStringAsync("/AdminDashboard/StoreClaims"));
         var cashier = await StaffAsync("USR-ZARA-CSH", "Merchant123!");
         var page = await cashier.GetStringAsync("/AdminDashboard/StoreClaims");
         Assert.Contains("عميل الباركود", page);
-        var req = new HttpRequestMessage(HttpMethod.Post, $"/AdminDashboard/ClaimConfirm?id={invoiceId}") { Content = JsonContent.Create(new { amount = 200 }) };
+        var id = body.GetProperty("invoiceId").GetGuid();
+        var req = new HttpRequestMessage(HttpMethod.Post, $"/AdminDashboard/ClaimVoid?id={id}") { Content = JsonContent.Create(new { reason = "لم يكن في المحل" }) };
         req.Headers.Add("RequestVerificationToken", Token(page));
-        var confirm = await cashier.SendAsync(req);
-        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
-
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var inv = db.Invoices.Single(i => i.InvoiceId == invoiceId);
-        Assert.Equal(InvoiceStatus.APPROVED, inv.ProcessingStatus);
-        Assert.Equal(200m, inv.TotalAmount);
-        Assert.Equal("NFC", inv.Source);
-        Assert.True(inv.PointsAwarded > 0);
-        Assert.Contains(db.Notifications, n => n.RecipientId == inv.CustomerId && n.Type == "INVOICE_APPROVED");
+        Assert.Equal(HttpStatusCode.OK, (await cashier.SendAsync(req)).StatusCode);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var c = db.Customers.Single(x => x.PhoneNumber == "0926100200");
+            Assert.Equal(25, db.CustomerWallets.Single(w => w.CustomerId == c.CustomerId && w.BalanceType == BalanceType.POINTS).CurrentBalance);
+        }
     }
 
     [Fact]
-    public async Task Claims_AreLimited_AndRejectable()
+    public async Task DisabledStore_AndPrintPage()
     {
+        var admin = await StaffAsync("USR-MOSTAFA", "Admin123!");
+        var stores = await admin.GetFromJsonAsync<JsonElement>("/api/superadmin/stores");
+        var zara = stores.EnumerateArray().First(x => x.GetProperty("id").GetString() == "TEN-ZARA");
+        await admin.PutAsJsonAsync("/api/superadmin/stores/TEN-ZARA", new
+        {
+            name = zara.GetProperty("name").GetString(), category = zara.GetProperty("category").GetString(), commissionRate = 5, isActive = true, scanPoints = 0,
+        });
         var app = await CustomerAsync("0926100300");
         var payload = StoreCodes.Payload(CodeOf("TEN-ZARA"));
-        Assert.Equal(HttpStatusCode.BadRequest, (await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, amount = 0 })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, amount = 50000 })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload })).StatusCode);
 
-        var cashier = await StaffAsync("USR-ZARA-CSH", "Merchant123!");
-        for (var i = 0; i < 3; i++)
-        {
-            var c = await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, amount = 40 + i });
-            Assert.Equal(HttpStatusCode.OK, c.StatusCode);
-            var id = (await c.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("invoiceId").GetGuid();
-            var page = await cashier.GetStringAsync("/AdminDashboard/StoreClaims");
-            var req = new HttpRequestMessage(HttpMethod.Post, $"/AdminDashboard/ClaimReject?id={id}") { Content = JsonContent.Create(new { reason = "لا توجد عملية" }) };
-            req.Headers.Add("RequestVerificationToken", Token(page));
-            Assert.Equal(HttpStatusCode.OK, (await cashier.SendAsync(req)).StatusCode);
-        }
-        // الحد اليومي (3 طلبات لكل متجر)
-        Assert.Equal(HttpStatusCode.TooManyRequests, (await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = payload, amount = 30 })).StatusCode);
-
-        // صفحة طباعة الباركود
-        var admin = await StaffAsync("USR-MOSTAFA", "Admin123!");
         var print = await admin.GetStringAsync("/AdminDashboard/StoreCodePrint/TEN-ZARA");
         Assert.Contains(payload, print);
+        Assert.Contains("امسح واكسب", print);
     }
 }

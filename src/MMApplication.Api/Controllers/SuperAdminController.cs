@@ -215,6 +215,8 @@ public class SuperAdminController : ControllerBase
             ContactPhone = PhoneNumbers.Normalize(req.ContactPhone) ?? (string.IsNullOrWhiteSpace(req.ContactPhone) ? null : req.ContactPhone.Trim()),
             LogoUrl = string.IsNullOrWhiteSpace(req.LogoUrl) ? null : req.LogoUrl.Trim(),
             CoverImageUrl = string.IsNullOrWhiteSpace(req.CoverImageUrl) ? null : req.CoverImageUrl.Trim(),
+            ScanPoints = Math.Clamp(req.ScanPoints ?? 10, 0, 10000),
+            ScanDailyLimit = Math.Clamp(req.ScanDailyLimit ?? 1, 1, 20),
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -287,6 +289,8 @@ public class SuperAdminController : ControllerBase
         tenant.IsActive = req.IsActive;
         tenant.LogoUrl = string.IsNullOrWhiteSpace(req.LogoUrl) ? null : req.LogoUrl.Trim();
         tenant.CoverImageUrl = string.IsNullOrWhiteSpace(req.CoverImageUrl) ? null : req.CoverImageUrl.Trim();
+        if (req.ScanPoints.HasValue) tenant.ScanPoints = Math.Clamp(req.ScanPoints.Value, 0, 10000);
+        if (req.ScanDailyLimit.HasValue) tenant.ScanDailyLimit = Math.Clamp(req.ScanDailyLimit.Value, 1, 20);
 
         await _context.AuditLogs.AddAsync(new AuditLog
         {

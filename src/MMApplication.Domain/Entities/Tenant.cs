@@ -14,6 +14,10 @@ public class Tenant
     public string? CoverImageUrl { get; set; }
     /// <summary>كود المتجر المطبوع في الباركود وبطاقة NFC (يُمسح من التطبيق لطلب النقاط).</summary>
     public string? StoreCode { get; set; }
+    /// <summary>النقاط التي يأخذها العميل فوراً عند مسح باركود المتجر أو بطاقة NFC (0 = الباركود متوقف).</summary>
+    public int ScanPoints { get; set; } = 10;
+    /// <summary>عدد مرات المسح المسموحة لنفس العميل في هذا المتجر يومياً.</summary>
+    public int ScanDailyLimit { get; set; } = 1;
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

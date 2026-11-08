@@ -75,9 +75,9 @@ class LoyaltyApi {
   static Future<Map<String, dynamic>> resolveStoreCode(String code) async =>
       Map<String, dynamic>.from(await _api.get('/v1/purchases/store', query: {'code': code}) as Map);
 
-  /// طلب نقاط على مشتريات من متجر بدون فاتورة (يؤكده كاشير المتجر).
-  static Future<Map<String, dynamic>> claimPurchase({required String code, required double amount, required String method, String? note}) async =>
-      Map<String, dynamic>.from(await _api.post('/v1/purchases/claim', {'code': code, 'amount': amount, 'method': method, 'note': note}) as Map);
+  /// مسح باركود المتجر أو بطاقة NFC: تُضاف نقاط المتجر فوراً.
+  static Future<Map<String, dynamic>> claimStorePoints({required String code, required String method}) async =>
+      Map<String, dynamic>.from(await _api.post('/v1/purchases/claim', {'code': code, 'method': method}) as Map);
 
   static Future<Map<String, dynamic>> getTiers() async =>
       Map<String, dynamic>.from(await _api.get('/v1/mobile/tiers') as Map);

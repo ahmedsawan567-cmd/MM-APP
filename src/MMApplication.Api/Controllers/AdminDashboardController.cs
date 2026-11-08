@@ -902,6 +902,8 @@ public class AdminDashboardController : Controller
             ContactPhone = s.ContactPhone,
             LogoUrl = s.LogoUrl,
             CoverImageUrl = s.CoverImageUrl,
+            ScanPoints = s.ScanPoints,
+            ScanDailyLimit = s.ScanDailyLimit,
             IsActive = s.IsActive,
             ActiveStaffCount = s.SystemUsers.Count,
             CreatedAt = s.CreatedAt,
@@ -1437,69 +1439,56 @@ public class AdminDashboardController : Controller
     // طلبات النقاط بباركود المتجر أو بطاقة NFC (يؤكدها كاشير المتجر)
     // ----------------------------------------------------
     public record ClaimRow(Guid Id, string CustomerId, string CustomerName, string? MembershipNumber, string Phone, string Store, string Source,
-        decimal Amount, DateTime CreatedAt, InvoiceStatus Status, int Points, string? Note, string? Reason);
+        int Points, DateTime CreatedAt, InvoiceStatus Status, string? Reason);
 
+    /// <summary>سجل مسح باركود المتاجر وبطاقات NFC (النقاط تُضاف فوراً، ويمكن إلغاء مسح مشبوه).</summary>
     [HttpGet]
     [RequirePermission(Permissions.ClaimsConfirm)]
-    public async Task<IActionResult> StoreClaims([FromQuery] string? tab, [FromQuery] int page = 1)
+    public async Task<IActionResult> StoreClaims([FromQuery] string? storeId, [FromQuery] int page = 1)
     {
-        await StoreClaimsService.ExpireOldAsync(_context);
-        var q = _context.Invoices.AsNoTracking().Where(i => i.Source == "QR" || i.Source == "NFC");
-        if (IsStoreScoped) q = q.Where(i => i.TenantId == ScopeTenantId);
-        var pending = tab != "history";
-        q = pending ? q.Where(i => i.ProcessingStatus == InvoiceStatus.AWAITING_STORE) : q.Where(i => i.ProcessingStatus != InvoiceStatus.AWAITING_STORE);
-
-        const int pageSize = 20;
-        var total = await q.CountAsync();
-        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
-        page = Math.Clamp(page, 1, totalPages);
-        var rows = await q.OrderByDescending(i => i.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(i => new ClaimRow(i.InvoiceId, i.CustomerId, i.Customer!.FullName, i.Customer.MembershipNumber, i.Customer.PhoneNumber,
-                i.Tenant != null ? i.Tenant.NameAr : (i.ExtractedMerchant ?? ""), i.Source, i.TotalAmount ?? 0, i.CreatedAt, i.ProcessingStatus,
-                i.PointsAwarded, i.ResubmissionNotes, i.RejectionReason))
-            .ToListAsync();
-
         var all = _context.Invoices.AsNoTracking().Where(i => i.Source == "QR" || i.Source == "NFC");
         if (IsStoreScoped) all = all.Where(i => i.TenantId == ScopeTenantId);
-        var today = DateTime.UtcNow.Date;
-        ViewData["PendingCount"] = await all.CountAsync(i => i.ProcessingStatus == InvoiceStatus.AWAITING_STORE);
-        ViewData["ConfirmedToday"] = await all.CountAsync(i => i.ProcessingStatus == InvoiceStatus.APPROVED && i.CreatedAt >= today);
-        ViewData["AmountToday"] = await all.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED && i.CreatedAt >= today).SumAsync(i => i.TotalAmount) ?? 0m;
-        ViewData["Tab"] = pending ? "pending" : "history";
+        else if (!string.IsNullOrWhiteSpace(storeId)) all = all.Where(i => i.TenantId == storeId);
+
+        const int pageSize = 25;
+        var total = await all.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var rows = await all.OrderByDescending(i => i.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(i => new ClaimRow(i.InvoiceId, i.CustomerId, i.Customer!.FullName, i.Customer.MembershipNumber, i.Customer.PhoneNumber,
+                i.Tenant != null ? i.Tenant.NameAr : (i.ExtractedMerchant ?? ""), i.Source, i.PointsAwarded, i.CreatedAt, i.ProcessingStatus, i.RejectionReason))
+            .ToListAsync();
+
+        var dayStart = DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Local).ToUniversalTime();
+        var today = all.Where(i => i.CreatedAt >= dayStart && i.ProcessingStatus == InvoiceStatus.APPROVED);
+        ViewData["ScansToday"] = await today.CountAsync();
+        ViewData["PointsToday"] = await today.SumAsync(i => (int?)i.PointsAwarded) ?? 0;
+        ViewData["CustomersToday"] = await today.Select(i => i.CustomerId).Distinct().CountAsync();
+        ViewData["Stores"] = IsStoreScoped ? new List<(string, string)>() :
+            (await _context.Tenants.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.NameAr).Select(t => new { t.TenantId, t.NameAr }).ToListAsync())
+            .Select(t => (t.TenantId, t.NameAr)).ToList();
+        ViewData["StoreId"] = storeId;
         ViewData["Page"] = page;
         ViewData["TotalPages"] = totalPages;
         ViewData["Total"] = total;
         ViewData["ActiveTab"] = "store_claims";
-        ViewData["Title"] = "طلبات الباركود وNFC";
+        ViewData["Title"] = "مسح الباركود وNFC";
         return View(rows);
     }
 
-    public record ClaimDecision(decimal? Amount, string? Reason);
+    public record ClaimDecision(string? Reason);
 
+    /// <summary>إلغاء مسح مشبوه: تُسترجع نقاطه من رصيد العميل.</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     [RequirePermission(Permissions.ClaimsConfirm)]
-    public async Task<IActionResult> ClaimConfirm(Guid id, [FromBody] ClaimDecision req)
+    public async Task<IActionResult> ClaimVoid(Guid id, [FromBody] ClaimDecision req)
     {
         var inv = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == id && (i.Source == "QR" || i.Source == "NFC"));
-        if (inv == null) return NotFound(new { success = false, message = "الطلب غير موجود." });
+        if (inv == null) return NotFound(new { success = false, message = "العملية غير موجودة." });
         if (IsStoreScoped && inv.TenantId != ScopeTenantId) return Forbid();
-        if (inv.ProcessingStatus != InvoiceStatus.AWAITING_STORE) return BadRequest(new { success = false, message = "تمت معالجة هذا الطلب مسبقاً." });
-        if (req.Amount is <= 0 or > PurchaseClaimsController.MaxAmount) return BadRequest(new { success = false, message = "المبلغ غير صالح." });
-        var outcome = await _review.ApproveAsync(id, ReviewerName, req.Amount.HasValue && req.Amount != inv.TotalAmount ? new InvoiceCorrection { TotalAmount = req.Amount } : null);
-        return ReviewResult(outcome);
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [RequirePermission(Permissions.ClaimsConfirm)]
-    public async Task<IActionResult> ClaimReject(Guid id, [FromBody] ClaimDecision req)
-    {
-        var inv = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == id && (i.Source == "QR" || i.Source == "NFC"));
-        if (inv == null) return NotFound(new { success = false, message = "الطلب غير موجود." });
-        if (IsStoreScoped && inv.TenantId != ScopeTenantId) return Forbid();
-        if (inv.ProcessingStatus != InvoiceStatus.AWAITING_STORE) return BadRequest(new { success = false, message = "تمت معالجة هذا الطلب مسبقاً." });
-        return ReviewResult(await _review.RejectAsync(id, ReviewerName, string.IsNullOrWhiteSpace(req.Reason) ? "لم يؤكد المتجر عملية الشراء." : req.Reason.Trim()));
+        if (inv.ProcessingStatus != InvoiceStatus.APPROVED) return BadRequest(new { success = false, message = "العملية ملغاة مسبقاً." });
+        return ReviewResult(await _review.VoidAsync(id, ReviewerName, string.IsNullOrWhiteSpace(req.Reason) ? "إلغاء مسح باركود بواسطة المتجر" : req.Reason.Trim()));
     }
 
     /// <summary>صفحة طباعة باركود المتجر وبيانات بطاقة NFC (متجر واحد أو كل المتاجر).</summary>
