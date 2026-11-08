@@ -71,6 +71,14 @@ class LoyaltyApi {
   // ---------- الرئيسية والمتاجر ----------
   static Future<HomeData> getHome() async => HomeData.fromJson(await _api.get('/v1/mobile/home'));
 
+  /// بيانات المتجر من محتوى باركود المتجر أو بطاقة NFC.
+  static Future<Map<String, dynamic>> resolveStoreCode(String code) async =>
+      Map<String, dynamic>.from(await _api.get('/v1/purchases/store', query: {'code': code}) as Map);
+
+  /// طلب نقاط على مشتريات من متجر بدون فاتورة (يؤكده كاشير المتجر).
+  static Future<Map<String, dynamic>> claimPurchase({required String code, required double amount, required String method, String? note}) async =>
+      Map<String, dynamic>.from(await _api.post('/v1/purchases/claim', {'code': code, 'amount': amount, 'method': method, 'note': note}) as Map);
+
   static Future<Map<String, dynamic>> getTiers() async =>
       Map<String, dynamic>.from(await _api.get('/v1/mobile/tiers') as Map);
 

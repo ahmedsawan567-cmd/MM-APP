@@ -9,7 +9,10 @@ import '../core/services/session.dart';
 import '../core/theme/app_theme.dart';
 import '../models/invoice.dart';
 import '../widgets/common.dart';
+import '../core/services/store_code_reader.dart';
 import 'invoices_screen.dart';
+import 'store_claim_screen.dart';
+import 'store_qr_scanner_screen.dart';
 
 /// اختيار صورة فاتورة من الكاميرا أو المعرض بحجم مناسب للرفع.
 Future<File?> pickReceiptImage(BuildContext context, ImageSource source) async {
@@ -161,7 +164,7 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
     final p = context.palette;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('مسح فاتورة'),
+        title: const Text('اكسب نقاطك'),
         actions: [
           IconButton(
             tooltip: 'سجل الفواتير',
@@ -173,6 +176,10 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
         children: [
+          _methods(p),
+          const SizedBox(height: 18),
+          Text('تصوير الفاتورة', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
           _viewfinder(p),
           const SizedBox(height: 16),
           AnimatedSwitcher(
@@ -223,6 +230,92 @@ class _ScanTabState extends State<ScanTab> with SingleTickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  /// ثلاث طرق لكسب النقاط: تصوير الفاتورة، باركود المتجر، بطاقة NFC.
+  Widget _methods(AppPalette p) {
+    Widget card(IconData icon, String title, String sub, Tone tone, VoidCallback onTap) => Expanded(
+          child: AppCard(
+            padding: const EdgeInsets.all(14),
+            onTap: onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                IconBadge(icon, tone: tone, size: 42),
+                const SizedBox(height: 10),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 2),
+                Text(sub, style: TextStyle(fontSize: 12, color: p.muted, height: 1.4)),
+              ],
+            ),
+          ),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('متجر بدون فاتورة؟', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text('امسح باركود المتجر أو قرّب هاتفك من بطاقته، ثم أدخل المبلغ ليؤكده الكاشير.',
+            style: TextStyle(color: p.muted, fontSize: 13)),
+        const SizedBox(height: 10),
+        Row(children: [
+          card(LucideIcons.qrCode, 'باركود المتجر', 'امسح الكود عند الكاشير', Tone.brand, _scanStoreQr),
+          const SizedBox(width: 10),
+          card(LucideIcons.nfc, 'بطاقة NFC', 'قرّب الهاتف من البطاقة', Tone.info, _readNfc),
+        ]),
+      ],
+    );
+  }
+
+  Future<void> _openClaim(String code, String method) async {
+    final sent = await pushPage<bool>(context, StoreClaimScreen(code: code, method: method));
+    if (sent == true && mounted) pushPage(context, const InvoicesScreen());
+  }
+
+  Future<void> _scanStoreQr() async {
+    final code = await pushPage<String>(context, const StoreQrScannerScreen());
+    if (code != null && mounted) await _openClaim(code, 'QR');
+  }
+
+  Future<void> _readNfc() async {
+    if (!await StoreNfcReader.isAvailable()) {
+      if (mounted) showMessage(context, 'قارئ NFC غير متاح أو غير مفعّل في هاتفك. فعّله من الإعدادات أو استخدم باركود المتجر.', error: true);
+      return;
+    }
+    if (!mounted) return;
+    // نافذة انتظار أثناء تقريب البطاقة
+    var cancelled = false;
+    showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const IconBadge(LucideIcons.nfc, tone: Tone.info, size: 72),
+          const SizedBox(height: 16),
+          Text('قرّب هاتفك من بطاقة المتجر', style: Theme.of(ctx).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text('ضع ظهر الهاتف على البطاقة حتى تسمع إشارة القراءة', style: TextStyle(color: ctx.palette.muted)),
+          const SizedBox(height: 18),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        ]),
+      ),
+    ).whenComplete(() {
+      cancelled = true;
+      StoreNfcReader.cancel();
+    });
+    final text = await StoreNfcReader.read();
+    if (!mounted) return;
+    if (!cancelled) Navigator.of(context).pop();
+    if (text == null) {
+      if (!cancelled) showMessage(context, 'لم تُقرأ البطاقة. حاول مرة أخرى أو امسح باركود المتجر.', error: true);
+      return;
+    }
+    if (!text.toUpperCase().contains('MMALL-STORE')) {
+      showMessage(context, 'هذه البطاقة لا تخص متجراً في المرأة مول.', error: true);
+      return;
+    }
+    await _openClaim(text, 'NFC');
   }
 
   Widget _viewfinder(AppPalette p) {

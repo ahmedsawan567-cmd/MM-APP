@@ -56,6 +56,8 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>يتصل التطبيق بخادم المرأة مول على الشبكة المحلية لعرض نقاطك وفواتيرك.</string>
+	<key>NFCReaderUsageDescription</key>
+	<string>لقراءة بطاقة المتجر وكسب النقاط على مشترياتك.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>يتطلب تطبيق المرأة مول صلاحية الوصول إلى الكاميرا لمسح فواتير الشراء ضوئياً وكسب نقاط الولاء ومطابقتها بالذكاء الاصطناعي.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

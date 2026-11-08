@@ -340,6 +340,7 @@ class StatusChip extends StatelessWidget {
         'RESUBMISSION_REQUESTED' => const StatusChip(label: 'صوّرها من جديد', tone: Tone.warning, icon: LucideIcons.camera),
         'DISPUTED' => const StatusChip(label: 'اعتراض قيد المراجعة', tone: Tone.info),
         'VOIDED' => const StatusChip(label: 'ملغاة', tone: Tone.neutral),
+        'AWAITING_STORE' => const StatusChip(label: 'بانتظار تأكيد المتجر', tone: Tone.info, icon: LucideIcons.store),
         _ => const StatusChip(label: 'قيد المراجعة', tone: Tone.gold, icon: LucideIcons.clock),
       };
 

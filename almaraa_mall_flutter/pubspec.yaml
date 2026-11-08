@@ -1,7 +1,7 @@
 name: almaraa_mall
 description: "تطبيق المرأة مول - منظومة التسوق والولاء الفاخرة (Almaraa Mall)"
 publish_to: 'none'
-version: 1.7.0+9
+version: 1.8.0+10
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -29,6 +29,9 @@ dependencies:
   workmanager: ^0.10.10
   firebase_core: ^5.1.0
   firebase_messaging: ^17.0.1
+  mobile_scanner: ^7.5.0
+  nfc_manager: ^4.3.0
+  ndef_record: ^1.5.0
 
 dev_dependencies:
   flutter_test:
