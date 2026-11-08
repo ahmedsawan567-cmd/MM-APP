@@ -1,0 +1,53 @@
+@model List<MMApplication.Domain.Entities.Tenant>
+@using MMApplication.Infrastructure.Data
+@{
+    Layout = "_PrintLayout";
+    var canRegenerate = Model.Count == 1;
+}
+<style>
+    .qr-card { border: 2px solid #ede9fe; border-radius: 18px; padding: 18px; text-align: center; break-inside: avoid; page-break-inside: avoid; }
+    .qr-card svg { width: 100%; max-width: 220px; height: auto; margin: 10px auto; display: block; }
+</style>
+@if (canRegenerate)
+{
+    <div class="no-print mb-4 rounded-xl bg-amber-50 text-amber-800 p-3 text-sm flex items-center justify-between gap-3">
+        <span>لو انتشر الكود أو اشتبهت في استخدامه من خارج المحل، أنشئ كوداً جديداً (القديم يتوقف فوراً).</span>
+        <button type="button" class="btn-secondary btn-sm" onclick="regen('@Model[0].TenantId')">كود جديد</button>
+    </div>
+}
+<div class="grid @(Model.Count == 1 ? "grid-cols-1 max-w-sm mx-auto" : "grid-cols-2") gap-4">
+    @foreach (var s in Model)
+    {
+        var payload = StoreCodes.Payload(s.StoreCode ?? "");
+        <div class="qr-card">
+            <div class="text-lg font-bold">@s.NameAr</div>
+            @if (!string.IsNullOrEmpty(s.UnitNumber)) { <div class="text-xs text-slate-500">الوحدة <span class="num">@s.UnitNumber</span></div> }
+            <div class="qr" data-payload="@payload"></div>
+            <div class="font-bold text-sm" style="color:#86198f">امسح الكود بتطبيق المرأة مول</div>
+            <div class="text-xs text-slate-500 mt-1">أدخل مبلغ مشترياتك، ويؤكده الكاشير لتُضاف نقاطك</div>
+            <div class="mt-3 text-xs text-slate-400 num" dir="ltr">@payload</div>
+        </div>
+    }
+</div>
+<div class="no-print mt-6 rounded-xl border border-slate-200 p-4 text-sm text-slate-600 leading-relaxed">
+    <div class="font-bold text-slate-800 mb-1">بطاقات NFC</div>
+    اكتب النص الظاهر أسفل كل كود (مثل <span class="num" dir="ltr">MMALL-STORE:XXXXXXXXXX</span>) على بطاقة أو ملصق NFC كسجل نصي (Text record)
+    باستخدام أي تطبيق كتابة NFC على الهاتف (مثل NFC Tools). العميل يقرّب هاتفه من البطاقة داخل التطبيق فيُفتح المتجر مباشرة.
+</div>
+<script src="~/lib/qrcode.js"></script>
+<script>
+    document.querySelectorAll('.qr').forEach(el => {
+        const qr = qrcode(0, 'M');
+        qr.addData(el.dataset.payload);
+        qr.make();
+        el.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+    });
+    async function regen(id) {
+        if (!confirm('إنشاء كود جديد؟ الباركود والبطاقات الحالية ستتوقف عن العمل.')) return;
+        const token = '@Html.AntiForgeryToken()'.match(/value="([^"]+)"/)[1];
+        const res = await fetch(`/AdminDashboard/StoreCodeRegenerate?id=${encodeURIComponent(id)}`, { method: 'POST', headers: { 'RequestVerificationToken': token } });
+        const d = await res.json().catch(() => ({}));
+        alert(d.message || 'تعذّر تنفيذ العملية.');
+        if (res.ok) location.reload();
+    }
+</script>

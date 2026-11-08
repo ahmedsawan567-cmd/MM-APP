@@ -19,6 +19,7 @@
             <p class="page-subtitle">المحلات المشاركة في برنامج الولاء</p>
         </div>
         <div class="page-actions">
+            <a href="/AdminDashboard/StoreCodePrint" target="_blank" class="btn-secondary"><i data-lucide="qr-code" class="w-4 h-4"></i> طباعة باركود كل المتاجر</a>
             <a asp-action="InvoiceTemplates" class="btn-secondary"><i data-lucide="scan-text" class="w-4 h-4"></i> نماذج الفواتير</a>
             @if (isSuperAdmin)
             {
@@ -122,13 +123,14 @@
                             </td>
                             <td><span class="badge @(s.IsActive ? "badge-emerald" : "badge-rose")">@(s.IsActive ? "نشط" : "موقوف")</span></td>
                             <td class="text-left">
+                                <div class="flex items-center gap-0.5 justify-end">
+                                    <a href="/AdminDashboard/StoreCodePrint/@Uri.EscapeDataString(s.Id)" target="_blank" title="باركود المتجر وبطاقة NFC" class="btn-icon !w-8 !h-8"><i data-lucide="qr-code" class="w-4 h-4"></i></a>
                                 @if (isSuperAdmin)
                                 {
-                                    <div class="flex items-center gap-0.5 justify-end">
                                         <button type="button" onclick="openStoreForm(this)" title="تعديل" class="btn-icon !w-8 !h-8"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                                         <button type="button" onclick="deleteStore(this)" title="حذف" class="btn-icon !w-8 !h-8 text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                                    </div>
                                 }
+                                </div>
                             </td>
                         </tr>
                     }

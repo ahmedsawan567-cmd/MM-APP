@@ -33,6 +33,8 @@ public static class Permissions
     public const string VouchersLog = "vouchers.log";
     public const string VouchersLookup = "vouchers.lookup";
     public const string VouchersRedeem = "vouchers.redeem";
+    public const string ClaimsConfirm = "claims.confirm";
+    public const string StoreCodes = "stores.codes";
 
     public const string TiersManage = "tiers.manage";
     public const string LoyaltyManage = "loyalty.manage";
@@ -75,6 +77,8 @@ public static class Permissions
         new(VouchersLog, "المكافآت والعضويات", "سجل القسائم", "كل القسائم التي استبدلها العملاء"),
         new(VouchersLookup, "المكافآت والعضويات", "التحقق من قسيمة", "البحث عن قسيمة بالكود ومعرفة حالتها"),
         new(VouchersRedeem, "المكافآت والعضويات", "تأكيد استخدام القسيمة", "صرف القسيمة للعميل عند الدفع"),
+        new(ClaimsConfirm, "الفواتير", "تأكيد طلبات الباركود وNFC", "تأكيد مبلغ الشراء الذي أدخله العميل بعد مسح كود المتجر"),
+        new(StoreCodes, "المتاجر", "طباعة باركود المتاجر", "طباعة كود المتجر وبطاقة NFC وتغيير الكود"),
 
         new(LoyaltyManage, "النقاط والتسويق", "قواعد النقاط للمتاجر", "كم نقطة تُكسب في كل متجر والعروض المضاعفة"),
         new(CampaignsManage, "النقاط والتسويق", "قواعد المول العامة والحملات", "القاعدة العامة للنقاط وحملات المول"),
@@ -98,14 +102,14 @@ public static class Permissions
         [SystemUserRole.FRAUD_AUDITOR] =
         [
             DashboardView, ReportsView, ReportsExport, InvoicesView, InvoicesReview, InvoicesEdit, FraudView, InvoiceTemplates,
-            CustomersView, CustomersEdit, CustomersExport, VouchersLog, VouchersLookup, StoresView, SettlementsView,
+            CustomersView, CustomersEdit, CustomersExport, VouchersLog, VouchersLookup, StoresView, SettlementsView, ClaimsConfirm,
         ],
         [SystemUserRole.STORE_MANAGER] =
         [
             DashboardView, ReportsView, ReportsExport, InvoicesView, InvoiceTemplates, LoyaltyManage, StoresView,
-            SettlementsView, VouchersLookup, VouchersRedeem,
+            SettlementsView, VouchersLookup, VouchersRedeem, ClaimsConfirm, StoreCodes,
         ],
-        [SystemUserRole.CASHIER] = [DashboardView, InvoicesView, VouchersLookup, VouchersRedeem],
+        [SystemUserRole.CASHIER] = [DashboardView, InvoicesView, VouchersLookup, VouchersRedeem, ClaimsConfirm],
     };
 
     /// <summary>الأدوار القابلة للتعديل (المدير العام ثابت بكل الصلاحيات حتى لا يُقفل النظام).</summary>
@@ -134,10 +138,24 @@ public static class Permissions
         foreach (var (role, perms) in Defaults)
         {
             var key = SeededPrefix + role;
-            if (await db.SystemSettings.AnyAsync(s => s.Key == key)) continue;
+            var seededRow = await db.SystemSettings.FirstOrDefaultAsync(s => s.Key == key);
+            if (seededRow != null)
+            {
+                // صلاحيات افتراضية أضيفت للمنظومة بعد التهيئة الأولى: تُمنح مرة واحدة فقط
+                // (ولا تُعاد إن سحبها المدير العام لاحقاً)
+                var known = seededRow.Value == "1" ? V1Defaults(role) : seededRow.Value.Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+                var fresh = perms.Where(p => !known.Contains(p)).ToList();
+                if (fresh.Count > 0)
+                {
+                    var have = await db.RolePermissions.Where(p => p.Role == role.ToString()).Select(p => p.Permission).ToListAsync();
+                    db.RolePermissions.AddRange(fresh.Except(have).Select(p => new RolePermission { Role = role.ToString(), Permission = p }));
+                }
+                seededRow.Value = string.Join(',', known.Union(perms));
+                continue;
+            }
             var existing = await db.RolePermissions.Where(p => p.Role == role.ToString()).Select(p => p.Permission).ToListAsync();
             db.RolePermissions.AddRange(perms.Except(existing).Select(p => new RolePermission { Role = role.ToString(), Permission = p }));
-            db.SystemSettings.Add(new SystemSetting { Key = key, Value = "1", UpdatedAt = DateTime.UtcNow, UpdatedBy = "النظام" });
+            db.SystemSettings.Add(new SystemSetting { Key = key, Value = string.Join(',', perms), UpdatedAt = DateTime.UtcNow, UpdatedBy = "النظام" });
         }
         try
         {
@@ -149,6 +167,10 @@ public static class Permissions
             db.ChangeTracker.Clear();
         }
     }
+
+    /// <summary>الصلاحيات الافتراضية في الإصدار الأول (قبل إضافة صلاحيات الباركود).</summary>
+    private static HashSet<string> V1Defaults(SystemUserRole role) =>
+        (Defaults.TryGetValue(role, out var d) ? d : []).Except([ClaimsConfirm, StoreCodes]).ToHashSet();
 
     public static async Task<HashSet<string>> ForRoleAsync(AppDbContext db, SystemUserRole role)
     {
@@ -168,6 +190,6 @@ public static class Permissions
         db.RolePermissions.AddRange(wanted.Except(current.Select(c => c.Permission)).Select(p => new RolePermission { Role = role.ToString(), Permission = p }));
         var key = SeededPrefix + role;
         if (await db.SystemSettings.FindAsync(key) == null)
-            db.SystemSettings.Add(new SystemSetting { Key = key, Value = "1", UpdatedAt = DateTime.UtcNow, UpdatedBy = "النظام" });
+            db.SystemSettings.Add(new SystemSetting { Key = key, Value = string.Join(',', Defaults.TryGetValue(role, out var dd) ? dd : []), UpdatedAt = DateTime.UtcNow, UpdatedBy = "النظام" });
     }
 }

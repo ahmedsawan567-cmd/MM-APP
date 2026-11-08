@@ -7,6 +7,7 @@ const files = {
   'apexcharts.min.js': 'node_modules/apexcharts/dist/apexcharts.min.js',
   'apexcharts.css': 'node_modules/apexcharts/dist/apexcharts.css',
   'sweetalert2.all.min.js': 'node_modules/sweetalert2/dist/sweetalert2.all.min.js',
+  'qrcode.js': 'node_modules/qrcode-generator/qrcode.js',
 };
 fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
 for (const [name, src] of Object.entries(files)) fs.copyFileSync(path.join(__dirname, src), path.join(out, name));

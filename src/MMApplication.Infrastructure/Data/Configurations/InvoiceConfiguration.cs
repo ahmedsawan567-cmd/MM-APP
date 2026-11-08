@@ -28,6 +28,8 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.ImagePHash).HasMaxLength(64);
         builder.Property(i => i.FraudRiskScore).HasDefaultValue(0);
 
+        builder.Property(i => i.Source).HasMaxLength(10).HasDefaultValue("PHOTO");
+
         builder.Property(i => i.ProcessingStatus)
             .IsRequired()
             .HasConversion(v => v.ToString(), v => (InvoiceStatus)Enum.Parse(typeof(InvoiceStatus), v))

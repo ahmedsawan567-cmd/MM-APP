@@ -1434,6 +1434,106 @@ public class AdminDashboardController : Controller
     }
 
     // ----------------------------------------------------
+    // طلبات النقاط بباركود المتجر أو بطاقة NFC (يؤكدها كاشير المتجر)
+    // ----------------------------------------------------
+    public record ClaimRow(Guid Id, string CustomerId, string CustomerName, string? MembershipNumber, string Phone, string Store, string Source,
+        decimal Amount, DateTime CreatedAt, InvoiceStatus Status, int Points, string? Note, string? Reason);
+
+    [HttpGet]
+    [RequirePermission(Permissions.ClaimsConfirm)]
+    public async Task<IActionResult> StoreClaims([FromQuery] string? tab, [FromQuery] int page = 1)
+    {
+        await StoreClaimsService.ExpireOldAsync(_context);
+        var q = _context.Invoices.AsNoTracking().Where(i => i.Source == "QR" || i.Source == "NFC");
+        if (IsStoreScoped) q = q.Where(i => i.TenantId == ScopeTenantId);
+        var pending = tab != "history";
+        q = pending ? q.Where(i => i.ProcessingStatus == InvoiceStatus.AWAITING_STORE) : q.Where(i => i.ProcessingStatus != InvoiceStatus.AWAITING_STORE);
+
+        const int pageSize = 20;
+        var total = await q.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Clamp(page, 1, totalPages);
+        var rows = await q.OrderByDescending(i => i.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(i => new ClaimRow(i.InvoiceId, i.CustomerId, i.Customer!.FullName, i.Customer.MembershipNumber, i.Customer.PhoneNumber,
+                i.Tenant != null ? i.Tenant.NameAr : (i.ExtractedMerchant ?? ""), i.Source, i.TotalAmount ?? 0, i.CreatedAt, i.ProcessingStatus,
+                i.PointsAwarded, i.ResubmissionNotes, i.RejectionReason))
+            .ToListAsync();
+
+        var all = _context.Invoices.AsNoTracking().Where(i => i.Source == "QR" || i.Source == "NFC");
+        if (IsStoreScoped) all = all.Where(i => i.TenantId == ScopeTenantId);
+        var today = DateTime.UtcNow.Date;
+        ViewData["PendingCount"] = await all.CountAsync(i => i.ProcessingStatus == InvoiceStatus.AWAITING_STORE);
+        ViewData["ConfirmedToday"] = await all.CountAsync(i => i.ProcessingStatus == InvoiceStatus.APPROVED && i.CreatedAt >= today);
+        ViewData["AmountToday"] = await all.Where(i => i.ProcessingStatus == InvoiceStatus.APPROVED && i.CreatedAt >= today).SumAsync(i => i.TotalAmount) ?? 0m;
+        ViewData["Tab"] = pending ? "pending" : "history";
+        ViewData["Page"] = page;
+        ViewData["TotalPages"] = totalPages;
+        ViewData["Total"] = total;
+        ViewData["ActiveTab"] = "store_claims";
+        ViewData["Title"] = "طلبات الباركود وNFC";
+        return View(rows);
+    }
+
+    public record ClaimDecision(decimal? Amount, string? Reason);
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequirePermission(Permissions.ClaimsConfirm)]
+    public async Task<IActionResult> ClaimConfirm(Guid id, [FromBody] ClaimDecision req)
+    {
+        var inv = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == id && (i.Source == "QR" || i.Source == "NFC"));
+        if (inv == null) return NotFound(new { success = false, message = "الطلب غير موجود." });
+        if (IsStoreScoped && inv.TenantId != ScopeTenantId) return Forbid();
+        if (inv.ProcessingStatus != InvoiceStatus.AWAITING_STORE) return BadRequest(new { success = false, message = "تمت معالجة هذا الطلب مسبقاً." });
+        if (req.Amount is <= 0 or > PurchaseClaimsController.MaxAmount) return BadRequest(new { success = false, message = "المبلغ غير صالح." });
+        var outcome = await _review.ApproveAsync(id, ReviewerName, req.Amount.HasValue && req.Amount != inv.TotalAmount ? new InvoiceCorrection { TotalAmount = req.Amount } : null);
+        return ReviewResult(outcome);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequirePermission(Permissions.ClaimsConfirm)]
+    public async Task<IActionResult> ClaimReject(Guid id, [FromBody] ClaimDecision req)
+    {
+        var inv = await _context.Invoices.FirstOrDefaultAsync(i => i.InvoiceId == id && (i.Source == "QR" || i.Source == "NFC"));
+        if (inv == null) return NotFound(new { success = false, message = "الطلب غير موجود." });
+        if (IsStoreScoped && inv.TenantId != ScopeTenantId) return Forbid();
+        if (inv.ProcessingStatus != InvoiceStatus.AWAITING_STORE) return BadRequest(new { success = false, message = "تمت معالجة هذا الطلب مسبقاً." });
+        return ReviewResult(await _review.RejectAsync(id, ReviewerName, string.IsNullOrWhiteSpace(req.Reason) ? "لم يؤكد المتجر عملية الشراء." : req.Reason.Trim()));
+    }
+
+    /// <summary>صفحة طباعة باركود المتجر وبيانات بطاقة NFC (متجر واحد أو كل المتاجر).</summary>
+    [HttpGet]
+    [RequirePermission(Permissions.StoreCodes, Permissions.StoresManage)]
+    public async Task<IActionResult> StoreCodePrint(string? id)
+    {
+        await StoreCodes.EnsureCodesAsync(_context);
+        var q = _context.Tenants.AsNoTracking().Where(t => t.IsActive);
+        if (IsStoreScoped) q = q.Where(t => t.TenantId == ScopeTenantId);
+        if (!string.IsNullOrEmpty(id)) q = q.Where(t => t.TenantId == id);
+        var stores = await q.OrderBy(t => t.NameAr).ToListAsync();
+        if (stores.Count == 0) return RedirectToAction(nameof(Stores));
+        ViewData["Title"] = stores.Count == 1 ? $"باركود {stores[0].NameAr}" : "باركود المتاجر";
+        ViewData["Subtitle"] = "امسح الكود بتطبيق المرأة مول لكسب النقاط على مشترياتك";
+        return View(stores);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequirePermission(Permissions.StoresManage)]
+    public async Task<IActionResult> StoreCodeRegenerate(string id)
+    {
+        var store = await _context.Tenants.FirstOrDefaultAsync(t => t.TenantId == id);
+        if (store == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
+        var old = store.StoreCode;
+        store.StoreCode = StoreCodes.NewCode();
+        _context.AuditLogs.Add(new AuditLog { PerformedBy = ReviewerName, Action = "STORE_CODE_REGENERATE", EntityName = "Tenant", EntityId = id,
+            Details = $"كود جديد لباركود {store.NameAr} (الكود السابق {old} لم يعد يعمل)", CreatedAt = DateTime.UtcNow });
+        await _context.SaveChangesAsync();
+        return Json(new { success = true, message = "أُنشئ كود جديد. اطبع الباركود الجديد وأعد كتابة بطاقات NFC؛ الكود القديم لم يعد يعمل.", code = store.StoreCode });
+    }
+
+    // ----------------------------------------------------
     // تقارير العملاء (عرض، طباعة، PDF، Excel، واتساب)
     // ----------------------------------------------------
     [HttpGet]

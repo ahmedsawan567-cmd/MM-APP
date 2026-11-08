@@ -9,6 +9,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
     public void Configure(EntityTypeBuilder<Tenant> builder)
     {
         builder.ToTable("Tenants");
+        builder.Property(t => t.StoreCode).HasMaxLength(20);
+        builder.HasIndex(t => t.StoreCode).IsUnique().HasDatabaseName("UQ_Tenants_StoreCode");
 
         builder.HasKey(t => t.TenantId);
         builder.Property(t => t.TenantId).HasMaxLength(50);

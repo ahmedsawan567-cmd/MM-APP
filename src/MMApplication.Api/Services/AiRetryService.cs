@@ -46,6 +46,7 @@ public class AiRetryService : BackgroundService
             try
             {
                 using var scope = _scopes.CreateScope();
+                await MMApplication.Api.Controllers.StoreClaimsService.ExpireOldAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
                 var n = await ProcessDueAsync(scope.ServiceProvider, stoppingToken);
                 if (n > 0) _logger.LogInformation("أُعيدت القراءة الآلية لـ {Count} فاتورة.", n);
             }

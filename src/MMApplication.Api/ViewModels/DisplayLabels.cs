@@ -45,6 +45,7 @@ public static class DisplayLabels
         InvoiceStatus.VOIDED => ("ملغاة", "badge-slate"),
         InvoiceStatus.REVIEW_REQUIRED => ("قيد المراجعة", "badge-amber"),
         InvoiceStatus.PENDING => ("قيد المعالجة", "badge-amber"),
+        InvoiceStatus.AWAITING_STORE => ("بانتظار تأكيد المتجر", "badge-amber"),
         _ => (s.ToString(), "badge-slate"),
     };
 
@@ -126,6 +127,7 @@ public static class DisplayLabels
         ["STAFF_LOGIN"] = "دخول موظف",
         ["STAFF_LOGIN_FAILED"] = "محاولة دخول فاشلة",
         ["STAFF_LOCKED"] = "قفل حساب موظف مؤقتاً",
+        ["STORE_CODE_REGENERATE"] = "تغيير باركود متجر",
         ["ROLE_PERMISSIONS_UPDATE"] = "تعديل صلاحيات دور",
         ["TIER_CREATE"] = "إضافة عضوية",
         ["TIER_UPDATE"] = "تعديل عضوية",

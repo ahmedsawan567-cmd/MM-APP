@@ -26,11 +26,14 @@ public static class Notifier
     /// <summary>
     /// إشعار للموظفين المعنيين: المدير العام ومدقق الفواتير دائماً، ومدير المتجر وكاشيره إن كان الحدث يخص متجرهم.
     /// </summary>
-    public static async Task StaffAsync(AppDbContext db, string type, string title, string body, string? link = null, string? tenantId = null)
+    public static async Task StaffAsync(AppDbContext db, string type, string title, string body, string? link = null, string? tenantId = null, bool storeOnly = false)
     {
+        // storeOnly: طلبات تخص المتجر نفسه (مدير المتجر وكاشيره فقط)
         var recipients = await db.SystemUsers.AsNoTracking()
-            .Where(u => u.IsActive && (u.Role == SystemUserRole.SUPER_ADMIN || u.Role == SystemUserRole.FRAUD_AUDITOR ||
-                                       (tenantId != null && u.TenantId == tenantId && u.Role == SystemUserRole.STORE_MANAGER)))
+            .Where(u => u.IsActive && (storeOnly
+                ? tenantId != null && u.TenantId == tenantId && (u.Role == SystemUserRole.STORE_MANAGER || u.Role == SystemUserRole.CASHIER)
+                : u.Role == SystemUserRole.SUPER_ADMIN || u.Role == SystemUserRole.FRAUD_AUDITOR ||
+                  (tenantId != null && u.TenantId == tenantId && u.Role == SystemUserRole.STORE_MANAGER)))
             .Select(u => u.UserId)
             .ToListAsync();
         foreach (var id in recipients)

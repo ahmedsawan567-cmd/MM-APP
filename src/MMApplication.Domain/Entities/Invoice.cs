@@ -6,6 +6,8 @@ public class Invoice
 {
     public Guid InvoiceId { get; set; } = Guid.NewGuid();
     public string CustomerId { get; set; } = string.Empty;
+    /// <summary>طريقة الإدخال: PHOTO (تصوير فاتورة)، QR (باركود المتجر)، NFC (بطاقة المتجر)، MANUAL.</summary>
+    public string Source { get; set; } = "PHOTO";
     public string? TenantId { get; set; }
 
     // AI extraction data

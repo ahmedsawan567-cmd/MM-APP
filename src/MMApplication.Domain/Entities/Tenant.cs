@@ -12,6 +12,8 @@ public class Tenant
     public string? LogoUrl { get; set; }
     /// <summary>صورة غلاف المتجر (واجهة المحل) تظهر في صفحة المتجر بالتطبيق.</summary>
     public string? CoverImageUrl { get; set; }
+    /// <summary>كود المتجر المطبوع في الباركود وبطاقة NFC (يُمسح من التطبيق لطلب النقاط).</summary>
+    public string? StoreCode { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

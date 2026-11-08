@@ -1,0 +1,159 @@
+@model List<MMApplication.Api.Controllers.AdminDashboardController.ClaimRow>
+@using MMApplication.Api.ViewModels
+@using MMApplication.Domain.Enums
+@{
+    Layout = "_Layout";
+    var tab = (string)ViewData["Tab"]!;
+    var page = (int)ViewData["Page"]!;
+    var totalPages = (int)ViewData["TotalPages"]!;
+    var total = (int)ViewData["Total"]!;
+    var pending = (int)ViewData["PendingCount"]!;
+    var confirmedToday = (int)ViewData["ConfirmedToday"]!;
+    var amountToday = (decimal)ViewData["AmountToday"]!;
+    string Ago(DateTime d)
+    {
+        var span = DateTime.UtcNow - d;
+        if (span.TotalMinutes < 1) return "الآن";
+        if (span.TotalHours < 1) return $"منذ {(int)span.TotalMinutes} دقيقة";
+        if (span.TotalDays < 1) return $"منذ {(int)span.TotalHours} ساعة";
+        return d.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+    }
+}
+@Html.AntiForgeryToken()
+
+<div class="space-y-5">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">طلبات الباركود وNFC</h1>
+            <p class="page-subtitle">العميل يمسح باركود المتجر أو يقرّب بطاقة NFC ويُدخل مبلغ الشراء. تأكّد من المبلغ ثم اضغط "تأكيد" لتُضاف نقاطه فوراً.</p>
+        </div>
+        <div class="page-actions">
+            <a href="/AdminDashboard/StoreCodePrint" target="_blank" class="btn-secondary"><i data-lucide="qr-code" class="w-4 h-4"></i> طباعة باركود المتجر</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">بانتظار التأكيد</span><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="hourglass" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num @(pending > 0 ? "text-amber-600" : "")">@pending</div>
+            <div class="stat-meta">تُرفض تلقائياً بعد 24 ساعة بدون تأكيد</div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">مؤكدة اليوم</span><span class="stat-icon bg-emerald-50 text-emerald-600"><i data-lucide="badge-check" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@confirmedToday</div>
+            <div class="stat-meta">طلب</div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">مشتريات اليوم المؤكدة</span><span class="stat-icon bg-brand-50 text-brand-600"><i data-lucide="wallet" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@amountToday.ToString("N2") <span class="text-base font-semibold text-slate-400">د.ل</span></div>
+            <div class="stat-meta">من الباركود وNFC</div>
+        </div>
+    </div>
+
+    <div class="tabs w-fit">
+        <a href="/AdminDashboard/StoreClaims" class="tab @(tab == "pending" ? "tab-active" : "")"><i data-lucide="hourglass" class="w-4 h-4"></i> بانتظار التأكيد <span class="text-xs text-slate-400 num">@pending</span></a>
+        <a href="/AdminDashboard/StoreClaims?tab=history" class="tab @(tab == "history" ? "tab-active" : "")"><i data-lucide="history" class="w-4 h-4"></i> السجل</a>
+    </div>
+
+    <div class="card overflow-hidden">
+        @if (Model.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><i data-lucide="@(tab == "pending" ? "check-check" : "inbox")" class="w-6 h-6"></i></div>
+                <div class="font-bold text-slate-700">@(tab == "pending" ? "لا توجد طلبات بانتظار التأكيد" : "لا يوجد سجل بعد")</div>
+                <p class="text-sm text-slate-500">تظهر الطلبات هنا فور إرسالها من تطبيق العميل</p>
+            </div>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead><tr><th>العميل</th><th>المتجر</th><th>الطريقة</th><th>المبلغ</th><th>الوقت</th><th>@(tab == "pending" ? "" : "النتيجة")</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in Model)
+                        {
+                            <tr id="claim-@c.Id">
+                                <td>
+                                    <div class="font-semibold text-slate-900">@c.CustomerName</div>
+                                    <div class="text-xs text-slate-500"><span class="num" dir="ltr">@c.MembershipNumber</span> • <span class="num" dir="ltr">@c.Phone</span></div>
+                                    @if (!string.IsNullOrEmpty(c.Note)) { <div class="text-xs text-slate-500 mt-1">ملاحظة: @c.Note</div> }
+                                </td>
+                                <td class="text-sm">@c.Store</td>
+                                <td><span class="badge @(c.Source == "NFC" ? "badge-indigo" : "badge-brand")"><i data-lucide="@(c.Source == "NFC" ? "nfc" : "qr-code")" class="w-3 h-3"></i> @(c.Source == "NFC" ? "بطاقة NFC" : "باركود")</span></td>
+                                <td class="num font-bold text-lg whitespace-nowrap">@c.Amount.ToString("N2") <span class="text-xs text-slate-400 font-normal">د.ل</span></td>
+                                <td class="text-sm text-slate-600 whitespace-nowrap">@Ago(c.CreatedAt)</td>
+                                <td class="text-left whitespace-nowrap">
+                                    @if (c.Status == InvoiceStatus.AWAITING_STORE)
+                                    {
+                                        <button type="button" class="btn-success btn-sm" onclick="confirmClaim('@c.Id', @c.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture), @Json.Serialize(c.CustomerName))"><i data-lucide="check" class="w-4 h-4"></i> تأكيد</button>
+                                        <button type="button" class="btn-danger-soft btn-sm" onclick="rejectClaim('@c.Id', @Json.Serialize(c.CustomerName))"><i data-lucide="x" class="w-4 h-4"></i> رفض</button>
+                                    }
+                                    else
+                                    {
+                                        var (label, badge) = DisplayLabels.Invoice(c.Status);
+                                        <span class="badge @badge">@label</span>
+                                        @if (c.Points > 0) { <span class="text-xs text-gold-600 font-bold num mr-1">+@c.Points</span> }
+                                        @if (!string.IsNullOrEmpty(c.Reason) && c.Status != InvoiceStatus.APPROVED) { <div class="text-xs text-slate-500 mt-1 max-w-[14rem] truncate" title="@c.Reason">@c.Reason</div> }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="p-4 border-t border-line flex items-center justify-between text-sm">
+            <span class="text-slate-500"><span class="num">@total</span> طلب @(totalPages > 1 ? $"• صفحة {page} من {totalPages}" : "")</span>
+            @if (totalPages > 1)
+            {
+                var baseUrl = tab == "history" ? "/AdminDashboard/StoreClaims?tab=history&page=" : "/AdminDashboard/StoreClaims?page=";
+                <div class="flex gap-2">
+                    <a href="@(baseUrl + (page - 1))" class="btn-secondary btn-sm @(page <= 1 ? "pointer-events-none opacity-50" : "")">السابق</a>
+                    <a href="@(baseUrl + (page + 1))" class="btn-secondary btn-sm @(page >= totalPages ? "pointer-events-none opacity-50" : "")">التالي</a>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    async function post(url, body) {
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token() }, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.message || 'تعذّر تنفيذ العملية.');
+        return data;
+    }
+    async function confirmClaim(id, amount, name) {
+        const r = await Swal.fire({
+            title: 'تأكيد عملية الشراء',
+            html: `العميل: <b>${MM.esc(name)}</b><br><br>تأكد من مبلغ الفاتورة على جهاز الكاشير:<br><br><input id="claim-amount" type="number" step="0.01" min="0.01" class="form-input num" style="text-align:center;font-size:1.25rem" value="${amount}">`,
+            icon: 'question', showCancelButton: true, confirmButtonText: 'تأكيد وإضافة النقاط', cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-success', cancelButton: 'btn-secondary' },
+            preConfirm: () => Number(document.getElementById('claim-amount').value)
+        });
+        if (!r.isConfirmed) return;
+        try {
+            const d = await post(`/AdminDashboard/ClaimConfirm?id=${id}`, { amount: r.value });
+            showToast(d.message, 'success');
+            setTimeout(() => location.reload(), 700);
+        } catch (e) { showToast(e.message, 'error'); }
+    }
+    async function rejectClaim(id, name) {
+        const r = await Swal.fire({
+            title: `رفض طلب ${name}؟`, input: 'text', inputPlaceholder: 'السبب (يظهر للعميل) — مثال: لا توجد عملية شراء بهذا المبلغ',
+            icon: 'warning', showCancelButton: true, confirmButtonText: 'رفض', cancelButtonText: 'إلغاء',
+            customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' }
+        });
+        if (!r.isConfirmed) return;
+        try {
+            const d = await post(`/AdminDashboard/ClaimReject?id=${id}`, { reason: r.value || null });
+            showToast(d.message, 'success');
+            setTimeout(() => location.reload(), 700);
+        } catch (e) { showToast(e.message, 'error'); }
+    }
+    // تحديث تلقائي كل 30 ثانية لظهور الطلبات الجديدة
+    @if (tab == "pending") { <text>setTimeout(() => location.reload(), 30000);</text> }
+</script>
+}
