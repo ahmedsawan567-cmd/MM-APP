@@ -1491,6 +1491,151 @@ public class AdminDashboardController : Controller
         return ReviewResult(await _review.VoidAsync(id, ReviewerName, string.IsNullOrWhiteSpace(req.Reason) ? "إلغاء مسح باركود بواسطة المتجر" : req.Reason.Trim()));
     }
 
+    // ----------------------------------------------------
+    // باركود متجري وعملائي: صاحب المتجر يتحكم في باركوده ويرى عملاءه (مسح الباركود والفواتير)
+    // ----------------------------------------------------
+    public record StoreCustomerRow(string CustomerId, string Name, string? MembershipNumber, string Phone, string Tier,
+        int Count, decimal Spent, int Points, DateTime First, DateTime Last);
+
+    public class StoreBarcodeViewModel
+    {
+        public MMApplication.Domain.Entities.Tenant Store { get; set; } = null!;
+        public List<(string Id, string Name)> Stores { get; set; } = new();
+        public string Tab { get; set; } = "settings";
+        public bool CanEdit { get; set; }
+        public bool MaskPhones { get; set; }
+        public string? Search { get; set; }
+        public List<StoreCustomerRow> Rows { get; set; } = new();
+        public int Page { get; set; } = 1;
+        public int TotalPages { get; set; } = 1;
+        public int TotalRows { get; set; }
+        public int ScanCustomers { get; set; }
+        public int InvoiceCustomers { get; set; }
+        public int ScansToday { get; set; }
+        public int Scans30 { get; set; }
+        public int ScanPoints30 { get; set; }
+        public int Invoices30 { get; set; }
+        public decimal Spent30 { get; set; }
+    }
+
+    private static string MaskPhone(string p) => p.Length < 7 ? p : p[..3] + new string('•', p.Length - 6) + p[^3..];
+
+    [HttpGet]
+    [RequirePermission(Permissions.StoreCodes, Permissions.StoresManage)]
+    public async Task<IActionResult> StoreBarcode([FromQuery] string? storeId, [FromQuery] string? tab, [FromQuery] string? search,
+        [FromQuery] int page = 1, [FromQuery] string? export = null)
+    {
+        await StoreCodes.EnsureCodesAsync(_context);
+        var stores = await _context.Tenants.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.NameAr).ToListAsync();
+        var id = IsStoreScoped ? ScopeTenantId : (storeId ?? stores.FirstOrDefault()?.TenantId);
+        var store = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.TenantId == id);
+        if (store == null) return RedirectToAction(nameof(Index));
+
+        var t = tab is "scans" or "invoices" ? tab : "settings";
+        var now = DateTime.UtcNow;
+        var since30 = now.AddDays(-30);
+        var dayStart = DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Local).ToUniversalTime();
+        var storeInv = _context.Invoices.AsNoTracking().Where(i => i.TenantId == store.TenantId && i.ProcessingStatus == InvoiceStatus.APPROVED);
+        var scans = storeInv.Where(i => i.Source == "QR" || i.Source == "NFC");
+        var photos = storeInv.Where(i => i.Source != "QR" && i.Source != "NFC");
+
+        var vm = new StoreBarcodeViewModel
+        {
+            Store = store,
+            Stores = IsStoreScoped ? new() : stores.Select(x => (x.TenantId, x.NameAr)).ToList(),
+            Tab = t,
+            CanEdit = await Can(Permissions.StoreCodes, Permissions.StoresManage),
+            MaskPhones = IsStoreScoped,
+            Search = search,
+            ScanCustomers = await scans.Select(i => i.CustomerId).Distinct().CountAsync(),
+            InvoiceCustomers = await photos.Select(i => i.CustomerId).Distinct().CountAsync(),
+            ScansToday = await scans.CountAsync(i => i.CreatedAt >= dayStart),
+            Scans30 = await scans.CountAsync(i => i.CreatedAt >= since30),
+            ScanPoints30 = await scans.Where(i => i.CreatedAt >= since30).SumAsync(i => (int?)i.PointsAwarded) ?? 0,
+            Invoices30 = await photos.CountAsync(i => i.CreatedAt >= since30),
+            Spent30 = await photos.Where(i => i.CreatedAt >= since30).SumAsync(i => i.TotalAmount) ?? 0m,
+        };
+
+        if (t != "settings")
+        {
+            var source = t == "scans" ? scans : photos;
+            var grouped = await source.GroupBy(i => i.CustomerId).Select(g => new
+            {
+                g.Key, N = g.Count(), Spent = g.Sum(i => i.TotalAmount ?? 0), Points = g.Sum(i => i.PointsAwarded),
+                First = g.Min(i => i.CreatedAt), Last = g.Max(i => i.CreatedAt),
+            }).ToListAsync();
+            var ids = grouped.Select(x => x.Key).ToList();
+            var customers = await _context.Customers.AsNoTracking().Where(c => ids.Contains(c.CustomerId))
+                .Select(c => new { c.CustomerId, c.FullName, c.MembershipNumber, c.PhoneNumber, c.LoyaltyTier }).ToDictionaryAsync(c => c.CustomerId);
+            var rows = grouped.Where(x => customers.ContainsKey(x.Key)).Select(x =>
+            {
+                var c = customers[x.Key];
+                return new StoreCustomerRow(c.CustomerId, c.FullName, c.MembershipNumber, vm.MaskPhones ? MaskPhone(c.PhoneNumber) : c.PhoneNumber,
+                    c.LoyaltyTier, x.N, x.Spent, x.Points, x.First, x.Last);
+            });
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var q = search.Trim().ToUpperInvariant();
+                rows = rows.Where(r => r.Name.Contains(search.Trim()) || (r.MembershipNumber ?? "").Contains(q));
+            }
+            var list = rows.OrderByDescending(r => r.Last).ToList();
+
+            if (string.Equals(export, "csv", StringComparison.OrdinalIgnoreCase))
+            {
+                string Cell(object? v) => "\"" + (v?.ToString() ?? "").Replace("\"", "\"\"") + "\"";
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine(string.Join(",", (t == "scans"
+                    ? new[] { "رقم العضوية", "الاسم", "الهاتف", "العضوية", "مرات المسح", "النقاط", "أول مسح", "آخر مسح" }
+                    : new[] { "رقم العضوية", "الاسم", "الهاتف", "العضوية", "الفواتير", "المشتريات", "النقاط", "أول فاتورة", "آخر فاتورة" }).Select(Cell)));
+                foreach (var r in list)
+                {
+                    var cells = new List<object?> { r.MembershipNumber, r.Name, r.Phone, MembershipTiers.NameOf(r.Tier), r.Count };
+                    if (t == "invoices") cells.Add(r.Spent.ToString("0.00"));
+                    cells.AddRange(new object?[] { r.Points, r.First.ToLocalTime().ToString("yyyy-MM-dd"), r.Last.ToLocalTime().ToString("yyyy-MM-dd") });
+                    sb.AppendLine(string.Join(",", cells.Select(Cell)));
+                }
+                var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+                return File(bytes, "text/csv; charset=utf-8", $"{store.TenantId}-{t}-customers-{DateTime.Now:yyyy-MM-dd}.csv");
+            }
+
+            const int pageSize = 20;
+            vm.TotalRows = list.Count;
+            vm.TotalPages = Math.Max(1, (int)Math.Ceiling(list.Count / (double)pageSize));
+            vm.Page = Math.Clamp(page, 1, vm.TotalPages);
+            vm.Rows = list.Skip((vm.Page - 1) * pageSize).Take(pageSize).ToList();
+        }
+
+        ViewData["ActiveTab"] = "store_barcode";
+        ViewData["Title"] = IsStoreScoped ? "باركود متجري وعملائي" : "باركود المتاجر وعملاؤها";
+        return View(vm);
+    }
+
+    public record ScanSettingsRequest(int Points, int DailyLimit);
+
+    /// <summary>صاحب المتجر (أو الإدارة) يحدد نقاط مسح الباركود والحد اليومي لمتجره.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequirePermission(Permissions.StoreCodes, Permissions.StoresManage)]
+    public async Task<IActionResult> StoreScanSettings(string id, [FromBody] ScanSettingsRequest req)
+    {
+        if (IsStoreScoped && id != ScopeTenantId) return StatusCode(403, new { success = false, message = "تقدر تعدّل باركود متجرك فقط." });
+        var store = await _context.Tenants.FirstOrDefaultAsync(t => t.TenantId == id);
+        if (store == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
+        if (req.Points < 0 || req.Points > 1000) return BadRequest(new { success = false, message = "النقاط بين 0 و 1000 لكل مسح." });
+        if (req.DailyLimit < 1 || req.DailyLimit > 20) return BadRequest(new { success = false, message = "المرات اليومية بين 1 و 20." });
+        var before = $"{store.ScanPoints} نقطة × {store.ScanDailyLimit}";
+        store.ScanPoints = req.Points;
+        store.ScanDailyLimit = req.DailyLimit;
+        _context.AuditLogs.Add(new AuditLog
+        {
+            PerformedBy = ReviewerName, Action = "STORE_SCAN_SETTINGS", EntityName = "Tenant", EntityId = id,
+            Details = $"نقاط باركود {store.NameAr}: {before} ← {(req.Points == 0 ? "متوقف" : $"{req.Points} نقطة × {req.DailyLimit} يومياً")}",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        return Json(new { success = true, message = req.Points == 0 ? "أُوقف باركود المتجر." : "حُفظت إعدادات الباركود وتُطبَّق فوراً." });
+    }
+
     /// <summary>صفحة طباعة باركود المتجر وبيانات بطاقة NFC (متجر واحد أو كل المتاجر).</summary>
     [HttpGet]
     [RequirePermission(Permissions.StoreCodes, Permissions.StoresManage)]
@@ -1509,9 +1654,10 @@ public class AdminDashboardController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [RequirePermission(Permissions.StoresManage)]
+    [RequirePermission(Permissions.StoreCodes, Permissions.StoresManage)]
     public async Task<IActionResult> StoreCodeRegenerate(string id)
     {
+        if (IsStoreScoped && id != ScopeTenantId) return Forbid();
         var store = await _context.Tenants.FirstOrDefaultAsync(t => t.TenantId == id);
         if (store == null) return NotFound(new { success = false, message = "المتجر غير موجود." });
         var old = store.StoreCode;

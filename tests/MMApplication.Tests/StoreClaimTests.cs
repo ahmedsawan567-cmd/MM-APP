@@ -42,10 +42,10 @@ public class StoreClaimTests : IClassFixture<WebApplicationFactory<Program>>
         return client;
     }
 
-    private async Task<HttpClient> CustomerAsync(string phone)
+    private async Task<HttpClient> CustomerAsync(string phone, string name = "عميل الباركود")
     {
         var app = _factory.CreateClient();
-        var reg = await app.PostAsJsonAsync("/api/Auth/register", new { fullName = "عميل الباركود", phoneNumber = phone, password = "Secret123!" });
+        var reg = await app.PostAsJsonAsync("/api/Auth/register", new { fullName = name, phoneNumber = phone, password = "Secret123!" });
         var token = (await reg.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
         app.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return app;
@@ -129,5 +129,35 @@ public class StoreClaimTests : IClassFixture<WebApplicationFactory<Program>>
         var print = await admin.GetStringAsync("/AdminDashboard/StoreCodePrint/TEN-ZARA");
         Assert.Contains(payload, print);
         Assert.Contains("امسح واكسب", print);
+    }
+
+    [Fact]
+    public async Task StoreOwner_ControlsOwnBarcode_AndSeesOwnCustomers()
+    {
+        var mgr = await StaffAsync("USR-KADI-MGR", "Manager123!");
+        var page = await mgr.GetStringAsync("/AdminDashboard/StoreBarcode");
+        Assert.Contains("باركود متجري وعملائي", page);
+
+        // يحدد نقاط متجره
+        var req = new HttpRequestMessage(HttpMethod.Post, "/AdminDashboard/StoreScanSettings?id=TEN-KADI-CAFE") { Content = JsonContent.Create(new { points = 40, dailyLimit = 2 }) };
+        req.Headers.Add("RequestVerificationToken", Token(page));
+        Assert.Equal(HttpStatusCode.OK, (await mgr.SendAsync(req)).StatusCode);
+        // ولا يستطيع تعديل متجر آخر
+        var other = new HttpRequestMessage(HttpMethod.Post, "/AdminDashboard/StoreScanSettings?id=TEN-ZARA") { Content = JsonContent.Create(new { points = 900, dailyLimit = 20 }) };
+        other.Headers.Add("RequestVerificationToken", Token(page));
+        Assert.Equal(HttpStatusCode.Forbidden, (await mgr.SendAsync(other)).StatusCode);
+
+        // عميل يمسح باركود كادي فيأخذ 40 نقطة ويظهر في "عملاء الباركود"
+        var app = await CustomerAsync("0926100400", "زبون كادي");
+        var claim = await app.PostAsJsonAsync("/api/v1/purchases/claim", new { code = StoreCodes.Payload(CodeOf("TEN-KADI-CAFE")) });
+        Assert.Equal(40, (await claim.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("points").GetInt32());
+
+        var scans = await mgr.GetStringAsync("/AdminDashboard/StoreBarcode?tab=scans");
+        Assert.Contains("زبون كادي", scans);
+        Assert.DoesNotContain("0926100400", scans); // الهاتف مخفي جزئياً لصاحب المتجر
+        var invoices = await mgr.GetStringAsync("/AdminDashboard/StoreBarcode?tab=invoices");
+        Assert.DoesNotContain("زبون كادي", invoices);
+        var csv = await mgr.GetAsync("/AdminDashboard/StoreBarcode?tab=scans&export=csv");
+        Assert.Equal("text/csv", csv.Content.Headers.ContentType?.MediaType);
     }
 }

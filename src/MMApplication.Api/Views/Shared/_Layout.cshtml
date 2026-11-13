@@ -48,6 +48,7 @@
         ("النقاط والتسويق", "الإشعارات المرسلة", "SentNotifications", "send", "sent_notifications", Can("marketing.manage"), 0),
 
         ("المتاجر", isStoreManager ? "بيانات متجري" : "المتاجر", "Stores", "store", "stores", Can("stores.view", "stores.manage"), 0),
+        ("المتاجر", isStoreManager ? "باركود متجري وعملائي" : "الباركود والعملاء", "StoreBarcode", "qr-code", "store_barcode", Can("stores.codes", "stores.manage"), 0),
         ("المتاجر", isStoreManager ? "مستحقات متجري" : "مستحقات المتاجر", "Settlements", "wallet-cards", "settlements", Can("settlements.view", "settlements.manage"), 0),
 
         ("الإدارة", "المستخدمون والصلاحيات", "Staff", "user-cog", "staff", Can("staff.manage"), 0),

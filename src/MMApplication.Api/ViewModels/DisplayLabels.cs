@@ -128,6 +128,7 @@ public static class DisplayLabels
         ["STAFF_LOGIN_FAILED"] = "محاولة دخول فاشلة",
         ["STAFF_LOCKED"] = "قفل حساب موظف مؤقتاً",
         ["STORE_CODE_REGENERATE"] = "تغيير باركود متجر",
+        ["STORE_SCAN_SETTINGS"] = "تعديل نقاط باركود متجر",
         ["ROLE_PERMISSIONS_UPDATE"] = "تعديل صلاحيات دور",
         ["TIER_CREATE"] = "إضافة عضوية",
         ["TIER_UPDATE"] = "تعديل عضوية",

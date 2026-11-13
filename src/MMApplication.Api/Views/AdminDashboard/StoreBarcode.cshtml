@@ -1,0 +1,258 @@
+@model MMApplication.Api.Controllers.AdminDashboardController.StoreBarcodeViewModel
+@using MMApplication.Api.ViewModels
+@using MMApplication.Infrastructure.Data
+@{
+    Layout = "_Layout";
+    var m = Model;
+    var s = m.Store;
+    var payload = StoreCodes.Payload(s.StoreCode ?? "");
+    var isScoped = m.Stores.Count == 0;
+    string Url(string? tab = null, int? page = null, string? export = null) =>
+        Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/AdminDashboard/StoreBarcode", new Dictionary<string, string?>
+        {
+            ["storeId"] = isScoped ? null : s.TenantId, ["tab"] = tab ?? m.Tab, ["search"] = string.IsNullOrEmpty(m.Search) ? null : m.Search,
+            ["page"] = page > 1 ? page.ToString() : null, ["export"] = export,
+        }.Where(kv => !string.IsNullOrEmpty(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value));
+    string Day(DateTime d) => d.ToLocalTime().ToString("yyyy/MM/dd");
+}
+@Html.AntiForgeryToken()
+
+<div class="space-y-5">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">@(isScoped ? "باركود متجري وعملائي" : "الباركود والعملاء")</h1>
+            <p class="page-subtitle">@(isScoped ? "تحكّم في نقاط باركود متجرك، واعرف عملاءك الذين مسحوا الباركود والذين صوّروا فواتيرك." : "نقاط باركود كل متجر وعملاؤه من الباركود والفواتير.")</p>
+        </div>
+        <div class="page-actions">
+            @if (!isScoped)
+            {
+                <select class="form-select w-64" onchange="location.href='/AdminDashboard/StoreBarcode?tab=@m.Tab&storeId=' + encodeURIComponent(this.value)" aria-label="المتجر">
+                    @foreach (var st in m.Stores) { <option value="@st.Id" selected="@(st.Id == s.TenantId)">@st.Name</option> }
+                </select>
+            }
+            <a href="/AdminDashboard/StoreCodePrint/@Uri.EscapeDataString(s.TenantId)" target="_blank" class="btn-secondary"><i data-lucide="printer" class="w-4 h-4"></i> طباعة الباركود</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">مسح اليوم</span><span class="stat-icon bg-brand-50 text-brand-600"><i data-lucide="scan-qr-code" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.ScansToday</div>
+            <div class="stat-meta">آخر 30 يوماً: <span class="num">@m.Scans30</span> • <span class="num">@m.ScanPoints30.ToString("N0")</span> نقطة</div>
+        </div>
+        <a href="@Url("scans", 1)" class="stat-card hover:border-brand-300 transition">
+            <div class="flex items-center justify-between"><span class="stat-label">عملاء الباركود</span><span class="stat-icon bg-indigo-50 text-indigo-600"><i data-lucide="users" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.ScanCustomers</div>
+            <div class="stat-meta">عميل مسح باركود المتجر</div>
+        </a>
+        <a href="@Url("invoices", 1)" class="stat-card hover:border-brand-300 transition">
+            <div class="flex items-center justify-between"><span class="stat-label">عملاء الفواتير</span><span class="stat-icon bg-emerald-50 text-emerald-600"><i data-lucide="receipt-text" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.InvoiceCustomers</div>
+            <div class="stat-meta">عميل صوّر فاتورة من المتجر</div>
+        </a>
+        <div class="stat-card">
+            <div class="flex items-center justify-between"><span class="stat-label">مشتريات الفواتير (30 يوماً)</span><span class="stat-icon bg-amber-50 text-amber-600"><i data-lucide="wallet" class="w-5 h-5"></i></span></div>
+            <div class="stat-value num">@m.Spent30.ToString("N0") <span class="text-base font-semibold text-slate-400">د.ل</span></div>
+            <div class="stat-meta"><span class="num">@m.Invoices30</span> فاتورة معتمدة</div>
+        </div>
+    </div>
+
+    <div class="tabs w-fit max-w-full">
+        <a href="@Url("settings", 1)" class="tab @(m.Tab == "settings" ? "tab-active" : "")"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i> التحكم في الباركود</a>
+        <a href="@Url("scans", 1)" class="tab @(m.Tab == "scans" ? "tab-active" : "")"><i data-lucide="scan-qr-code" class="w-4 h-4"></i> عملاء الباركود <span class="text-xs text-slate-400 num">@m.ScanCustomers</span></a>
+        <a href="@Url("invoices", 1)" class="tab @(m.Tab == "invoices" ? "tab-active" : "")"><i data-lucide="receipt-text" class="w-4 h-4"></i> عملاء الفواتير <span class="text-xs text-slate-400 num">@m.InvoiceCustomers</span></a>
+    </div>
+
+    @if (m.Tab == "settings")
+    {
+        <div class="grid lg:grid-cols-[1fr_20rem] gap-5 items-start">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">نقاط الباركود وبطاقة NFC</h3>
+                        <p class="card-subtitle">العميل يأخذ هذه النقاط فوراً عند مسح باركود @s.NameAr أو تقريب بطاقته</p>
+                    </div>
+                    <span id="scan-status" class="badge @(s.ScanPoints > 0 ? "badge-emerald" : "badge-slate")">@(s.ScanPoints > 0 ? "مفعّل" : "متوقف")</span>
+                </div>
+                <div class="card-body space-y-5">
+                    <label class="flex items-center justify-between gap-3 rounded-xl border border-line p-4 cursor-pointer">
+                        <div>
+                            <div class="font-semibold text-slate-900">تشغيل الباركود</div>
+                            <div class="text-sm text-slate-500">عند الإيقاف لا يأخذ العملاء نقاطاً من المسح</div>
+                        </div>
+                        <input id="scan-enabled" type="checkbox" class="form-check !w-6 !h-6" @(s.ScanPoints > 0 ? "checked" : "") @(m.CanEdit ? "" : "disabled") onchange="toggleEnabled()" />
+                    </label>
+                    <div id="scan-fields" class="grid sm:grid-cols-2 gap-4 @(s.ScanPoints > 0 ? "" : "opacity-50")">
+                        <div>
+                            <label class="form-label" for="scan-points">النقاط لكل مسح</label>
+                            <input id="scan-points" type="number" min="1" max="1000" class="form-input num !text-xl font-bold" value="@(s.ScanPoints > 0 ? s.ScanPoints : 10)" @(m.CanEdit ? "" : "disabled") />
+                            <div class="flex gap-1.5 mt-2 flex-wrap">
+                                @foreach (var v in new[] { 5, 10, 25, 50, 100 })
+                                {
+                                    <button type="button" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm num" onclick="document.getElementById('scan-points').value=@v" @(m.CanEdit ? "" : "disabled")>@v</button>
+                                }
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label" for="scan-limit">المرات المسموحة يومياً لكل عميل</label>
+                            <input id="scan-limit" type="number" min="1" max="20" class="form-input num !text-xl font-bold" value="@s.ScanDailyLimit" @(m.CanEdit ? "" : "disabled") />
+                            <p class="form-hint">ننصح بمرة واحدة يومياً حتى لا يُستغل الباركود من خارج المحل.</p>
+                        </div>
+                    </div>
+                </div>
+                @if (m.CanEdit)
+                {
+                    <div class="px-6 py-4 border-t border-line flex items-center justify-between gap-3">
+                        <p id="scan-summary" class="text-sm text-slate-600"></p>
+                        <button type="button" id="scan-save" onclick="saveScan()" class="btn-primary"><i data-lucide="save" class="w-4 h-4"></i> حفظ</button>
+                    </div>
+                }
+            </div>
+
+            <div class="card p-5 text-center">
+                <div class="font-bold text-slate-900">@s.NameAr</div>
+                <div id="qr-box" class="my-3 mx-auto w-48" data-payload="@payload"></div>
+                <div class="text-xs text-slate-500 num" dir="ltr">@payload</div>
+                <div class="mt-4 grid gap-2">
+                    <a href="/AdminDashboard/StoreCodePrint/@Uri.EscapeDataString(s.TenantId)?autoprint=1" target="_blank" class="btn-secondary w-full"><i data-lucide="printer" class="w-4 h-4"></i> طباعة / PDF</a>
+                    <button type="button" class="btn-ghost w-full" onclick="copyPayload()"><i data-lucide="copy" class="w-4 h-4"></i> نسخ نص بطاقة NFC</button>
+                    @if (m.CanEdit)
+                    {
+                        <button type="button" class="btn-ghost w-full text-rose-600" onclick="regen()"><i data-lucide="refresh-cw" class="w-4 h-4"></i> كود جديد (يوقف القديم)</button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        var scansTab = m.Tab == "scans";
+        <div class="card overflow-hidden">
+            <form method="get" action="/AdminDashboard/StoreBarcode" class="p-4 border-b border-line flex flex-col sm:flex-row gap-3">
+                @if (!isScoped) { <input type="hidden" name="storeId" value="@s.TenantId" /> }
+                <input type="hidden" name="tab" value="@m.Tab" />
+                <div class="relative flex-1">
+                    <input type="search" name="search" value="@m.Search" placeholder="ابحث بالاسم أو رقم العضوية" class="form-input pr-9">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
+                </div>
+                <a href="@Url(export: "csv")" class="btn-secondary @(m.TotalRows == 0 ? "pointer-events-none opacity-50" : "")"><i data-lucide="download" class="w-4 h-4"></i> تصدير Excel</a>
+            </form>
+            @if (m.Rows.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i data-lucide="@(scansTab ? "scan-qr-code" : "receipt-text")" class="w-6 h-6"></i></div>
+                    <div class="font-bold text-slate-700">@(scansTab ? "لم يمسح أي عميل باركود المتجر بعد" : "لا توجد فواتير معتمدة من المتجر بعد")</div>
+                </div>
+            }
+            else
+            {
+                <div class="overflow-x-auto">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>العميل</th><th>العضوية</th>
+                                <th>@(scansTab ? "مرات المسح" : "الفواتير")</th>
+                                @if (!scansTab) { <th>المشتريات</th> }
+                                <th>النقاط</th>
+                                <th>@(scansTab ? "أول مسح" : "أول فاتورة")</th>
+                                <th>@(scansTab ? "آخر مسح" : "آخر فاتورة")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in m.Rows)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="font-semibold text-slate-900">@r.Name</div>
+                                        <div class="text-xs text-slate-500"><span class="num" dir="ltr">@r.MembershipNumber</span> • <span class="num" dir="ltr">@r.Phone</span></div>
+                                    </td>
+                                    <td><span class="badge @DisplayLabels.TierBadge(r.Tier)" style="@DisplayLabels.TierStyle(r.Tier)">@DisplayLabels.Tier(r.Tier)</span></td>
+                                    <td class="num font-bold">@r.Count</td>
+                                    @if (!scansTab) { <td class="num font-semibold whitespace-nowrap">@r.Spent.ToString("N2") <span class="text-xs text-slate-400">د.ل</span></td> }
+                                    <td class="num text-gold-600 font-bold">@r.Points.ToString("N0")</td>
+                                    <td class="num whitespace-nowrap">@Day(r.First)</td>
+                                    <td class="num whitespace-nowrap">@Day(r.Last)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            <div class="p-4 border-t border-line flex items-center justify-between text-sm">
+                <span class="text-slate-500"><span class="num">@m.TotalRows</span> عميل @(m.TotalPages > 1 ? $"• صفحة {m.Page} من {m.TotalPages}" : "")</span>
+                @if (m.TotalPages > 1)
+                {
+                    <div class="flex gap-2">
+                        <a href="@Url(page: m.Page - 1)" class="btn-secondary btn-sm @(m.Page <= 1 ? "pointer-events-none opacity-50" : "")">السابق</a>
+                        <a href="@Url(page: m.Page + 1)" class="btn-secondary btn-sm @(m.Page >= m.TotalPages ? "pointer-events-none opacity-50" : "")">التالي</a>
+                    </div>
+                }
+            </div>
+            @if (m.MaskPhones)
+            {
+                <div class="px-4 pb-4 text-xs text-slate-500 flex items-center gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5"></i> أرقام الهواتف مخفية جزئياً حمايةً لخصوصية العملاء.</div>
+            }
+        </div>
+    }
+</div>
+
+@section Scripts {
+<script src="~/lib/qrcode.js"></script>
+<script>
+    const storeId = @Json.Serialize(s.TenantId);
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const box = document.getElementById('qr-box');
+    if (box && window.qrcode) {
+        const qr = qrcode(0, 'M'); qr.addData(box.dataset.payload); qr.make();
+        box.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 1, scalable: true });
+    }
+
+    function summary() {
+        const el = document.getElementById('scan-summary');
+        if (!el) return;
+        const on = document.getElementById('scan-enabled').checked;
+        const p = Number(document.getElementById('scan-points').value) || 0;
+        const l = Number(document.getElementById('scan-limit').value) || 1;
+        el.textContent = on ? `العميل يأخذ ${p} نقطة لكل مسح، ${l === 1 ? 'مرة واحدة' : l + ' مرات'} يومياً.` : 'الباركود متوقف.';
+    }
+    function toggleEnabled() {
+        document.getElementById('scan-fields').classList.toggle('opacity-50', !document.getElementById('scan-enabled').checked);
+        summary();
+    }
+    ['scan-points', 'scan-limit'].forEach(id => document.getElementById(id)?.addEventListener('input', summary));
+    summary();
+
+    async function saveScan() {
+        const on = document.getElementById('scan-enabled').checked;
+        const body = { points: on ? Number(document.getElementById('scan-points').value) || 0 : 0, dailyLimit: Number(document.getElementById('scan-limit').value) || 1 };
+        if (on && (body.points < 1 || body.points > 1000)) return showToast('النقاط بين 1 و 1000.', 'warning');
+        const btn = document.getElementById('scan-save'); btn.disabled = true;
+        try {
+            const res = await fetch(`/AdminDashboard/StoreScanSettings?id=${encodeURIComponent(storeId)}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token() }, body: JSON.stringify(body)
+            });
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok || d.success === false) throw new Error(d.message || 'تعذّر الحفظ.');
+            showToast(d.message, 'success');
+            const st = document.getElementById('scan-status');
+            st.textContent = body.points > 0 ? 'مفعّل' : 'متوقف';
+            st.className = 'badge ' + (body.points > 0 ? 'badge-emerald' : 'badge-slate');
+        } catch (e) { showToast(e.message, 'error'); } finally { btn.disabled = false; }
+    }
+
+    async function copyPayload() {
+        try { await navigator.clipboard.writeText(@Json.Serialize(payload)); showToast('نُسخ النص. اكتبه على بطاقة NFC كسجل نصي.', 'success'); } catch { }
+    }
+
+    async function regen() {
+        const ok = await Swal.fire({ title: 'كود جديد للمتجر؟', text: 'الباركود المطبوع والبطاقات الحالية تتوقف فوراً، وتحتاج طباعة الجديد.', icon: 'warning',
+            showCancelButton: true, confirmButtonText: 'إنشاء كود جديد', cancelButtonText: 'إلغاء', customClass: { confirmButton: 'btn-danger', cancelButton: 'btn-secondary' } });
+        if (!ok.isConfirmed) return;
+        const res = await fetch(`/AdminDashboard/StoreCodeRegenerate?id=${encodeURIComponent(storeId)}`, { method: 'POST', headers: { 'RequestVerificationToken': token() } });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) return showToast(d.message || 'تعذّر تنفيذ العملية.', 'error');
+        await Swal.fire({ icon: 'success', title: 'تم', text: d.message, confirmButtonText: 'حسناً' });
+        location.reload();
+    }
+</script>
+}
